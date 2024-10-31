@@ -89,6 +89,8 @@ describe('Integration Test for Register API', () => {
       date_of_birth: '2000-01-01'
     })
 
+    console.log('res', res.statusCode)
+
     // Kiểm tra mã trạng thái HTTP
     expect(res.statusCode).toBe(HTTP_STATUS_CODE.CONFLICT) // 409 Conflict khi người dùng đã tồn tại
 
