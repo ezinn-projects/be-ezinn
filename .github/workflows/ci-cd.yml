@@ -70,7 +70,7 @@ jobs:
             docker pull ${{ secrets.DOCKER_USERNAME }}/ezinn-be:${{ github.sha }}
             docker stop ezinn-be || true
             docker rm ezinn-be || true
-            docker run -d --name ezinn-be -p 3000:3000 ${{ secrets.DOCKER_USERNAME }}/ezinn-be:${{ github.sha }}
+            docker run -d --name ezinn-be -p 4000:4000 ${{ secrets.DOCKER_USERNAME }}/ezinn-be:${{ github.sha }}
 
   cleanup:
     runs-on: ubuntu-latest
