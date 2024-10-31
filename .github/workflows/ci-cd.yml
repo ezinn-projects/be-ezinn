@@ -1,4 +1,4 @@
-name: CI/CD for Ezinn-be
+name: CI/CD for ezinn-be
 
 env:
   ENV_FILE: .env
@@ -39,13 +39,13 @@ jobs:
         run: npm run test
 
       - name: Build Docker image
-        run: docker build -t ${{ secrets.DOCKER_USERNAME }}/Ezinn-be:${{ github.sha }} .
+        run: docker build -t ${{ secrets.DOCKER_USERNAME }}/ezinn-be:${{ github.sha }} .
 
       - name: Log in to DockerHub
         run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
 
       - name: Push Docker image
-        run: docker push ${{ secrets.DOCKER_USERNAME }}/Ezinn-be:${{ github.sha }}
+        run: docker push ${{ secrets.DOCKER_USERNAME }}/ezinn-be:${{ github.sha }}
 
       - name: Run deployment action in Jira
         uses: chrnorm/deployment-action@releases/v1
