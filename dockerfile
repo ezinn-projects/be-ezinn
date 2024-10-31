@@ -7,19 +7,16 @@ WORKDIR /usr/src/app
 # Sao chép package.json và package-lock.json
 COPY package*.json ./
 
-# Cài đặt các dependencies
-RUN npm install
+# Cài đặt dependencies bao gồm cả devDependencies
+RUN npm install --production=false
 
 # Sao chép toàn bộ mã nguồn vào container
 COPY . .
 
-# Copy the .env file into the container
-COPY .env .env
-
-# Chạy lệnh build (nếu bạn đang sử dụng TypeScript)
+# Build ứng dụng TypeScript
 RUN npm run build
 
-# Mở cổng ứng dụng (nếu cần)
+# Mở cổng ứng dụng (sửa thành cổng bạn đang dùng)
 EXPOSE 4000
 
 # Khởi động ứng dụng
