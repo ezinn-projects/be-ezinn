@@ -4,6 +4,7 @@
       "moduleResolution": "NodeNext",
       "target": "ES2022", // Target output cho code
       "outDir": "./dist", // Đường dẫn output cho thư mục build
+      "rootDir": "./src",
       "esModuleInterop": true,
       "strict": true /* Enable all strict type-checking options. */,
       "skipLibCheck": true /* Skip type checking all .d.ts files. */,
@@ -16,6 +17,7 @@
       "require": ["tsconfig-paths/register"]
     },
     "files": ["src/type.d.ts"], // Các file dùng để defined global type cho dự án
-    "include": ["src/**/*.ts", "tests/**/*.ts"] // Đường dẫn include cho các file cần build
-  }
+    "include": ["src/**/*.ts"], // Đường dẫn include cho các file cần build
+    "exclude": ["tests"]
+}
   
