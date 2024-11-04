@@ -38,18 +38,14 @@ jobs:
       - name: Run tests
         run: npm run test
 
-      - name: Get short SHA
-        id: get_sha
-        run: echo "GIT_SHA=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
-
       - name: Build Docker image
-        run: docker build -t ${{ secrets.DOCKER_USERNAME }}/ezinn-be:${{ env.GIT_SHA }} .
+        run: docker build -t ${{ secrets.DOCKER_USERNAME }}/ezinn-be:latest .
 
       - name: Log in to DockerHub
         run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
 
       - name: Push Docker image
-        run: docker push ${{ secrets.DOCKER_USERNAME }}/ezinn-be:${{ env.GIT_SHA }}
+        run: docker push ${{ secrets.DOCKER_USERNAME }}/ezinn-be:latest .
 
       - name: Run deployment action in Jira
         uses: chrnorm/deployment-action@releases/v1
@@ -71,10 +67,10 @@ jobs:
           port: 22
           script: |
             docker login -u ${{ secrets.DOCKER_USERNAME }} -p ${{ secrets.DOCKER_PASSWORD }}
-            docker pull ${{ secrets.DOCKER_USERNAME }}/ezinn-be:${{ env.GIT_SHA }}
+            docker pull ${{ secrets.DOCKER_USERNAME }}/ezinn-be:latest .
             docker stop ezinn-be || true
             docker rm ezinn-be || true
-            docker run -d --name ezinn-be -p 4000:4000 ${{ secrets.DOCKER_USERNAME }}/ezinn-be:${{ env.GIT_SHA }}
+            docker run -d --name ezinn-be -p 4000:4000 ${{ secrets.DOCKER_USERNAME }}/ezinn-be:latest .
 
   cleanup:
     runs-on: ubuntu-latest
