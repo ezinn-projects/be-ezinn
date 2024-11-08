@@ -3,6 +3,7 @@ import express from 'express'
 import usersRouter from '~/routes/users.routes'
 import databaseService from '~/services/database.services'
 import { defaultErrorHandler } from './middlewares/error.middleware'
+import houseRulesRouter from './routes/houseRules.routes'
 
 databaseService.connect()
 
@@ -15,6 +16,8 @@ app.use(cors())
 app.use(express.json())
 
 app.use('/users', usersRouter)
+
+app.use('/house-rules', houseRulesRouter)
 
 app.use(defaultErrorHandler)
 

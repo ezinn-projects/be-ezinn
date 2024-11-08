@@ -32,3 +32,7 @@ export const USER_MESSAGES = {
   REFRESH_TOKEN_NOT_EMPTY: 'Refresh token is not empty',
   LOGOUT_SUCCESS: 'Logout success'
 } as const
+
+export const HOUSE_RULES_MESSAGES = {
+  ADD_HOUSE_RULES_SUCCESS: 'Add house rule success'
+} as const
