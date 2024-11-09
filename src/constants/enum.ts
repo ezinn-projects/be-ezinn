@@ -10,3 +10,8 @@ export enum TokenType {
   ForgotPasswordToken,
   EmailVerificationToken
 }
+
+export enum HouseRuleStatus {
+  Active = 'active',
+  Inactive = 'inactive'
+}
