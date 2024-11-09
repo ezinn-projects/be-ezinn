@@ -2,6 +2,7 @@ import { Collection, Db, MongoClient } from 'mongodb'
 import { User } from '~/models/schemas/User.schema'
 import dotenv from 'dotenv'
 import { HouseRule } from '~/models/schemas/HouseRules.schema'
+import RoomType from '~/models/schemas/RoomType.schema'
 dotenv.config()
 
 const DB_USERNAME = process.env.DB_USERNAME
@@ -38,6 +39,10 @@ class DatabaseService {
 
   get houseRules(): Collection<HouseRule> {
     return this.db.collection('houseRules')
+  }
+
+  get roomTypes(): Collection<RoomType> {
+    return this.db.collection('roomTypes')
   }
 }
 
