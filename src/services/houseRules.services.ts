@@ -1,5 +1,3 @@
-// import { connectToDatabase } from "../db/mongoClient";
-// import { HouseRule } from "../interfaces/HouseRule";
 import { AddHouseRuleRequestBody } from '~/models/requests/HouseRule.request'
 import { HouseRule } from '~/models/schemas/HouseRules.schema'
 import databaseService from './database.services'
