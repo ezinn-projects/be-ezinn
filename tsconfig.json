@@ -17,7 +17,7 @@
       "require": ["tsconfig-paths/register"]
     },
     "files": ["src/type.d.ts"], // Các file dùng để defined global type cho dự án
-    "include": ["src", "__tests__"],
+    "include": ["src", "__test__"],
     "exclude": ["tests", "node_modules"]
 }
   

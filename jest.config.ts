@@ -1,3 +1,5 @@
+import path from "path";
+
 export default {
   preset: 'ts-jest',
   testEnvironment: 'node',
@@ -5,7 +7,7 @@ export default {
   moduleNameMapper: {
     '^~/(.*)$': '<rootDir>/src/$1' // Ánh xạ alias `~` tới thư mục `src`
   },
-  roots: ['<rootDir>/__tests__', '<rootDir>/src'],
+  roots: ['<rootDir>/__test__', '<rootDir>/src'],
   transform: {
     '^.+\\.(ts|tsx)$': 'ts-jest'
   }
