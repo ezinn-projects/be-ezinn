@@ -38,6 +38,7 @@ export const HOUSE_RULES_MESSAGES = {
 } as const
 
 export const ROOM_TYPE_MESSAGES = {
+  INVALID_ROOM_TYPE_ID: 'Invalid room type id',
   ROOM_TYPE_EXISTS: 'Room type already exists',
   ADD_ROOM_TYPE_SUCCESS: 'Add room type success',
   GET_ROOM_TYPES_SUCCESS: 'Get room types success',
@@ -45,5 +46,6 @@ export const ROOM_TYPE_MESSAGES = {
   UPDATE_ROOM_TYPE_BY_ID_SUCCESS: 'Update room type by id success',
   DELETE_ROOM_TYPE_BY_ID_SUCCESS: 'Delete room type by id success',
   DELETE_MANY_ROOM_TYPES_SUCCESS: 'Delete many room types success',
-  ROOM_TYPE_NOT_FOUND: 'Room type not found'
+  ROOM_TYPE_NOT_FOUND: 'Room type not found',
+  INVALID_ROOM_TYPE_IDS: 'Invalid room type ids'
 } as const

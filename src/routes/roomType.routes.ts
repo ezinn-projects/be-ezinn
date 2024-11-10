@@ -7,7 +7,7 @@ import {
   getRoomTypesController,
   updateRoomTypeByIdController
 } from '~/controllers/roomType.controllers'
-import { addRoomTypeValidator, checkRoomTypeExists, checkRoomTypeIsNotExists } from '~/middlewares/roomType.middleware'
+import { addRoomTypeValidator, checkRoomTypeExists, checkRoomTypeIsNotExists, validateRoomTypeIds } from '~/middlewares/roomType.middleware'
 import { wrapRequestHanlder } from '~/utils/handlers'
 
 const roomTypeRouter = Router()
@@ -52,6 +52,9 @@ roomTypeRouter.patch('/:roomTypeId', checkRoomTypeIsNotExists, wrapRequestHanlde
 
 /**
  * @description Delete room type by id
+ * @path /room-types/:roomTypeId
+ * @method DELETE
+ * @author QuangDoo
  */
 roomTypeRouter.delete('/:roomTypeId', checkRoomTypeIsNotExists, wrapRequestHanlder(deleteRoomTypeByIdController))
 
@@ -61,6 +64,6 @@ roomTypeRouter.delete('/:roomTypeId', checkRoomTypeIsNotExists, wrapRequestHanld
  * @method DELETE
  * @author QuangDoo
  */
-roomTypeRouter.delete('/delete-many', wrapRequestHanlder(deleteManyRoomTypesController))
+roomTypeRouter.delete('/delete-many', validateRoomTypeIds, wrapRequestHanlder(deleteManyRoomTypesController))
 
 export default roomTypeRouter

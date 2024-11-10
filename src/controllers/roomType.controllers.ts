@@ -4,6 +4,7 @@ import { ROOM_TYPE_MESSAGES } from '~/constants/messages'
 import { AddRoomTypeRequestBody } from '~/models/requests/RoomType.request'
 import { roomTypeServices } from '~/services/roomType.services'
 import { type ParamsDictionary } from 'express-serve-static-core'
+import { ErrorWithStatus } from '~/models/Error'
 
 export const addRoomTypeController = async (
   req: Request<ParamsDictionary, any, AddRoomTypeRequestBody>,
@@ -37,7 +38,7 @@ export const getRoomTypesController = async (req: Request, res: Response, next: 
 
 export const getRoomTypeByIdController = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const result = await roomTypeServices.getRoomTypeById(req.params.roomTypeId)
+    const result = await roomTypeServices.getRoomTypeById(req.roomTypeId)
 
     return res.status(HTTP_STATUS_CODE.OK).json({
       message: ROOM_TYPE_MESSAGES.GET_ROOM_TYPE_BY_ID_SUCCESS,
@@ -50,7 +51,7 @@ export const getRoomTypeByIdController = async (req: Request, res: Response, nex
 
 export const updateRoomTypeByIdController = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const result = await roomTypeServices.updateRoomTypeById(req.params.roomTypeId, req.body)
+    const result = await roomTypeServices.updateRoomTypeById(req.roomTypeId, req.body)
 
     return res.status(HTTP_STATUS_CODE.OK).json({
       message: ROOM_TYPE_MESSAGES.UPDATE_ROOM_TYPE_BY_ID_SUCCESS,
@@ -76,7 +77,7 @@ export const deleteRoomTypeByIdController = async (req: Request, res: Response, 
 
 export const deleteManyRoomTypesController = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const result = await roomTypeServices.deleteManyRoomTypes(req.body.roomTypeIds)
+    const result = await roomTypeServices.deleteManyRoomTypes(req.roomTypeIds || [])
 
     return res.status(HTTP_STATUS_CODE.OK).json({
       message: ROOM_TYPE_MESSAGES.DELETE_MANY_ROOM_TYPES_SUCCESS,

@@ -13,10 +13,14 @@ class RoomTypeServices {
     })
   }
 
-  async getRoomTypes() {
-    const result = await databaseService.roomTypes.find().toArray()
+  async getRoomTypes(page: number = 1, limit: number = 10) {
+    const result = await databaseService.roomTypes.find().skip((page - 1) * limit).limit(limit).toArray()
+    const totalPage = await databaseService.roomTypes.countDocuments()  
 
-    return result.map((roomType) => new RoomType(roomType))
+    return {
+      data: result.map((roomType) => new RoomType(roomType)),
+      totalPage
+    }
   }
 
   async getRoomTypeById(roomTypeId: string) {
