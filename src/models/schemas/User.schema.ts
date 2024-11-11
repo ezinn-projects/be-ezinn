@@ -1,5 +1,5 @@
 import { ObjectId } from 'mongodb'
-import { UserVerifyStatus } from '~/constants/enum'
+import { UserRole, UserVerifyStatus } from '~/constants/enum'
 
 interface UserType {
   _id?: ObjectId
@@ -19,6 +19,8 @@ interface UserType {
   username?: string
   cover_photo?: string
   avatar?: string
+
+  role?: UserRole
 }
 
 // Tại sao lại dùng class thay vì dùng interface để đại diện schema
@@ -46,6 +48,8 @@ export class User {
   cover_photo: string
   avatar: string
 
+  role: UserRole
+
   // khai báo contructor với thuộc tính trên
   constructor(user: UserType) {
     const date = new Date()
@@ -68,5 +72,7 @@ export class User {
     this.username = user.username || ''
     this.cover_photo = user.cover_photo || ''
     this.avatar = user.avatar || ''
+
+    this.role = user.role || UserRole.User
   }
 }

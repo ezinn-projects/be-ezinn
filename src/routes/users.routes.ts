@@ -1,8 +1,15 @@
 import { Router } from 'express'
-import { getAllUsersController, loginController, registerController } from '~/controllers/users.controllers'
 import {
+  getAllUsersController,
+  getUserByIdController,
+  loginController,
+  registerController
+} from '~/controllers/users.controllers'
+import {
+  accessTokenValidator,
   checkLoginUserExists,
   checkRegisterUserExists,
+  checkUserId,
   loginValidator,
   registerValidator
 } from '~/middlewares/users.middleware'
@@ -43,5 +50,10 @@ usersRouter.post('/login', checkLoginUserExists, loginValidator, loginController
  * @description Get all users
  */
 usersRouter.get('/get-all-users', wrapRequestHanlder(getAllUsersController))
+
+/**
+ * @description Get user by id
+ */
+usersRouter.get('/get-user-by-id', accessTokenValidator, checkUserId, wrapRequestHanlder(getUserByIdController))
 
 export default usersRouter

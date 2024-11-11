@@ -1,5 +1,6 @@
 import { NextFunction, Request, Response } from 'express'
 import { checkSchema } from 'express-validator'
+import { UserRole } from '~/constants/enum'
 import { HTTP_STATUS_CODE } from '~/constants/httpStatus'
 import { USER_MESSAGES } from '~/constants/messages'
 import { ErrorWithStatus } from '~/models/Error'
@@ -26,7 +27,6 @@ export const checkRegisterUserExists = async (req: Request, res: Response, next:
     next(error)
   }
 }
-
 export const checkLoginUserExists = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { email, password } = req.body
@@ -55,6 +55,25 @@ export const checkLoginUserExists = async (req: Request, res: Response, next: Ne
     req.user = user
 
     // Tiếp tục đến controller
+    next()
+  } catch (error) {
+    next(error)
+  }
+}
+
+export const checkUserId = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const user_id = req?.decoded_authorization?.user_id
+
+    if (!user_id) {
+      throw new ErrorWithStatus({
+        message: USER_MESSAGES.USER_NOT_FOUND,
+        status: HTTP_STATUS_CODE.NOT_FOUND
+      })
+    }
+
+    req.user_id = user_id
+
     next()
   } catch (error) {
     next(error)
@@ -164,6 +183,15 @@ export const registerValidator = validate(
         isISO8601: {
           options: { strict: true, strictSeparator: true },
           errorMessage: USER_MESSAGES.INVALID_DATE_OF_BIRTH
+        }
+      },
+      role: {
+        notEmpty: {
+          errorMessage: USER_MESSAGES.ROLE_NOT_EMPTY
+        },
+        isIn: {
+          options: [Object.values(UserRole)],
+          errorMessage: USER_MESSAGES.INVALID_ROLE
         }
       }
     },

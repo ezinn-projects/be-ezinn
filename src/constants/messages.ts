@@ -30,7 +30,9 @@ export const USER_MESSAGES = {
   REGISTER_SUCCESS: 'Register success',
   ACCESS_TOKEN_NOT_EMPTY: 'Access token is not empty',
   REFRESH_TOKEN_NOT_EMPTY: 'Refresh token is not empty',
-  LOGOUT_SUCCESS: 'Logout success'
+  LOGOUT_SUCCESS: 'Logout success',
+  INVALID_ROLE: 'Invalid role',
+  ROLE_NOT_EMPTY: 'Role is not empty'
 } as const
 
 export const HOUSE_RULES_MESSAGES = {
@@ -48,4 +50,10 @@ export const ROOM_TYPE_MESSAGES = {
   DELETE_MANY_ROOM_TYPES_SUCCESS: 'Delete many room types success',
   ROOM_TYPE_NOT_FOUND: 'Room type not found',
   INVALID_ROOM_TYPE_IDS: 'Invalid room type ids'
+} as const
+
+export const AUTH_MESSAGES = {
+  ACCESS_TOKEN_NOT_EMPTY: 'Access token is not empty',
+  ACCESS_DENIED: 'Access denied',
+  INVALID_TOKEN: 'Invalid token'
 } as const
