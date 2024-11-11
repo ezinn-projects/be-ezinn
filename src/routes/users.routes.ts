@@ -1,7 +1,7 @@
 import { Router } from 'express'
 import {
   getAllUsersController,
-  getUserByIdController,
+  getUserController,
   loginController,
   registerController
 } from '~/controllers/users.controllers'
@@ -54,6 +54,6 @@ usersRouter.get('/get-all-users', wrapRequestHanlder(getAllUsersController))
 /**
  * @description Get user by id
  */
-usersRouter.get('/get-user-by-id', accessTokenValidator, checkUserId, wrapRequestHanlder(getUserByIdController))
+usersRouter.get('/get-user', accessTokenValidator, checkUserId, wrapRequestHanlder(getUserController))
 
 export default usersRouter

@@ -22,7 +22,7 @@ class RoomTypeServices {
     const totalPage = await databaseService.roomTypes.countDocuments()
 
     return {
-      data: result.map((roomType) => new RoomType(roomType)),
+      result: result.map((roomType) => new RoomType(roomType)),
       totalPage
     }
   }

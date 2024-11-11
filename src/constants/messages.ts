@@ -1,5 +1,6 @@
 export const USER_MESSAGES = {
   USER_NOT_FOUND: 'User not found',
+  GET_USER_SUCCESS: 'Get user success',
   USERNAME_NOT_EMPTY: 'User name is not empty',
   INVALID_EMAIL: 'Invalid email',
   INVALID_FIELD: 'Validation error',
