@@ -8,6 +8,5 @@ declare module 'express' {
     roomTypeIds?: ObjectId[]
     roomTypeId?: ObjectId
     decoded_authorization?: JwtPayload
-    user_id?: string
   }
 }

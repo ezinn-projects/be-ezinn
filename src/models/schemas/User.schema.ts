@@ -20,7 +20,7 @@ interface UserType {
   cover_photo?: string
   avatar?: string
 
-  role?: UserRole
+  role: UserRole
 }
 
 // Tại sao lại dùng class thay vì dùng interface để đại diện schema

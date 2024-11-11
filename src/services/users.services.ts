@@ -66,7 +66,17 @@ class UsersServices {
   }
 
   async getUserById(userId: string) {
-    const result = await databaseService.users.findOne({ _id: new ObjectId(userId) })
+    const result = await databaseService.users.findOne(
+      { _id: new ObjectId(userId) },
+      {
+        projection: {
+          password: 0,
+          email_verify_token: 0,
+          forgot_password_token: 0,
+          verify: 0
+        }
+      }
+    )
 
     return result
   }

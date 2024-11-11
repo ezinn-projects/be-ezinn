@@ -90,7 +90,7 @@ export const loginController = async (req: Request, res: Response, next: NextFun
  */
 export const getUserByIdController = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const user_id = req?.user_id
+    const user_id = req?.decoded_authorization?.user_id
 
     const result = await usersServices.getUserById(user_id || '')
 

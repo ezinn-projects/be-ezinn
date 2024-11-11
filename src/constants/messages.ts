@@ -10,7 +10,6 @@ export const USER_MESSAGES = {
   INVALID_USER: 'Invalid user',
   INVALID_REFRESH_TOKEN: 'Invalid refresh token',
   INVALID_LOGIN: 'Invalid username or password',
-  INVALID_TOKEN: 'Invalid token',
   INVALID_VERIFY_EMAIL: 'Invalid verify email',
   INVALID_RESET_PASSWORD: 'Invalid reset password',
   INVALID_USER_VERIFY_STATUS: 'Invalid user verify status',
@@ -28,7 +27,6 @@ export const USER_MESSAGES = {
   INVALID_DATE_OF_BIRTH: "Date of birth must be in ISO format 'YYYY-MM-DD'",
   LOGIN_SUCCESS: 'Login success',
   REGISTER_SUCCESS: 'Register success',
-  ACCESS_TOKEN_NOT_EMPTY: 'Access token is not empty',
   REFRESH_TOKEN_NOT_EMPTY: 'Refresh token is not empty',
   LOGOUT_SUCCESS: 'Logout success',
   INVALID_ROLE: 'Invalid role',
@@ -54,6 +52,5 @@ export const ROOM_TYPE_MESSAGES = {
 
 export const AUTH_MESSAGES = {
   ACCESS_TOKEN_NOT_EMPTY: 'Access token is not empty',
-  ACCESS_DENIED: 'Access denied',
-  INVALID_TOKEN: 'Invalid token'
+  INSUFFICIENT_PRIVILEGES: 'Your role does not have sufficient privileges for this operation'
 } as const
