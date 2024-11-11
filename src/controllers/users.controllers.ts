@@ -80,6 +80,28 @@ export const loginController = async (req: Request, res: Response, next: NextFun
 //   }
 // }
 
+/**
+ * Get user by id
+ * @description Get user by id
+ * @path /users/get-user-by-id
+ * @method GET
+ * @header {Authorization: Bearer <access_token>}
+ * @author QuangDoo
+ */
+export const getUserByIdController = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const user_id = req?.decoded_authorization?.user_id
+
+    const result = await usersServices.getUserById(user_id || '')
+
+    return res.status(HTTP_STATUS_CODE.OK).json({
+      data: result
+    })
+  } catch (error) {
+    next(error)
+  }
+}
+
 export const getAllUsersController = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const result = await usersServices.getAllUsers()

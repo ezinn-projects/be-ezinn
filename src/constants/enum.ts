@@ -15,3 +15,9 @@ export enum HouseRuleStatus {
   Active = 'active',
   Inactive = 'inactive'
 }
+
+export enum UserRole {
+  Admin = 'admin',
+  User = 'user',
+  Client = 'client'
+}

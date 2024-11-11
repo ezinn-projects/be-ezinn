@@ -1,4 +1,5 @@
 import { Router } from 'express'
+import { UserRole } from '~/constants/enum'
 import {
   addRoomTypeController,
   deleteManyRoomTypesController,
@@ -7,24 +8,16 @@ import {
   getRoomTypesController,
   updateRoomTypeByIdController
 } from '~/controllers/roomType.controllers'
-import { addRoomTypeValidator, checkRoomTypeExists, checkRoomTypeIsNotExists, validateRoomTypeIds } from '~/middlewares/roomType.middleware'
+import { protect } from '~/middlewares/auth.middleware'
+import {
+  addRoomTypeValidator,
+  checkRoomTypeExists,
+  checkRoomTypeIsNotExists,
+  validateRoomTypeIds
+} from '~/middlewares/roomType.middleware'
 import { wrapRequestHanlder } from '~/utils/handlers'
 
 const roomTypeRouter = Router()
-
-/**
- * @description Add room type
- * @path /room-types/add-room-type
- * @method POST
- * @body {name: string, description: string} @type {AddRoomTypeRequestBody}
- * @author QuangDoo
- */
-roomTypeRouter.post(
-  '/add-room-type',
-  checkRoomTypeExists,
-  addRoomTypeValidator,
-  wrapRequestHanlder(addRoomTypeController)
-)
 
 /**
  * @description Get room types
@@ -43,12 +36,33 @@ roomTypeRouter.get('/', wrapRequestHanlder(getRoomTypesController))
 roomTypeRouter.get('/:roomTypeId', checkRoomTypeIsNotExists, wrapRequestHanlder(getRoomTypeByIdController))
 
 /**
+ * @description Add room type
+ * @path /room-types/add-room-type
+ * @method POST
+ * @body {name: string, description: string} @type {AddRoomTypeRequestBody}
+ * @author QuangDoo
+ */
+roomTypeRouter.post(
+  '/add-room-type',
+  protect([UserRole.Admin]),
+  checkRoomTypeExists,
+  addRoomTypeValidator,
+  wrapRequestHanlder(addRoomTypeController)
+)
+
+/**
  * @description Update room type by id
  * @path /room-types/:roomTypeId
  * @method PATCH
  * @author QuangDoo
  */
-roomTypeRouter.patch('/:roomTypeId', checkRoomTypeIsNotExists, wrapRequestHanlder(updateRoomTypeByIdController))
+roomTypeRouter.patch(
+  '/:roomTypeId',
+  protect([UserRole.Admin]),
+  checkRoomTypeExists,
+  checkRoomTypeIsNotExists,
+  wrapRequestHanlder(updateRoomTypeByIdController)
+)
 
 /**
  * @description Delete room type by id
@@ -56,7 +70,12 @@ roomTypeRouter.patch('/:roomTypeId', checkRoomTypeIsNotExists, wrapRequestHanlde
  * @method DELETE
  * @author QuangDoo
  */
-roomTypeRouter.delete('/:roomTypeId', checkRoomTypeIsNotExists, wrapRequestHanlder(deleteRoomTypeByIdController))
+roomTypeRouter.delete(
+  '/:roomTypeId',
+  protect([UserRole.Admin]),
+  checkRoomTypeIsNotExists,
+  wrapRequestHanlder(deleteRoomTypeByIdController)
+)
 
 /**
  * @description Delete many room types
@@ -64,6 +83,11 @@ roomTypeRouter.delete('/:roomTypeId', checkRoomTypeIsNotExists, wrapRequestHanld
  * @method DELETE
  * @author QuangDoo
  */
-roomTypeRouter.delete('/delete-many', validateRoomTypeIds, wrapRequestHanlder(deleteManyRoomTypesController))
+roomTypeRouter.delete(
+  '/delete-many',
+  protect([UserRole.Admin]),
+  validateRoomTypeIds,
+  wrapRequestHanlder(deleteManyRoomTypesController)
+)
 
 export default roomTypeRouter
