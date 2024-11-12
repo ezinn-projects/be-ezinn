@@ -9,6 +9,7 @@ const DB_USERNAME = process.env.DB_USERNAME
 const DB_PASSWORD = process.env.DB_PASSWORD
 const DB_NAME = process.env.DB_NAME
 const VPS_IP = process.env.VPS_IP
+
 const uri = `mongodb://${DB_USERNAME}:${DB_PASSWORD}@${VPS_IP}:27017/${DB_NAME}?authSource=admin`
 
 class DatabaseService {
@@ -25,6 +26,7 @@ class DatabaseService {
       await this.db.command({ ping: 1 })
       console.log('Pinged your deployment. You successfully connected to MongoDB!')
     } catch (error) {
+      console.log('Pinged your deployment. You successfully connected to MongoDB!')
       console.error(error)
     } finally {
       // Ensures that the client will close when you finish/error
