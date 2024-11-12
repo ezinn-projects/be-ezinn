@@ -4,11 +4,11 @@ import { MongoClient } from 'mongodb' // Nếu sử dụng MongoDB
 import { MongoMemoryServer } from 'mongodb-memory-server' // Nếu dùng MongoDB in-memory cho test
 import { User } from '../../src/models/schemas/User.schema'
 import { UserRole } from '../../src/constants/enum'
-import { HTTP_STATUS_CODE } from '~/constants/httpStatus'
-import { USER_MESSAGES } from '~/constants/messages'
-import { app } from '~/index'
+import { HTTP_STATUS_CODE } from '../../src/constants/httpStatus'
+import { USER_MESSAGES } from '../../src/constants/messages'
+import { app } from '../../src/index'
 // import { User } from '~/models/schemas/User.schema'
-import { hashPassword } from '~/utils/crypto'
+import { hashPassword } from '../../src/utils/crypto'
 
 let mongoServer: MongoMemoryServer
 let client: MongoClient
@@ -80,7 +80,8 @@ describe('Integration Test for Register API', () => {
       name: 'Quang Do',
       email: 'quangdo@example.com',
       password: 'ValidPass123!',
-      date_of_birth: '2000-01-01'
+      date_of_birth: '2000-01-01',
+      role: UserRole.Admin
     })
 
     // Thử đăng ký lại với cùng email
@@ -89,7 +90,8 @@ describe('Integration Test for Register API', () => {
       email: 'quangdo@example.com', // Email đã tồn tại
       password: 'ValidPass123!',
       confirm_password: 'ValidPass123!',
-      date_of_birth: '2000-01-01'
+      date_of_birth: '2000-01-01',
+      role: UserRole.Admin
     })
 
     // Kiểm tra mã trạng thái HTTP
