@@ -19,11 +19,11 @@ class RoomTypeServices {
       .skip((page - 1) * limit)
       .limit(limit)
       .toArray()
-    const totalPage = await databaseService.roomTypes.countDocuments()
+    const totalItems = await databaseService.roomTypes.countDocuments()
 
     return {
-      result: result.map((roomType) => new RoomType(roomType)),
-      totalPage
+      data: result.map((roomType) => new RoomType(roomType)),
+      totalItems
     }
   }
 
