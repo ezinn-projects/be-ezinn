@@ -1,10 +1,9 @@
 import { NextFunction, Request, Response } from 'express'
+import { type ParamsDictionary } from 'express-serve-static-core'
 import { HTTP_STATUS_CODE } from '~/constants/httpStatus'
 import { ROOM_TYPE_MESSAGES } from '~/constants/messages'
 import { AddRoomTypeRequestBody } from '~/models/requests/RoomType.request'
 import { roomTypeServices } from '~/services/roomType.services'
-import { type ParamsDictionary } from 'express-serve-static-core'
-import { ErrorWithStatus } from '~/models/Error'
 
 export const addRoomTypeController = async (
   req: Request<ParamsDictionary, any, AddRoomTypeRequestBody>,

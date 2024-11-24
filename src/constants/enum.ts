@@ -21,3 +21,15 @@ export enum UserRole {
   User = 'user',
   Client = 'client'
 }
+
+export enum RoomType {
+  Small = 'Small',
+  Medium = 'Medium',
+  Large = 'Large',
+}
+
+export enum RoomStatus {
+  Available = 'Available',
+  Occupied = 'Occupied',
+  Cleaning = 'Cleaning',
+}

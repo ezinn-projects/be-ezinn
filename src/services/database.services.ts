@@ -3,6 +3,7 @@ import { User } from '~/models/schemas/User.schema'
 import dotenv from 'dotenv'
 import { HouseRule } from '~/models/schemas/HouseRules.schema'
 import RoomType from '~/models/schemas/RoomType.schema'
+import { Room } from '~/models/schemas/Room.schema'
 dotenv.config()
 
 const DB_USERNAME = process.env.DB_USERNAME
@@ -44,6 +45,10 @@ class DatabaseService {
 
   get roomTypes(): Collection<RoomType> {
     return this.db.collection('roomTypes')
+  }
+
+  get rooms(): Collection<Room> {
+    return this.db.collection('rooms')
   }
 }
 

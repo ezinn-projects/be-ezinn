@@ -55,3 +55,8 @@ export const AUTH_MESSAGES = {
   ACCESS_TOKEN_NOT_EMPTY: 'Access token is not empty',
   INSUFFICIENT_PRIVILEGES: 'Your role does not have sufficient privileges for this operation'
 } as const
+
+export const ROOM_MESSAGES = {
+  ADD_ROOM_TYPE_SUCCESS: 'Add room success',
+  ROOM_EXISTS: 'Room already exists'
+} as const
