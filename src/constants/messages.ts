@@ -1,5 +1,6 @@
 export const USER_MESSAGES = {
   USER_NOT_FOUND: 'User not found',
+  GET_USER_SUCCESS: 'Get user success',
   USERNAME_NOT_EMPTY: 'User name is not empty',
   INVALID_EMAIL: 'Invalid email',
   INVALID_FIELD: 'Validation error',
@@ -10,7 +11,6 @@ export const USER_MESSAGES = {
   INVALID_USER: 'Invalid user',
   INVALID_REFRESH_TOKEN: 'Invalid refresh token',
   INVALID_LOGIN: 'Invalid username or password',
-  INVALID_TOKEN: 'Invalid token',
   INVALID_VERIFY_EMAIL: 'Invalid verify email',
   INVALID_RESET_PASSWORD: 'Invalid reset password',
   INVALID_USER_VERIFY_STATUS: 'Invalid user verify status',
@@ -28,9 +28,10 @@ export const USER_MESSAGES = {
   INVALID_DATE_OF_BIRTH: "Date of birth must be in ISO format 'YYYY-MM-DD'",
   LOGIN_SUCCESS: 'Login success',
   REGISTER_SUCCESS: 'Register success',
-  ACCESS_TOKEN_NOT_EMPTY: 'Access token is not empty',
   REFRESH_TOKEN_NOT_EMPTY: 'Refresh token is not empty',
-  LOGOUT_SUCCESS: 'Logout success'
+  LOGOUT_SUCCESS: 'Logout success',
+  INVALID_ROLE: 'Invalid role',
+  ROLE_NOT_EMPTY: 'Role is not empty'
 } as const
 
 export const HOUSE_RULES_MESSAGES = {
@@ -48,4 +49,14 @@ export const ROOM_TYPE_MESSAGES = {
   DELETE_MANY_ROOM_TYPES_SUCCESS: 'Delete many room types success',
   ROOM_TYPE_NOT_FOUND: 'Room type not found',
   INVALID_ROOM_TYPE_IDS: 'Invalid room type ids'
+} as const
+
+export const AUTH_MESSAGES = {
+  ACCESS_TOKEN_NOT_EMPTY: 'Access token is not empty',
+  INSUFFICIENT_PRIVILEGES: 'Your role does not have sufficient privileges for this operation'
+} as const
+
+export const ROOM_MESSAGES = {
+  ADD_ROOM_TYPE_SUCCESS: 'Add room success',
+  ROOM_EXISTS: 'Room already exists'
 } as const

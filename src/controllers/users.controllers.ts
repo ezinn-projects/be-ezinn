@@ -1,9 +1,7 @@
 import { NextFunction, Request, Response } from 'express'
 import { type ParamsDictionary } from 'express-serve-static-core'
-import { ObjectId } from 'mongodb'
 import { HTTP_STATUS_CODE } from '~/constants/httpStatus'
 import { USER_MESSAGES } from '~/constants/messages'
-import { ErrorWithStatus } from '~/models/Error'
 import { type RegisterRequestBody } from '~/models/requests/User.requests'
 import { User } from '~/models/schemas/User.schema'
 import { usersServices } from '~/services/users.services'
@@ -80,12 +78,35 @@ export const loginController = async (req: Request, res: Response, next: NextFun
 //   }
 // }
 
+/**
+ * Get user by id
+ * @description Get user
+ * @path /users/get-user
+ * @method GET
+ * @header {Authorization: Bearer <access_token>}
+ * @author QuangDoo
+ */
+export const getUserController = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const user_id = req?.decoded_authorization?.user_id
+
+    const result = await usersServices.getUserById(user_id || '')
+
+    return res.status(HTTP_STATUS_CODE.OK).json({
+      message: USER_MESSAGES.GET_USER_SUCCESS,
+      result
+    })
+  } catch (error) {
+    next(error)
+  }
+}
+
 export const getAllUsersController = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const result = await usersServices.getAllUsers()
 
     return res.status(200).json({
-      data: result
+      result
     })
   } catch (error) {
     next(error)

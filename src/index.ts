@@ -5,6 +5,7 @@ import databaseService from '~/services/database.services'
 import { defaultErrorHandler } from './middlewares/error.middleware'
 import houseRulesRouter from './routes/houseRules.routes'
 import roomTypeRouter from './routes/roomType.routes'
+import roomRouter from './routes/room.routes'
 
 databaseService.connect()
 
@@ -21,6 +22,8 @@ app.use('/users', usersRouter)
 app.use('/house-rules', houseRulesRouter)
 
 app.use('/room-types', roomTypeRouter)
+
+app.use('/rooms', roomRouter)
 
 app.use(defaultErrorHandler)
 

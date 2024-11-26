@@ -5,18 +5,19 @@ import { User } from '~/models/schemas/User.schema'
 import { hashPassword } from '~/utils/crypto'
 import { signToken } from '~/utils/jwt'
 import databaseService from './database.services'
+import { ObjectId } from 'mongodb'
 
 class UsersServices {
   private signAccessToken(userId: string) {
     return signToken({
-      payload: { userId, token_type: TokenType.AccessToken },
+      payload: { user_id: userId.toString(), token_type: TokenType.AccessToken },
       options: { expiresIn: process.env.ACCESS_TOKEN_EXPIRES_IN, algorithm: 'HS256' }
     })
   }
 
   private signRefreshToken(userId: string) {
     return signToken({
-      payload: { userId, token_type: TokenType.RefreshToken },
+      payload: { user_id: userId.toString(), token_type: TokenType.RefreshToken },
       options: { expiresIn: process.env.REFRESH_TOKEN_EXPIRES_IN, algorithm: 'HS256' }
     })
   }
@@ -62,6 +63,22 @@ class UsersServices {
     const [access_token, refresh_token] = await this.signAccessTAndRefreshToken(userId)
 
     return { access_token, refresh_token }
+  }
+
+  async getUserById(userId: string) {
+    const result = await databaseService.users.findOne(
+      { _id: new ObjectId(userId) },
+      {
+        projection: {
+          password: 0,
+          email_verify_token: 0,
+          forgot_password_token: 0,
+          verify: 0
+        }
+      }
+    )
+
+    return result
   }
 
   async getAllUsers() {

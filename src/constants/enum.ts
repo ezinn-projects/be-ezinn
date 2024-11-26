@@ -15,3 +15,21 @@ export enum HouseRuleStatus {
   Active = 'active',
   Inactive = 'inactive'
 }
+
+export enum UserRole {
+  Admin = 'admin',
+  User = 'user',
+  Client = 'client'
+}
+
+export enum RoomType {
+  Small = 'Small',
+  Medium = 'Medium',
+  Large = 'Large',
+}
+
+export enum RoomStatus {
+  Available = 'Available',
+  Occupied = 'Occupied',
+  Cleaning = 'Cleaning',
+}

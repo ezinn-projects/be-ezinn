@@ -1,7 +1,9 @@
 import { NextFunction, Request, Response } from 'express'
 import { checkSchema } from 'express-validator'
+import { ObjectId } from 'mongodb'
+import { UserRole } from '~/constants/enum'
 import { HTTP_STATUS_CODE } from '~/constants/httpStatus'
-import { USER_MESSAGES } from '~/constants/messages'
+import { AUTH_MESSAGES, USER_MESSAGES } from '~/constants/messages'
 import { ErrorWithStatus } from '~/models/Error'
 import databaseService from '~/services/database.services'
 import { hashPassword } from '~/utils/crypto'
@@ -26,7 +28,6 @@ export const checkRegisterUserExists = async (req: Request, res: Response, next:
     next(error)
   }
 }
-
 export const checkLoginUserExists = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { email, password } = req.body
@@ -55,6 +56,30 @@ export const checkLoginUserExists = async (req: Request, res: Response, next: Ne
     req.user = user
 
     // Tiếp tục đến controller
+    next()
+  } catch (error) {
+    next(error)
+  }
+}
+
+export const checkUserId = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const user_id = req?.decoded_authorization?.user_id
+
+    const user = await databaseService.users.findOne({ _id: new ObjectId(user_id) })
+
+    // Verify user exists in database
+    if (!user) {
+      throw new ErrorWithStatus({
+        message: USER_MESSAGES.USER_NOT_FOUND,
+        status: HTTP_STATUS_CODE.NOT_FOUND
+      })
+    }
+
+    if (user && req.decoded_authorization) {
+      req.decoded_authorization.user_id = user._id.toString()
+    }
+
     next()
   } catch (error) {
     next(error)
@@ -165,6 +190,15 @@ export const registerValidator = validate(
           options: { strict: true, strictSeparator: true },
           errorMessage: USER_MESSAGES.INVALID_DATE_OF_BIRTH
         }
+      },
+      role: {
+        notEmpty: {
+          errorMessage: USER_MESSAGES.ROLE_NOT_EMPTY
+        },
+        isIn: {
+          options: [Object.values(UserRole)],
+          errorMessage: USER_MESSAGES.INVALID_ROLE
+        }
       }
     },
     // thêm location body để không cần check header hay params khác
@@ -182,7 +216,7 @@ export const accessTokenValidator = validate(
 
             if (!access_token) {
               throw new ErrorWithStatus({
-                message: USER_MESSAGES.ACCESS_TOKEN_NOT_EMPTY,
+                message: AUTH_MESSAGES.ACCESS_TOKEN_NOT_EMPTY,
                 status: HTTP_STATUS_CODE.UNAUTHORIZED
               })
             }

@@ -14,12 +14,16 @@ class RoomTypeServices {
   }
 
   async getRoomTypes(page: number = 1, limit: number = 10) {
-    const result = await databaseService.roomTypes.find().skip((page - 1) * limit).limit(limit).toArray()
-    const totalPage = await databaseService.roomTypes.countDocuments()  
+    const result = await databaseService.roomTypes
+      .find()
+      .skip((page - 1) * limit)
+      .limit(limit)
+      .toArray()
+    const totalItems = await databaseService.roomTypes.countDocuments()
 
     return {
       data: result.map((roomType) => new RoomType(roomType)),
-      totalPage
+      totalItems
     }
   }
 
@@ -42,7 +46,7 @@ class RoomTypeServices {
       { $set: payload }
     )
 
-    return result ? new RoomType(result) : null
+    return result ? new RoomType({ ...result, ...payload }) : null
   }
 
   async deleteRoomTypeById(roomTypeId: string) {

@@ -10,9 +10,11 @@ import { validate } from '~/utils/validation'
 export const checkRoomTypeExists = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { name } = req.body
+    const { roomTypeId } = req.params // Lấy id của room type từ params
 
     const roomType = await databaseService.roomTypes.findOne({
-      name: { $regex: new RegExp(`^${name}$`, 'i') }
+      name: { $regex: new RegExp(`^${name}$`, 'i') },
+      _id: { $ne: new ObjectId(roomTypeId) } // Bỏ qua bản ghi có id trùng với id hiện tại
     })
 
     if (roomType) {
@@ -21,7 +23,7 @@ export const checkRoomTypeExists = async (req: Request, res: Response, next: Nex
         status: HTTP_STATUS_CODE.CONFLICT
       })
     }
-    
+
     next()
   } catch (error) {
     next(error)

@@ -1,4 +1,5 @@
 import jwt, { type SignOptions } from 'jsonwebtoken'
+import { JwtPayload } from '~/models/schemas/JWT.schema'
 
 export const signToken = ({
   payload,
@@ -20,13 +21,13 @@ export const signToken = ({
   })
 }
 
-export const verifyToken = (token: string) => {
+export const verifyToken = (token: string): Promise<JwtPayload> => {
   return new Promise((resolve, reject) => {
     return jwt.verify(token, process.env.JWT_SECRET as string, (err, decoded) => {
       if (err) {
         reject(err)
       } else {
-        resolve(decoded)
+        resolve(decoded as JwtPayload)
       }
     })
   })
