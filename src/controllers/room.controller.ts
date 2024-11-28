@@ -6,12 +6,13 @@ import { roomServices } from '~/services/room.services'
 import { HTTP_STATUS_CODE } from '~/constants/httpStatus'
 import { ROOM_MESSAGES } from '~/constants/messages'
 
-export const addRoomController =  async (
+export const addRoomController = async (
   req: Request<ParamsDictionary, any, IAddRoomRequestBody>,
   res: Response,
   next: NextFunction
 ) => {
   try {
+    console.log('req.body :>> ', req.body)
     const result = await roomServices.addRoom(req.body)
 
     return res.status(HTTP_STATUS_CODE.OK).json({
