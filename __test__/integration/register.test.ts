@@ -19,7 +19,7 @@ beforeAll(async () => {
   const uri = mongoServer.getUri()
   client = new MongoClient(uri)
   await client.connect()
-  db = client.db('testdb') // Sử dụng database tạm thời cho test
+  db = client.db('jozo') // Sử dụng database tạm thời cho test
 })
 
 afterAll(async () => {
