@@ -25,11 +25,13 @@ export enum UserRole {
 export enum RoomType {
   Small = 'Small',
   Medium = 'Medium',
-  Large = 'Large',
+  Large = 'Large'
 }
 
 export enum RoomStatus {
   Available = 'Available',
   Occupied = 'Occupied',
   Cleaning = 'Cleaning',
+  Reserved = 'Reserved', // Đặt trước
+  Maintenance = 'Maintenance' // Bảo trì
 }

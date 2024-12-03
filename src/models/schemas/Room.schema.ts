@@ -1,6 +1,13 @@
 import { ObjectId } from 'mongodb'
 import { RoomStatus, RoomType } from '~/constants/enum'
 
+export interface StatusHistory {
+  previousStatus: RoomStatus // Trạng thái trước
+  currentStatus: RoomStatus // Trạng thái hiện tại
+  changedAt: string // Thời gian thay đổi
+  changedBy: string // Người thực hiện thay đổi (nếu có)
+}
+
 export interface DynamicPricing {
   low: number // Giá trong giờ thấp điểm (VND/phút)
   normal: number // Giá cơ bản (VND/phút)
@@ -18,19 +25,53 @@ export interface Equipment {
   microphone: number // Số lượng micro
 }
 
-export interface IRoom {
-  _id: ObjectId // ID duy nhất của phòng (do database tự động tạo)
-  roomName: string // Tên phòng hiển thị
-  roomType: RoomType // Loại phòng ('Small', 'Medium', 'Large')
-  maxCapacity: number // Số lượng khách tối đa
-  status: RoomStatus // Trạng thái phòng ('Available', 'Occupied', 'Cleaning')
-  pricePerTime: PricePerTime // Thông tin giá phòng
-  equipment: Equipment // Thông tin thiết bị
-  description?: string // Mô tả phòng (không bắt buộc)
-  images?: string[] // Danh sách URL ảnh minh họa (không bắt buộc)
-  createdAt: string // Ngày tạo phòng
-  updatedAt?: string // Ngày cập nhật cuối cùng
+export interface Review {
+  rating: number // Số sao (1-5)
+  comment: string // Nhận xét
+  reviewedAt: string // Thời gian đánh giá
+  reviewer: string // Tên hoặc ID khách hàng
 }
+
+export interface Review {
+  rating: number // Số sao (1-5)
+  comment: string // Nhận xét
+  reviewedAt: string // Thời gian đánh giá
+  reviewer: string // Tên hoặc ID khách hàng
+}
+
+export interface Promotion {
+  discountPercentage: number // Phần trăm giảm giá
+  startDate: string // Ngày bắt đầu
+  endDate: string // Ngày kết thúc
+}
+
+export interface IRoom {
+  _id: ObjectId
+  roomName: string
+  roomType: RoomType
+  maxCapacity: number
+  status: RoomStatus
+  statusHistory?: StatusHistory[]
+  pricePerTime: PricePerTime
+  equipment: Equipment
+  description?: string
+  images?: string[]
+  promotion?: Promotion
+  reviews?: Review[]
+  averageRating?: number
+  statistics?: {
+    totalHoursUsed: number
+    totalRevenue: number
+  }
+  branchId?: string
+  branchName?: string
+  tags?: string[]
+  createdAt: string
+  updatedAt?: string
+  createdBy?: string
+  updatedBy?: string
+}
+
 export class Room {
   _id?: ObjectId
   roomName: string
