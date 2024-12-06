@@ -60,3 +60,8 @@ export const ROOM_MESSAGES = {
   ADD_ROOM_TYPE_SUCCESS: 'Add room success',
   ROOM_EXISTS: 'Room already exists'
 } as const
+
+export const SONG_QUEUE_MESSAGES = {
+  ADD_SONG_TO_QUEUE_SUCCESS: 'Add song to queue success',
+  REMOVE_SONG_FROM_QUEUE_SUCCESS: 'Remove song from queue success'
+} as const
