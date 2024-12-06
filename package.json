@@ -29,7 +29,7 @@
     "tsconfig-paths": "^4.2.0",
     "typescript": "^5.7.2"
   },
- "scripts": {
+  "scripts": {
     "test": "jest --runInBand --passWithNoTests --forceExit",
     "dev": "npx nodemon src/server.ts",
     "build": "rimraf ./dist && tsc && tsc-alias",
@@ -45,16 +45,20 @@
   "description": "",
   "dependencies": {
     "@types/lodash": "^4.17.7",
+    "axios": "^1.7.8",
+    "child_process": "^1.0.2",
     "@types/socket.io": "^3.0.1",
     "class-validator": "^0.14.1",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.21.1",
     "express-validator": "^7.2.0",
+    "ioredis": "^5.4.1",
     "jsonwebtoken": "^9.0.2",
     "lodash": "^4.17.21",
     "mongodb": "^6.8.0",
-    "mongoose": "^8.8.3",
+    "node-fetch": "^3.3.2",
+    "youtube-dl-exec": "^3.0.10",
     "socket.io": "^4.8.1",
     "ts-node-dev": "^2.0.0"
   }
