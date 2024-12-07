@@ -1,6 +1,7 @@
 import { AddSongRequestBody } from '~/models/requests/Song.request'
 import redis from '~/services/redis.service'
 import { historyService } from '~/services/songHistory.service'
+import { getVideoUrl } from './video.service'
 
 class SongQueueServices {
   async addSongToQueue(roomId: string, song: AddSongRequestBody) {
@@ -43,6 +44,25 @@ class SongQueueServices {
     }
 
     return null // Nếu không có bài hát nào trong hàng đợi
+  }
+
+  async playNextSong(roomId: string): Promise<AddSongRequestBody | null> {
+    const queueKey = `room_${roomId}_queue`
+
+    // Lấy bài hát đầu tiên trong queue
+    const nowPlaying = await redis.lpop(queueKey)
+
+    if (!nowPlaying) {
+      return null
+    }
+
+    const song = JSON.parse(nowPlaying)
+
+    // Lấy URL của bài hát
+    const videoUrl = await getVideoUrl(song.videoId)
+
+    // Thêm URL vào bài hát và trả về
+    return { ...song, url: videoUrl }
   }
 }
 

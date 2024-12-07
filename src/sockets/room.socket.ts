@@ -1,4 +1,5 @@
 import { Server, Socket } from 'socket.io'
+import { getVideoUrl } from '~/services/video.service'
 
 interface CommandPayload {
   action: string
@@ -16,12 +17,38 @@ export const RoomSocket = (io: Server) => {
       console.log(`Socket ${socket.id} joined room ${roomId}`)
     }
 
-    // Xử lý các lệnh từ client
+    // Xử lý lệnh từ client
     socket.on('command', (payload: CommandPayload) => {
       console.log(`Received command in room ${roomId}:`, payload)
 
       // Phát lệnh đến các client khác trong room
       io.to(roomId).emit('command', payload)
+    })
+
+    // Xử lý sự kiện play_song
+    socket.on('play_song', async (payload: { videoId: string }) => {
+      try {
+        console.log(`Play song request in room ${roomId}:`, payload)
+
+        // Lấy URL video qua videoId
+        const videoUrl = await getVideoUrl(payload.videoId)
+
+        // Phát sự kiện play_song kèm URL tới các client trong room
+        io.to(roomId).emit('play_song', { url: videoUrl })
+
+        console.log(`Sent play_song event to room ${roomId} with URL: ${videoUrl}`)
+      } catch (error) {
+        console.error(`Failed to process play_song event for room ${roomId}:`, error)
+        socket.emit('error', { message: 'Failed to play song', error })
+      }
+    })
+
+    // Đồng bộ hàng đợi
+    socket.on('synchronize_queue', (payload: { queue: any[] }) => {
+      console.log(`Synchronizing queue in room ${roomId}:`, payload)
+
+      // Phát sự kiện đồng bộ tới tất cả các client trong room
+      io.to(roomId).emit('synchronize_queue', payload)
     })
 
     // Khi client ngắt kết nối

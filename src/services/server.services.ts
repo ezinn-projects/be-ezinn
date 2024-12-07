@@ -3,19 +3,20 @@ import { createServer, Server as HttpServer } from 'http'
 import { Server as SocketIOServer } from 'socket.io'
 import { RoomSocket } from '~/sockets/room.socket'
 import roomRoutes from '~/routes/room.routes'
+import songQueueRouter from '~/routes/songQueue.routes'
 
 class Server {
   private app: Express
   private httpServer: HttpServer
-  private io: SocketIOServer
-  private readonly PORT = process.env.PORT || 8080
+  public io: SocketIOServer
+  private readonly PORT = process.env.SOCKET_SERVER_PORT || 8080
 
   constructor() {
     this.app = express()
     this.httpServer = createServer(this.app)
     this.io = new SocketIOServer(this.httpServer, {
       cors: {
-        origin: '*' // Tùy chỉnh CORS theo nhu cầu
+        origin: '*'
       }
     })
 
@@ -31,7 +32,8 @@ class Server {
 
   // Khởi tạo routes
   private initializeRoutes() {
-    this.app.use('/api/rooms', roomRoutes) // Thêm các routes cần thiết
+    this.app.use('/api/rooms', roomRoutes)
+    // this.app.use('/api/song-queue', songQueueRouter)
   }
 
   // Khởi tạo WebSocket logic
@@ -42,7 +44,7 @@ class Server {
   // Chạy server
   public start() {
     this.httpServer.listen(this.PORT, () => {
-      console.log(`Server is running on http://localhost:${this.PORT}`)
+      console.log(`Socket server is running on http://localhost:${this.PORT}`)
     })
   }
 }

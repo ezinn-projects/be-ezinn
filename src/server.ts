@@ -10,8 +10,6 @@ const io = new Server(httpServer, {
   }
 })
 
-console.log('io', io)
-
 // Tích hợp logic room vào WebSocket server
 RoomSocket(io)
 

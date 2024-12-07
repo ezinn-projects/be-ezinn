@@ -63,5 +63,7 @@ export const ROOM_MESSAGES = {
 
 export const SONG_QUEUE_MESSAGES = {
   ADD_SONG_TO_QUEUE_SUCCESS: 'Add song to queue success',
-  REMOVE_SONG_FROM_QUEUE_SUCCESS: 'Remove song from queue success'
+  REMOVE_SONG_FROM_QUEUE_SUCCESS: 'Remove song from queue success',
+  NO_SONG_IN_QUEUE: 'No song in queue',
+  SONG_IS_NOW_PLAYING: 'Song is now playing'
 } as const

@@ -1,9 +1,9 @@
-import express from 'express'
-import { addSong, removeSong } from '~/controllers/songQueue.controller'
+import { Router } from 'express'
+import { addSong, playNextSong, removeSong } from '~/controllers/songQueue.controller'
 import { addSongValidator } from '~/middlewares/songQueue.middleware'
 import { wrapRequestHanlder } from '~/utils/handlers'
 
-const songQueueRouter = express.Router()
+const songQueueRouter = Router()
 /**
  * @description Add song to queue
  * @path /song-queue/rooms/:roomId/queue
@@ -21,5 +21,13 @@ songQueueRouter.post('/:roomId', addSongValidator, wrapRequestHanlder(addSong)) 
  * @author QuangDoo
  */
 songQueueRouter.delete('/:roomId', wrapRequestHanlder(removeSong)) // Xóa bài hát khỏi hàng đợi
+
+/**
+ * @description Play next song
+ * @path /song-queue/rooms/:roomId/play
+ * @method POST
+ * @author QuangDoo
+ */
+songQueueRouter.post('/:roomId/play', wrapRequestHanlder(playNextSong)) // Phát bài hát tiếp theo
 
 export default songQueueRouter

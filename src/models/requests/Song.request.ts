@@ -3,4 +3,5 @@ export interface AddSongRequestBody {
   title: string
   thumbnail: string
   channelTitle: string
+  url?: string
 }
