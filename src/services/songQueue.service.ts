@@ -1,5 +1,6 @@
 import { AddSongRequestBody } from '~/models/requests/Song.request'
 import redis from '~/services/redis.service'
+import { historyService } from '~/services/songHistory.service'
 
 class SongQueueServices {
   async addSongToQueue(roomId: string, song: AddSongRequestBody) {
@@ -25,6 +26,23 @@ class SongQueueServices {
     }
 
     return updatedQueue
+  }
+
+  async moveSongToHistory(roomId: string) {
+    const queueKey = `room_${roomId}_queue`
+
+    // Lấy bài hát đầu tiên trong hàng đợi
+    const nowPlaying = await redis.lpop(queueKey)
+
+    if (nowPlaying) {
+      const song = JSON.parse(nowPlaying)
+
+      // Lưu bài hát đã phát vào MongoDB
+      await historyService.saveSongHistory(roomId, song)
+      return song
+    }
+
+    return null // Nếu không có bài hát nào trong hàng đợi
   }
 }
 

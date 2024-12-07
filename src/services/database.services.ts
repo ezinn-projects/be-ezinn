@@ -4,6 +4,7 @@ import dotenv from 'dotenv'
 import { HouseRule } from '~/models/schemas/HouseRules.schema'
 import RoomType from '~/models/schemas/RoomType.schema'
 import { Room } from '~/models/schemas/Room.schema'
+import { SongHistory } from '~/models/schemas/SongHistiry.schema'
 dotenv.config()
 
 const DB_USERNAME = process.env.DB_USERNAME
@@ -49,6 +50,10 @@ class DatabaseService {
 
   get rooms(): Collection<Room> {
     return this.db.collection('rooms')
+  }
+
+  get songHistory(): Collection<SongHistory> {
+    return this.db.collection('history')
   }
 }
 

@@ -6,6 +6,7 @@ import { HTTP_STATUS_CODE } from '~/constants/httpStatus'
 import { NextFunction } from 'express'
 import { SONG_QUEUE_MESSAGES } from '~/constants/messages'
 import { songQueueServices } from '~/services/songQueue.service'
+import { playNextSong } from '~/utils/songUtil'
 
 /**
  * @description Add song to queue
@@ -24,6 +25,12 @@ export const addSong = async (
 
   try {
     const updatedQueue = await songQueueServices.addSongToQueue(roomId, { videoId, title, thumbnail, channelTitle })
+
+    // Nếu hàng đợi chỉ có 1 bài hát, tự động phát bài hát đó
+    if (updatedQueue.length === 1) {
+      const nowPlaying = await playNextSong(roomId)
+      return res.status(201).json({ message: 'Song added and playing', nowPlaying })
+    }
 
     res
       .status(HTTP_STATUS_CODE.CREATED)
