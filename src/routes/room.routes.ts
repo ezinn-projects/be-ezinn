@@ -4,6 +4,7 @@ import { addRoomController } from '~/controllers/room.controller'
 import { protect } from '~/middlewares/auth.middleware'
 import { addRoomValidator, checkRoomExists } from '~/middlewares/room.middleware'
 import { wrapRequestHanlder } from '~/utils/handlers'
+import ytSearch from 'yt-search'
 
 const roomRouter = Router()
 
@@ -22,4 +23,37 @@ roomRouter.post(
   wrapRequestHanlder(addRoomController) // Xử lý logic tạo phòng
 )
 
+/**
+ * @description search songs
+ * @path /rooms/search-songs
+ * @method GET
+ * @author QuangDoo
+ */
+roomRouter.get('/search-songs', async (req, res) => {
+  const { q, limit = 10 } = req.query
+
+  if (!q) {
+    return res.status(400).json({ error: 'Missing query parameter: q' })
+  }
+
+  try {
+    // Tìm kiếm trên YouTube
+    const searchResults = await ytSearch(q as string)
+
+    // Trích xuất danh sách video
+    const videos = searchResults.videos.slice(0, Number(limit)).map((video) => ({
+      videoId: video.videoId,
+      title: video.title,
+      duration: video.duration.seconds, // Thời lượng (giây)
+      url: video.url,
+      thumbnail: video.thumbnail,
+      author: video.author.name // Tên kênh
+    }))
+
+    res.json({ result: videos })
+  } catch (error) {
+    console.error('Error searching YouTube:', error)
+    res.status(500).json({ error: 'Failed to search YouTube' })
+  }
+})
 export default roomRouter
