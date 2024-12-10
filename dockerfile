@@ -8,7 +8,7 @@ WORKDIR /usr/src/app
 COPY package*.json ./
 
 # Cài đặt dependencies bao gồm cả devDependencies
-RUN npm install --production=false
+RUN npm install
 
 # Sao chép toàn bộ mã nguồn vào container
 COPY . .
