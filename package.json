@@ -33,9 +33,9 @@
   },
   "scripts": {
     "test": "jest --runInBand --passWithNoTests --forceExit",
-    "dev": "npx nodemon src/server.ts",
+    "dev": "npx nodemon",
     "build": "rimraf ./dist && tsc && tsc-alias",
-    "start": "node dist/server.js",
+    "start": "node dist/index.js",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "prettier": "prettier --check .",
