@@ -1,6 +1,12 @@
 # Sử dụng Node.js image chính thức
 FROM node:22-alpine
 
+# Cài đặt Python và các dependencies cần thiết
+RUN apk add --no-cache python3 py3-pip bash
+
+# Tạo symbolic link cho Python (nếu cần)
+RUN ln -s /usr/bin/python3 /usr/bin/python
+
 # Thiết lập thư mục làm việc trong container
 WORKDIR /usr/src/app
 
