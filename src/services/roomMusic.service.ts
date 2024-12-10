@@ -3,7 +3,7 @@ import redis from '~/services/redis.service'
 import { historyService } from '~/services/songHistory.service'
 import { getVideoUrl } from './video.service'
 
-class SongQueueServices {
+class RoomMusicServices {
   async addSongToQueue(roomId: string, song: AddSongRequestBody, position: 'top' | 'end') {
     const queueKey = `room_${roomId}_queue`
 
@@ -59,7 +59,7 @@ class SongQueueServices {
     return null // Nếu không có bài hát nào trong hàng đợi
   }
 
-  async playNextSong(roomId: string): Promise<AddSongRequestBody | null> {
+  async playNextSong(roomId: string): Promise<{ nowPlaying: AddSongRequestBody | null; queue: AddSongRequestBody[] }> {
     const queueKey = `room_${roomId}_queue`
     const nowPlayingKey = `room_${roomId}_now_playing`
 
@@ -67,13 +67,13 @@ class SongQueueServices {
     const nowPlaying = await redis.lpop(queueKey)
 
     if (!nowPlaying) {
-      return null // Không còn bài hát trong hàng đợi
+      return { nowPlaying: null, queue: [] } // Không còn bài hát trong hàng đợi
     }
 
     const song = JSON.parse(nowPlaying)
 
     // Lấy URL của bài hát
-    const videoUrl = await getVideoUrl(song.videoId)
+    const videoUrl = await getVideoUrl(song.video_id)
 
     // Lấy thời gian hiện tại và lưu bài hát đang phát
     const timestamp = Date.now() // Thời gian hiện tại
@@ -89,7 +89,10 @@ class SongQueueServices {
     // Lưu vào Redis
     await redis.set(nowPlayingKey, JSON.stringify(nowPlayingData))
 
-    return nowPlayingData
+    // Lấy danh sách bài hát còn lại trong hàng đợi
+    const updatedQueue = (await redis.lrange(queueKey, 0, -1)).map((item: string) => JSON.parse(item))
+
+    return { nowPlaying: nowPlayingData, queue: updatedQueue }
   }
 
   /**
@@ -112,7 +115,23 @@ class SongQueueServices {
   async getNowPlaying(roomId: string): Promise<AddSongRequestBody | null> {
     const nowPlayingKey = `room_${roomId}_now_playing`
     const nowPlaying = await redis.get(nowPlayingKey)
-    return nowPlaying ? JSON.parse(nowPlaying) : null // Trả về null nếu không có bài hát đang phát
+
+    if (!nowPlaying) {
+      return null // Không có bài hát đang phát
+    }
+
+    const parsedNowPlaying = JSON.parse(nowPlaying)
+
+    // Tính toán current_time dựa trên timestamp
+    const currentTime = Math.min(
+      Math.floor((Date.now() - parsedNowPlaying.timestamp) / 1000), // Tính thời gian đã phát (giây)
+      parsedNowPlaying.duration || 0 // Không vượt quá duration
+    )
+
+    return {
+      ...parsedNowPlaying,
+      currentTime
+    }
   }
 
   /**
@@ -126,4 +145,4 @@ class SongQueueServices {
   }
 }
 
-export const songQueueServices = new SongQueueServices()
+export const roomMusicServices = new RoomMusicServices()

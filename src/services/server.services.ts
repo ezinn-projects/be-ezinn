@@ -3,7 +3,7 @@ import { createServer, Server as HttpServer } from 'http'
 import { Server as SocketIOServer } from 'socket.io'
 import { RoomSocket } from '~/sockets/room.socket'
 import roomRoutes from '~/routes/room.routes'
-import songQueueRouter from '~/routes/songQueue.routes'
+import songQueueRouter from '~/routes/roomMusic.routes'
 
 class Server {
   private app: Express

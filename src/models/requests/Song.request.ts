@@ -1,8 +1,8 @@
 export interface AddSongRequestBody {
-  videoId: string
+  video_id: string
   title: string
   thumbnail: string
-  channelTitle: string
+  author: string
   url?: string
   position?: 'top' | 'end'
   duration?: number

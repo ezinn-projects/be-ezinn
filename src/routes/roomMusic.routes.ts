@@ -3,32 +3,34 @@ import ytdl from 'ytdl-core'
 import { HTTP_STATUS_CODE } from '~/constants/httpStatus'
 import {
   addSong,
+  controlPlayback,
   getSongsInQueue,
   playNextSong,
   removeAllSongsInQueue,
   removeSong
-} from '~/controllers/songQueue.controller'
-import { addSongValidator } from '~/middlewares/songQueue.middleware'
+} from '~/controllers/roomMusic.controller'
+import { addSongValidator } from '~/middlewares/roomMusic.middleware'
 import { wrapRequestHanlder } from '~/utils/handlers'
 
-const songQueueRouter = Router()
+const roomMusicRouter = Router()
+
 /**
  * @description Add song to queue
  * @path /song-queue/:roomId
  * @method POST
- * @body {videoId: string, title: string, thumbnail: string, channelTitle: string, position?: "top" | "end"} @type {AddSongRequestBody}
+ * @body {video_id: string, title: string, thumbnail: string, author: string, position?: "top" | "end"} @type {AddSongRequestBody}
  * @author QuangDoo
  */
-songQueueRouter.post('/:roomId', addSongValidator, wrapRequestHanlder(addSong)) // Thêm bài hát vào hàng đợi
+roomMusicRouter.post('/:roomId', addSongValidator, wrapRequestHanlder(addSong)) // Thêm bài hát vào hàng đợi
 
 /**
  * @description Remove song from queue
  * @path /song-queue/rooms/:roomId/queue
  * @method DELETE
- * @body {videoId: string} @type {AddSongRequestBody}
+ * @body {video_id: string} @type {AddSongRequestBody}
  * @author QuangDoo
  */
-songQueueRouter.delete('/:roomId/:index', wrapRequestHanlder(removeSong)) // Xóa bài hát khỏi hàng đợi
+roomMusicRouter.delete('/:roomId/:index', wrapRequestHanlder(removeSong)) // Xóa bài hát khỏi hàng đợi
 
 /**
  * @description Remove all songs in queue
@@ -36,7 +38,7 @@ songQueueRouter.delete('/:roomId/:index', wrapRequestHanlder(removeSong)) // Xó
  * @method DELETE
  * @author QuangDoo
  */
-songQueueRouter.delete('/:roomId', wrapRequestHanlder(removeAllSongsInQueue)) // Xóa tất cả bài hát trong hàng đợi
+roomMusicRouter.delete('/:roomId', wrapRequestHanlder(removeAllSongsInQueue)) // Xóa tất cả bài hát trong hàng đợi
 
 /**
  * @description Play next song
@@ -44,7 +46,7 @@ songQueueRouter.delete('/:roomId', wrapRequestHanlder(removeAllSongsInQueue)) //
  * @method POST
  * @author QuangDoo
  */
-songQueueRouter.post('/:roomId/play', wrapRequestHanlder(playNextSong)) // Phát bài hát tiếp theo
+roomMusicRouter.post('/:roomId/play-next-song', wrapRequestHanlder(playNextSong)) // Phát bài hát tiếp theo
 
 /**
  * @description Get songs in queue
@@ -52,7 +54,7 @@ songQueueRouter.post('/:roomId/play', wrapRequestHanlder(playNextSong)) // Phát
  * @method GET
  * @author QuangDoo
  */
-songQueueRouter.get('/:roomId', wrapRequestHanlder(getSongsInQueue)) // Lấy danh sách bài hát trong hàng đợi
+roomMusicRouter.get('/:roomId', wrapRequestHanlder(getSongsInQueue)) // Lấy danh sách bài hát trong hàng đợi
 
 /**
  * @description Get now playing song
@@ -60,7 +62,7 @@ songQueueRouter.get('/:roomId', wrapRequestHanlder(getSongsInQueue)) // Lấy da
  * @method GET
  * @author QuangDoo
  */
-songQueueRouter.get('/song-info/:videoId', async (req, res, next) => {
+roomMusicRouter.get('/song-info/:videoId', async (req, res, next) => {
   try {
     const { videoId } = req.params
     // URL của video
@@ -86,4 +88,13 @@ songQueueRouter.get('/song-info/:videoId', async (req, res, next) => {
   }
 }) // Lấy bài hát đang phát
 
-export default songQueueRouter
+/**
+ * @description Control song playback (play/pause)
+ * @path /song-queue/rooms/:roomId/playback/:action
+ * @method POST
+ * @params action: "play" | "pause"
+ * @author QuangDoo
+ */
+roomMusicRouter.post('/:roomId/playback/:action', wrapRequestHanlder(controlPlayback)) // Điều khiển phát nhạc (play/pause)
+
+export default roomMusicRouter

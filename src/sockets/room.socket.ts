@@ -12,6 +12,7 @@ export const RoomSocket = (io: Server) => {
 
     // Lấy thông tin roomId từ query
     const roomId = socket.handshake.query.roomId as string
+    console.log('roomId :>> ', roomId)
     if (roomId) {
       socket.join(roomId) // Gán socket vào room
       console.log(`Socket ${socket.id} joined room ${roomId}`)

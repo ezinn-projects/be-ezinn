@@ -3,7 +3,7 @@ import { validate } from '~/utils/validation'
 
 export const addSongValidator = validate(
   checkSchema({
-    videoId: {
+    video_id: {
       notEmpty: {
         errorMessage: 'Video ID is required'
       }

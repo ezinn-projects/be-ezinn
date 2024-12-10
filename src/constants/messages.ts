@@ -67,5 +67,7 @@ export const SONG_QUEUE_MESSAGES = {
   REMOVE_ALL_SONGS_IN_QUEUE_SUCCESS: 'Remove all songs in queue success',
   NO_SONG_IN_QUEUE: 'No song in queue',
   SONG_IS_NOW_PLAYING: 'Song is now playing',
-  GET_SONGS_IN_QUEUE_SUCCESS: 'Get songs in queue success'
+  GET_SONGS_IN_QUEUE_SUCCESS: 'Get songs in queue success',
+  SONG_PLAYING: 'Song is playing',
+  SONG_PAUSED: 'Song is paused'
 } as const
