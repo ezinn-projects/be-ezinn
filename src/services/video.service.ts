@@ -3,29 +3,19 @@ import ffmpeg from 'fluent-ffmpeg'
 
 export const getVideoUrl = async (videoId: string): Promise<{ videoUrl: string; audioUrl: string }> => {
   try {
-    // Lấy URL video tốt nhất (1080p trở lên) và audio tốt nhất
-    const [videoUrl, audioUrl] = await Promise.all([
-      youtubeDl(`https://www.youtube.com/watch?v=${videoId}`, {
-        format: 'bestvideo[ext=mp4]',
-        getUrl: true,
-        skipDownload: true
-      }),
-      youtubeDl(`https://www.youtube.com/watch?v=${videoId}`, {
-        format: 'bestaudio[ext=m4a]',
-        getUrl: true,
-        skipDownload: true
-      })
-    ])
+    // Lấy URL gộp cả video và audio với chất lượng 720p
+    const videoUrl = await youtubeDl(`https://www.youtube.com/watch?v=${videoId}`, {
+      format: 'best[height=720][ext=mp4]/best[height=720]/bestvideo[ext=mp4]', // fallback chuỗi
+      getUrl: true,
+      skipDownload: true
+    })
 
-    if (!videoUrl || !audioUrl) {
-      throw new Error('Video or audio URL not found')
+    if (!videoUrl) {
+      throw new Error('Combined video and audio URL not found')
     }
-    // Merge video và audio
-    const mergedUrl = videoUrl
 
-    console.log('audioUrl :>> ', audioUrl)
-
-    return { videoUrl, audioUrl } as { videoUrl: string; audioUrl: string }
+    console.log('Combined Video URL:', videoUrl)
+    return { videoUrl: videoUrl as string, audioUrl: '' } // Trả về URL gộp
   } catch (error) {
     console.error(`Failed to fetch or process video for ID: ${videoId}`, error)
     throw new Error('Could not retrieve video URL')
