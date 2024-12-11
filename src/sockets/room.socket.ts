@@ -35,9 +35,9 @@ export const RoomSocket = (io: Server) => {
         const song = await redis.get(`room_${roomId}_now_playing`)
 
         // Phát sự kiện play_song kèm URL tới các client trong room
-        io.to(roomId).emit('play_song', { url: song?.url })
+        // io.to(roomId).emit('play_song', { url: song?.url })
 
-        console.log(`Sent play_song event to room ${roomId} with URL: ${song?.url}`)
+        // console.log(`Sent play_song event to room ${roomId} with URL: ${song?.url}`)
       } catch (error) {
         console.error(`Failed to process play_song event for room ${roomId}:`, error)
         socket.emit('error', { message: 'Failed to play song', error })
