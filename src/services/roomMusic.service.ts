@@ -7,17 +7,20 @@ class RoomMusicServices {
   async addSongToQueue(roomId: string, song: AddSongRequestBody, position: 'top' | 'end') {
     const queueKey = `room_${roomId}_queue`
 
-    if (position === 'top') {
-      // Thêm vào đầu danh sách
-      await redis.lpush(queueKey, JSON.stringify(song))
-    } else if (position === 'end') {
-      // Thêm vào cuối danh sách
-      await redis.rpush(queueKey, JSON.stringify(song))
+    // Lấy video URL trước khi thêm vào queue
+    const videoUrl = await getVideoUrl(song.video_id)
+    const songWithUrl = {
+      ...song,
+      video_url: videoUrl.videoUrl,
+      audio_url: videoUrl.audioUrl
     }
 
-    // console.log('redis.lrange', await redis.get(queueKey))
+    if (position === 'top') {
+      await redis.lpush(queueKey, JSON.stringify(songWithUrl))
+    } else if (position === 'end') {
+      await redis.rpush(queueKey, JSON.stringify(songWithUrl))
+    }
 
-    // Trả về danh sách hiện tại
     return (await redis.lrange(queueKey, 0, -1)).map((item: string) => JSON.parse(item))
   }
 
@@ -72,16 +75,12 @@ class RoomMusicServices {
 
     const song = JSON.parse(nowPlaying)
 
-    // Lấy URL của bài hát
-    const videoUrl = await getVideoUrl(song.video_id)
-
     // Lấy thời gian hiện tại và lưu bài hát đang phát
     const timestamp = Date.now() // Thời gian hiện tại
     const duration = song.duration || 0 // Cần thêm duration từ metadata
 
     const nowPlayingData = {
       ...song,
-      url: videoUrl,
       timestamp,
       duration
     }

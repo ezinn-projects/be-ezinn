@@ -181,9 +181,11 @@ export const controlPlayback = async (req: Request<ParamsDictionary, any>, res: 
     }
 
     if (action === 'pause') {
+      serverService.io.to(roomId).emit('pause_song', nowPlaying)
       // Cập nhật current_time vào Redis khi pause
       await redis.set(`room_${roomId}_current_time`, current_time)
     } else if (action === 'play') {
+      serverService.io.to(roomId).emit('play_song', nowPlaying)
       // Tính timestamp mới khi phát lại
       const newTimestamp = Math.floor(Date.now() / 1000) - (current_time || 0)
       await redis.set(`room_${roomId}_timestamp`, newTimestamp)

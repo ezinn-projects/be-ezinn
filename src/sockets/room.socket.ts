@@ -1,5 +1,5 @@
 import { Server, Socket } from 'socket.io'
-import { getVideoUrl } from '~/services/video.service'
+import redis from '~/services/redis.service'
 
 interface CommandPayload {
   action: string
@@ -32,12 +32,12 @@ export const RoomSocket = (io: Server) => {
         console.log(`Play song request in room ${roomId}:`, payload)
 
         // Lấy URL video qua videoId
-        const videoUrl = await getVideoUrl(payload.videoId)
+        const song = await redis.get(`room_${roomId}_now_playing`)
 
         // Phát sự kiện play_song kèm URL tới các client trong room
-        io.to(roomId).emit('play_song', { url: videoUrl })
+        io.to(roomId).emit('play_song', { url: song?.url })
 
-        console.log(`Sent play_song event to room ${roomId} with URL: ${videoUrl}`)
+        console.log(`Sent play_song event to room ${roomId} with URL: ${song?.url}`)
       } catch (error) {
         console.error(`Failed to process play_song event for room ${roomId}:`, error)
         socket.emit('error', { message: 'Failed to play song', error })
