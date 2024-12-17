@@ -10,6 +10,7 @@ import {
   removeSong
 } from '~/controllers/roomMusic.controller'
 import { addSongValidator } from '~/middlewares/roomMusic.middleware'
+import { roomMusicServices } from '~/services/roomMusic.service'
 import { wrapRequestHanlder } from '~/utils/handlers'
 
 const roomMusicRouter = Router()
@@ -55,6 +56,24 @@ roomMusicRouter.post('/:roomId/play-next-song', wrapRequestHanlder(playNextSong)
  * @author QuangDoo
  */
 roomMusicRouter.get('/:roomId', wrapRequestHanlder(getSongsInQueue)) // Lấy danh sách bài hát trong hàng đợi
+
+/**
+ * @description Get now playing song
+ * @path /song-queue/:roomId/now-playing
+ * @method GET
+ * @author QuangDoo
+ */
+roomMusicRouter.get('/:roomId/now-playing', async (req, res, next) => {
+  try {
+    const { roomId } = req.params
+    let nowPlaying = await roomMusicServices.getNowPlaying(roomId)
+
+    res.status(HTTP_STATUS_CODE.OK).json({ result: nowPlaying })
+  } catch (error) {
+    console.error('Error fetching video details:', error)
+    next(error)
+  }
+}) // Lấy bài hát đang phát
 
 /**
  * @description Get now playing song
