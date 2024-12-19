@@ -35,3 +35,15 @@ export enum RoomStatus {
   Reserved = 'Reserved', // Đặt trước
   Maintenance = 'Maintenance' // Bảo trì
 }
+
+export enum DayType {
+  Weekday = 'weekday',
+  Weekend = 'weekend',
+  Holiday = 'holiday'
+}
+
+export enum RoomSize {
+  Small = 'small',
+  Medium = 'medium',
+  Large = 'large'
+}
