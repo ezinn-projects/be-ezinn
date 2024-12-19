@@ -71,3 +71,12 @@ export const SONG_QUEUE_MESSAGES = {
   SONG_PLAYING: 'Song is playing',
   SONG_PAUSED: 'Song is paused'
 } as const
+
+export const PRICING_MESSAGES = {
+  GET_PRICING_SUCCESS: 'Get pricing success',
+  CREATE_PRICING_SUCCESS: 'Create pricing success',
+  UPDATE_PRICING_SUCCESS: 'Update pricing success',
+  DELETE_PRICING_SUCCESS: 'Delete pricing success',
+  DELETE_MULTIPLE_PRICING_SUCCESS: 'Delete multiple pricing success',
+  PRICING_NOT_FOUND: 'Pricing not found'
+} as const
