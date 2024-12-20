@@ -8,6 +8,7 @@ import roomTypeRouter from '~/routes/roomType.routes'
 import usersRouter from '~/routes/users.routes'
 import databaseService from '~/services/database.services'
 import serverService from '~/services/server.services'
+import pricingRouter from '~/routes/pricing.routes'
 
 databaseService.connect()
 serverService.start()
@@ -29,6 +30,8 @@ app.use('/room-types', roomTypeRouter)
 app.use('/rooms', roomRouter)
 
 app.use('/room-music', roomMusicRouter)
+
+app.use('/pricing', pricingRouter)
 
 app.use(defaultErrorHandler)
 

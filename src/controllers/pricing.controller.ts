@@ -1,9 +1,13 @@
 import { NextFunction, Request, Response } from 'express'
 import { type ParamsDictionary } from 'express-serve-static-core'
+import { ObjectId } from 'mongodb'
 import { HTTP_STATUS_CODE } from '~/constants/httpStatus'
 import { PRICING_MESSAGES } from '~/constants/messages'
-import { IPricingRequestBody, IPricingRequestQuery } from '~/models/requests/Pricing.request'
-import { Pricing } from '~/models/schemas/Price.schema'
+import {
+  IDeleteMultiplePricingRequestBody,
+  IPricingRequestBody,
+  IPricingRequestQuery
+} from '~/models/requests/Pricing.request'
 import { pricingService } from '~/services/pricing.service'
 
 /**
@@ -61,7 +65,7 @@ export const createPricing = async (
  * @author QuangDoo
  */
 export const updatePricing = async (
-  req: Request<ParamsDictionary, any, any, Pricing>,
+  req: Request<ParamsDictionary, any, IPricingRequestBody>,
   res: Response,
   next: NextFunction
 ) => {
@@ -82,13 +86,10 @@ export const updatePricing = async (
  * @method DELETE
  * @author QuangDoo
  */
-export const deletePricing = async (
-  req: Request<ParamsDictionary, any, any, { id: string }>,
-  res: Response,
-  next: NextFunction
-) => {
+export const deletePricing = async (req: Request<ParamsDictionary, any, any>, res: Response, next: NextFunction) => {
   try {
     const result = await pricingService.deletePricing(req.params.id)
+
     return res.status(HTTP_STATUS_CODE.OK).json({
       message: PRICING_MESSAGES.DELETE_PRICING_SUCCESS,
       result
@@ -105,12 +106,13 @@ export const deletePricing = async (
  * @author QuangDoo
  */
 export const deleteMultiplePricing = async (
-  req: Request<ParamsDictionary, any, any, string[]>,
+  req: Request<ParamsDictionary, any, IDeleteMultiplePricingRequestBody>,
   res: Response,
   next: NextFunction
 ) => {
   try {
-    const result = await pricingService.deleteMultiplePricing(req.body)
+    const result = await pricingService.deleteMultiplePricing(req.body.ids)
+
     return res.status(HTTP_STATUS_CODE.OK).json({
       message: PRICING_MESSAGES.DELETE_MULTIPLE_PRICING_SUCCESS,
       result

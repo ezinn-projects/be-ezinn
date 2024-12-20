@@ -30,13 +30,13 @@ class PricingService {
    * @author QuangDoo
    */
   async createPricing(pricing: IPricingRequestBody) {
-    const pricingData = {
+    const pricingData = new Price({
       ...pricing,
       effective_date: new Date(pricing.effective_date),
-      end_date: new Date(pricing.end_date)
-    }
+      end_date: pricing.end_date ? new Date(pricing.end_date) : undefined
+    })
 
-    const result = await databaseService.price.insertOne(new Price(pricingData))
+    const result = await databaseService.price.insertOne(pricingData)
     return result.insertedId
   }
 
@@ -47,8 +47,19 @@ class PricingService {
    * @returns number of updated pricing
    * @author QuangDoo
    */
-  async updatePricing(id: string, pricing: Pricing) {
-    const result = await databaseService.price.updateOne({ _id: new ObjectId(id) }, { $set: new Price(pricing) })
+  async updatePricing(id: string, pricing: IPricingRequestBody) {
+    const pricingData = new Price({
+      ...pricing,
+      effective_date: new Date(pricing.effective_date),
+      end_date: pricing.end_date ? new Date(pricing.end_date) : undefined,
+      time_range: pricing.time_range,
+      price: pricing.price,
+      room_size: pricing.room_size,
+      day_type: pricing.day_type,
+      _id: new ObjectId(id)
+    })
+    const result = await databaseService.price.updateOne({ _id: new ObjectId(id) }, { $set: pricingData })
+
     return result.modifiedCount
   }
 
@@ -69,8 +80,8 @@ class PricingService {
    * @returns number of deleted pricing
    * @author QuangDoo
    */
-  async deleteMultiplePricing(ids: string[]) {
-    const result = await databaseService.price.deleteMany({ _id: { $in: ids.map((id) => new ObjectId(id)) } })
+  async deleteMultiplePricing(ids: ObjectId[]) {
+    const result = await databaseService.price.deleteMany({ _id: { $in: ids } })
     return result.deletedCount
   }
 }

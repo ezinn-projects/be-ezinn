@@ -8,7 +8,13 @@ import {
   updatePricing
 } from '~/controllers/pricing.controller'
 import { protect } from '~/middlewares/auth.middleware'
-import { checkPricingExists, createPricingValidator, updatePricingValidator } from '~/middlewares/pricing.middleware'
+import {
+  checkPricingExists,
+  checkPricingIdArrayValidator,
+  checkPricingIdValidator,
+  checkPricingNotExists,
+  createPricingValidator
+} from '~/middlewares/pricing.middleware'
 import { wrapRequestHanlder } from '~/utils/handlers'
 
 const pricingRouter = Router()
@@ -29,7 +35,13 @@ pricingRouter.get('/', wrapRequestHanlder(getPricing))
  * @body {room_size: RoomSize, day_type: DayType, effective_date: Date, end_date: Date}
  * @author QuangDoo
  */
-pricingRouter.post('/', protect([UserRole.Admin]), createPricingValidator, wrapRequestHanlder(createPricing))
+pricingRouter.post(
+  '/',
+  protect([UserRole.Admin]),
+  createPricingValidator,
+  checkPricingExists,
+  wrapRequestHanlder(createPricing)
+)
 
 /**
  * @description Update pricing
@@ -38,13 +50,16 @@ pricingRouter.post('/', protect([UserRole.Admin]), createPricingValidator, wrapR
  * @body {room_size: RoomSize, day_type: DayType, effective_date: Date, end_date: Date}
  * @author QuangDoo
  */
-pricingRouter.put(
-  '/:id',
-  protect([UserRole.Admin]),
-  checkPricingExists,
-  updatePricingValidator,
-  wrapRequestHanlder(updatePricing)
-)
+pricingRouter.put('/:id', protect([UserRole.Admin]), createPricingValidator, wrapRequestHanlder(updatePricing))
+
+/**
+ * @description Delete multiple pricing
+ * @note This endpoint is used to delete multiple pricing by ids
+ * @path /pricing/multiple
+ * @method DELETE
+ * @author QuangDoo
+ */
+pricingRouter.delete('/multiple', protect([UserRole.Admin]), wrapRequestHanlder(deleteMultiplePricing))
 
 /**
  * @description Delete pricing
@@ -52,14 +67,12 @@ pricingRouter.put(
  * @method DELETE
  * @author QuangDoo
  */
-pricingRouter.delete('/:id', protect([UserRole.Admin]), checkPricingExists, wrapRequestHanlder(deletePricing))
-
-/**
- * @description Delete multiple pricing
- * @path /pricing/multiple
- * @method DELETE
- * @author QuangDoo
- */
-pricingRouter.delete('/multiple', protect([UserRole.Admin]), wrapRequestHanlder(deleteMultiplePricing))
+pricingRouter.delete(
+  '/:id',
+  protect([UserRole.Admin]),
+  checkPricingIdValidator,
+  checkPricingNotExists,
+  wrapRequestHanlder(deletePricing)
+)
 
 export default pricingRouter

@@ -10,6 +10,14 @@ import { validate } from '~/utils/validation'
 
 export const createPricingValidator = validate(
   checkSchema({
+    price: {
+      notEmpty: {
+        errorMessage: 'Price is required'
+      },
+      isNumeric: {
+        errorMessage: 'Price must be a number'
+      }
+    },
     room_size: {
       notEmpty: {
         errorMessage: 'Room size is required'
@@ -31,63 +39,65 @@ export const createPricingValidator = validate(
     effective_date: {
       notEmpty: {
         errorMessage: 'Effective date is required'
-      },
-      isDate: {
-        errorMessage: 'Invalid effective date'
-      }
-    },
-    end_date: {
-      notEmpty: {
-        errorMessage: 'End date is required'
-      },
-      isDate: {
-        errorMessage: 'Invalid end date'
       }
     }
   })
 )
 
-export const updatePricingValidator = validate(
-  checkSchema({
-    room_size: {
-      notEmpty: {
-        errorMessage: 'Room size is required'
-      },
-      isIn: {
-        options: [Object.values(RoomSize)],
-        errorMessage: 'Invalid room size'
+export const checkPricingIdValidator = validate(
+  checkSchema(
+    {
+      id: {
+        notEmpty: {
+          errorMessage: 'Id is required'
+        },
+        isMongoId: {
+          errorMessage: 'Invalid id'
+        }
       }
     },
-    day_type: {
-      notEmpty: {
-        errorMessage: 'Day type is required'
-      },
-      isIn: {
-        options: [Object.values(DayType)],
-        errorMessage: 'Invalid day type'
+    ['params']
+  )
+)
+
+export const checkPricingIdArrayValidator = validate(
+  checkSchema(
+    {
+      ids: {
+        notEmpty: {
+          errorMessage: 'Ids is required'
+        },
+        isArray: {
+          errorMessage: 'Ids must be an array'
+        }
       }
     },
-    effective_date: {
-      notEmpty: {
-        errorMessage: 'Effective date is required'
-      },
-      isDate: {
-        errorMessage: 'Invalid effective date'
-      }
-    },
-    end_date: {
-      isDate: {
-        errorMessage: 'Invalid end date'
-      },
-      optional: true
-    }
-  })
+    ['body']
+  )
 )
 
 export const checkPricingExists = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params
 
+    const pricing = await databaseService.price.findOne({ _id: new ObjectId(id) })
+
+    if (pricing) {
+      throw new ErrorWithStatus({
+        message: PRICING_MESSAGES.PRICING_EXISTS,
+        status: HTTP_STATUS_CODE.CONFLICT
+      })
+    }
+
+    next()
+  } catch (error) {
+    next(error)
+  }
+}
+
+export const checkPricingNotExists = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id } = req.params
     const pricing = await databaseService.price.findOne({ _id: new ObjectId(id) })
 
     if (!pricing) {

@@ -78,5 +78,6 @@ export const PRICING_MESSAGES = {
   UPDATE_PRICING_SUCCESS: 'Update pricing success',
   DELETE_PRICING_SUCCESS: 'Delete pricing success',
   DELETE_MULTIPLE_PRICING_SUCCESS: 'Delete multiple pricing success',
-  PRICING_NOT_FOUND: 'Pricing not found'
+  PRICING_NOT_FOUND: 'Pricing not found',
+  PRICING_EXISTS: 'Pricing already exists'
 } as const
