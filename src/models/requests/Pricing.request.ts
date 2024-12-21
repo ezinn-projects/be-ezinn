@@ -6,7 +6,10 @@ export interface IPricingRequestBody {
   room_size: RoomSize
   day_type: DayType
   effective_date: string
-  time_range: string
+  time_range: {
+    start: string // e.g., "10:00"
+    end: string // e.g., "14:00"
+  }
   price: number
   end_date?: string
   note?: string

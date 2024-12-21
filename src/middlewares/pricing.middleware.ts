@@ -27,6 +27,19 @@ export const createPricingValidator = validate(
         errorMessage: 'Invalid room size'
       }
     },
+    time_range: {
+      notEmpty: {
+        errorMessage: 'Time range is required'
+      },
+      custom: {
+        options: (value: { start: string; end: string }) => {
+          const { start, end } = value
+
+          return new Date(`2024-12-21T${start}`) <= new Date(`2024-12-21T${end}`)
+        },
+        errorMessage: 'End time must be greater than start time'
+      }
+    },
     day_type: {
       notEmpty: {
         errorMessage: 'Day type is required'
