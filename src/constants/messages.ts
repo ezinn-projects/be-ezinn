@@ -82,3 +82,15 @@ export const PRICING_MESSAGES = {
   PRICING_NOT_FOUND: 'Pricing not found',
   PRICING_EXISTS: 'Pricing already exists'
 } as const
+
+export const ROOM_CATEGORY_MESSAGES = {
+  CREATE_ROOM_CATEGORY_SUCCESS: 'Create room category success',
+  GET_ALL_ROOM_CATEGORIES_SUCCESS: 'Get all room categories success',
+  GET_ROOM_CATEGORY_BY_ID_SUCCESS: 'Get room category by id success',
+  UPDATE_ROOM_CATEGORY_SUCCESS: 'Update room category success',
+  DELETE_ROOM_CATEGORY_SUCCESS: 'Delete room category success',
+  DELETE_MULTIPLE_ROOM_CATEGORY_SUCCESS: 'Delete multiple room category success',
+  ROOM_CATEGORY_EXISTS: 'Room category already exists',
+  ROOM_CATEGORY_NOT_FOUND: 'Room category not found',
+  ROOM_CATEGORY_NAME_ALREADY_EXISTS: 'Room category name already exists'
+} as const
