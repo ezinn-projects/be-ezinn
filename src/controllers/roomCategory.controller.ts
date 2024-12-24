@@ -67,7 +67,14 @@ export const getRoomCategoryById = async (req: Request, res: Response, next: Nex
  */
 export const updateRoomCategory = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const result = await roomCategoryService.updateRoomCategory(req.params.id, req.body)
+    const { pricePerHour, ...restBody } = req.body
+
+    const updateData = {
+      ...restBody,
+      price_per_hour: pricePerHour
+    }
+
+    const result = await roomCategoryService.updateRoomCategory(req.params.id, updateData)
     return res.status(HTTP_STATUS_CODE.OK).json({
       message: ROOM_CATEGORY_MESSAGES.UPDATE_ROOM_CATEGORY_SUCCESS,
       result

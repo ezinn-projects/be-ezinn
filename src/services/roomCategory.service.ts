@@ -49,12 +49,51 @@ class RoomCategoryService {
   /**
    * Update room category
    * @param id - room category id
-   * @param category - @type IRoomCategoryRequest room category object
-   * @returns number of updated room categories
+   * @param updateData - Partial<IRoomCategoryRequest> room category data to update
+   * @returns updated room category
    * @author QuangDoo
    */
-  async updateRoomCategory(id: string, category: IRoomCategoryRequest) {
-    return await databaseService.roomCategories.updateOne({ _id: new ObjectId(id) }, { $set: category })
+  async updateRoomCategory(id: string, updateData: Partial<IRoomCategoryRequest>) {
+    // Định nghĩa các trường được phép update
+    const allowedFields = ['name', 'capacity', 'price_per_hour', 'equipment', 'description']
+
+    // Lọc ra các trường hợp lệ từ dữ liệu update
+    const sanitizedData = Object.keys(updateData)
+      .filter((key) => allowedFields.includes(key))
+      .reduce((obj, key) => {
+        obj[key as keyof IRoomCategoryRequest] = updateData[key as keyof IRoomCategoryRequest] as any
+        return obj
+      }, {} as Partial<IRoomCategoryRequest>)
+
+    // Lấy dữ liệu hiện tại
+    const currentCategory = await databaseService.roomCategories.findOne({
+      _id: new ObjectId(id)
+    })
+
+    // Merge equipment nếu có update
+    if (sanitizedData.equipment) {
+      sanitizedData.equipment = {
+        ...currentCategory?.equipment,
+        ...sanitizedData.equipment
+      }
+    }
+
+    // Thêm thời gian update
+    const updateTime = new Date().toISOString()
+
+    // Thực hiện update với $set
+    const result = await databaseService.roomCategories.findOneAndUpdate(
+      { _id: new ObjectId(id) },
+      {
+        $set: {
+          ...sanitizedData,
+          update_time: updateTime
+        }
+      },
+      { returnDocument: 'after' } // Trả về document sau khi update
+    )
+
+    return result
   }
 
   /**
