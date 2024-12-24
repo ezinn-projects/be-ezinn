@@ -74,6 +74,7 @@ export const SONG_QUEUE_MESSAGES = {
 
 export const PRICING_MESSAGES = {
   GET_PRICING_SUCCESS: 'Get pricing success',
+  GET_PRICING_BY_ID_SUCCESS: 'Get pricing by id success',
   CREATE_PRICING_SUCCESS: 'Create pricing success',
   UPDATE_PRICING_SUCCESS: 'Update pricing success',
   DELETE_PRICING_SUCCESS: 'Delete pricing success',
