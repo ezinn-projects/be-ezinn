@@ -35,7 +35,9 @@ export const createPricingValidator = validate(
         options: (value: { start: string; end: string }) => {
           const { start, end } = value
 
-          return new Date(`2024-12-21T${start}`) <= new Date(`2024-12-21T${end}`)
+          const adjustedEnd = end === '00:00' ? '24:00' : end
+
+          return new Date(`2024-12-21T${start}`) <= new Date(`2024-12-21T${adjustedEnd}`)
         },
         errorMessage: 'End time must be greater than start time'
       }
@@ -47,11 +49,6 @@ export const createPricingValidator = validate(
       isIn: {
         options: [Object.values(DayType)],
         errorMessage: 'Invalid day type'
-      }
-    },
-    effective_date: {
-      notEmpty: {
-        errorMessage: 'Effective date is required'
       }
     }
   })

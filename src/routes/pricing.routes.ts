@@ -5,6 +5,7 @@ import {
   deleteMultiplePricing,
   deletePricing,
   getPricing,
+  getPricingById,
   updatePricing
 } from '~/controllers/pricing.controller'
 import { protect } from '~/middlewares/auth.middleware'
@@ -27,6 +28,14 @@ const pricingRouter = Router()
  * @author QuangDoo
  */
 pricingRouter.get('/', wrapRequestHanlder(getPricing))
+
+/**
+ * @description Get pricing by id
+ * @path /pricing/:id
+ * @method GET
+ * @author QuangDoo
+ */
+pricingRouter.get('/:id', checkPricingNotExists, wrapRequestHanlder(getPricingById))
 
 /**
  * @description Create pricing

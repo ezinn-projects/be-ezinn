@@ -24,6 +24,16 @@ class PricingService {
   }
 
   /**
+   * Get pricing by id
+   * @param id - pricing id
+   * @returns pricing
+   * @author QuangDoo
+   */
+  async getPricingById(id: string) {
+    return await databaseService.price.findOne({ _id: new ObjectId(id) })
+  }
+
+  /**
    * Create pricing
    * @param pricing - pricing object
    * @returns pricing id
@@ -33,7 +43,11 @@ class PricingService {
     const pricingData = new Price({
       ...pricing,
       effective_date: new Date(pricing.effective_date),
-      end_date: pricing.end_date ? new Date(pricing.end_date) : undefined
+      end_date: pricing.end_date ? new Date(pricing.end_date) : undefined,
+      time_range: {
+        start: pricing.time_range.start,
+        end: pricing.time_range.end
+      }
     })
 
     const result = await databaseService.price.insertOne(pricingData)
@@ -52,7 +66,10 @@ class PricingService {
       ...pricing,
       effective_date: new Date(pricing.effective_date),
       end_date: pricing.end_date ? new Date(pricing.end_date) : undefined,
-      time_range: pricing.time_range,
+      time_range: {
+        start: pricing.time_range.start,
+        end: pricing.time_range.end
+      },
       price: pricing.price,
       room_size: pricing.room_size,
       day_type: pricing.day_type,

@@ -34,6 +34,28 @@ export const getPricing = async (
 }
 
 /**
+ * @description Get pricing by id
+ * @path /pricing/:id
+ * @method GET
+ * @author QuangDoo
+ */
+export const getPricingById = async (
+  req: Request<ParamsDictionary, any, any, any>,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const result = await pricingService.getPricingById(req.params.id)
+    return res.status(HTTP_STATUS_CODE.OK).json({
+      message: PRICING_MESSAGES.GET_PRICING_BY_ID_SUCCESS,
+      result
+    })
+  } catch (error) {
+    next(error)
+  }
+}
+
+/**
  * @description Create pricing
  * @path /pricing
  * @method POST
