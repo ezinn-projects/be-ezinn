@@ -1,5 +1,6 @@
 import { NextFunction, Request, Response } from 'express'
 import { checkSchema } from 'express-validator'
+import { ObjectId } from 'mongodb'
 import { HTTP_STATUS_CODE } from '~/constants/httpStatus'
 import { ROOM_MESSAGES } from '~/constants/messages'
 import { ErrorWithStatus } from '~/models/Error'
@@ -53,6 +54,50 @@ export const addRoomValidator = validate(
         isInt: {
           options: { min: 1 },
           errorMessage: 'Max capacity must be an integer greater than 0'
+        }
+      },
+      images: {
+        isArray: {
+          errorMessage: 'Images must be an array of URLs'
+        },
+        custom: {
+          options: (value: string[]) => value.every((url: string) => /^https?:\/\/.+\.(jpg|jpeg|png|webp)$/.test(url)),
+          errorMessage: 'All images must be valid URLs ending with .jpg, .jpeg, .png, or .webp'
+        }
+      }
+    },
+    ['body']
+  )
+)
+
+export const checkRoomNotExists = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id } = req.params
+
+    const room = await databaseService.rooms.findOne({ _id: new ObjectId(id) })
+
+    if (!room) {
+      throw new ErrorWithStatus({
+        message: ROOM_MESSAGES.ROOM_NOT_FOUND,
+        status: HTTP_STATUS_CODE.NOT_FOUND
+      })
+    }
+
+    next()
+  } catch (error) {
+    next(error)
+  }
+}
+
+export const updateRoomValidator = validate(
+  checkSchema<keyof IAddRoomRequestBody>(
+    {
+      roomName: {
+        notEmpty: {
+          errorMessage: 'Room name is required'
+        },
+        isString: {
+          errorMessage: 'Room name must be a string'
         }
       }
     },

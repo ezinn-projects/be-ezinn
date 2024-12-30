@@ -58,7 +58,12 @@ export const AUTH_MESSAGES = {
 
 export const ROOM_MESSAGES = {
   ADD_ROOM_TYPE_SUCCESS: 'Add room success',
-  ROOM_EXISTS: 'Room already exists'
+  ROOM_EXISTS: 'Room already exists',
+  GET_ROOM_SUCCESS: 'Get room success',
+  GET_ROOMS_SUCCESS: 'Get rooms success',
+  ROOM_NOT_FOUND: 'Room not found',
+  UPDATE_ROOM_SUCCESS: 'Update room success',
+  DELETE_ROOM_SUCCESS: 'Delete room success'
 } as const
 
 export const SONG_QUEUE_MESSAGES = {

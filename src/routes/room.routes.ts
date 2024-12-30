@@ -1,6 +1,12 @@
 import { Router } from 'express'
 import { UserRole } from '~/constants/enum'
-import { addRoomController } from '~/controllers/room.controller'
+import {
+  addRoomController,
+  deleteRoomController,
+  getRoomController,
+  getRoomsController,
+  updateRoomController
+} from '~/controllers/room.controller'
 import { protect } from '~/middlewares/auth.middleware'
 import { addRoomValidator, checkRoomExists } from '~/middlewares/room.middleware'
 import { wrapRequestHanlder } from '~/utils/handlers'
@@ -25,39 +31,35 @@ roomRouter.post(
 )
 
 /**
- * @description search songs
- * @path /rooms/search-songs
+ * @description Lấy tất cả phòng
+ * @path /rooms
  * @method GET
  * @author QuangDoo
  */
-roomRouter.get('/search-songs', async (req, res) => {
-  const { q, limit = 50 } = req.query
+roomRouter.get('/', wrapRequestHanlder(getRoomsController))
 
-  if (!q) {
-    return res.status(400).json({ error: 'Missing query parameter: q' })
-  }
+/**
+ * @description Lấy phòng theo id
+ * @path /rooms/:id
+ * @method GET
+ * @author QuangDoo
+ */
+roomRouter.get('/:id', wrapRequestHanlder(getRoomController))
 
-  try {
-    // Tìm kiếm trên YouTube
-    const searchResults = await ytSearch(q as string)
+/**
+ * @description Cập nhật phòng
+ * @path /rooms/:id
+ * @method PUT
+ * @author QuangDoo
+ */
+roomRouter.put('/:id', wrapRequestHanlder(updateRoomController))
 
-    // Trích xuất danh sách video
-    const videos = searchResults.videos.slice(0, Number(limit)).map(
-      (video) =>
-        new VideoSchema({
-          video_id: video.videoId,
-          title: video.title,
-          duration: video.duration.seconds, // Thời lượng (giây)
-          url: video.url,
-          thumbnail: video.thumbnail || '',
-          author: video.author.name // Tên kênh
-        })
-    )
+/**
+ * @description Xóa phòng
+ * @path /rooms/:id
+ * @method DELETE
+ * @author QuangDoo
+ */
+roomRouter.delete('/:id', wrapRequestHanlder(deleteRoomController))
 
-    res.json({ result: videos })
-  } catch (error) {
-    console.error('Error searching YouTube:', error)
-    res.status(500).json({ error: 'Failed to search YouTube' })
-  }
-})
 export default roomRouter

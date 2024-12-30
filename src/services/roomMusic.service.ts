@@ -1,23 +1,15 @@
 import { AddSongRequestBody } from '~/models/requests/Song.request'
 import redis from '~/services/redis.service'
 import { historyService } from '~/services/songHistory.service'
-import { getAudioUrl } from './video.service'
 
 class RoomMusicServices {
   async addSongToQueue(roomId: string, song: AddSongRequestBody, position: 'top' | 'end') {
     const queueKey = `room_${roomId}_queue`
 
-    // Lấy video URL trước khi thêm vào queue
-    const audioUrl = await getAudioUrl(song.video_id)
-    const songWithUrl = {
-      ...song,
-      audio_url: audioUrl
-    }
-
     if (position === 'top') {
-      await redis.lpush(queueKey, JSON.stringify(songWithUrl))
+      await redis.lpush(queueKey, JSON.stringify(song))
     } else if (position === 'end') {
-      await redis.rpush(queueKey, JSON.stringify(songWithUrl))
+      await redis.rpush(queueKey, JSON.stringify(song))
     }
 
     return (await redis.lrange(queueKey, 0, -1)).map((item: string) => JSON.parse(item))

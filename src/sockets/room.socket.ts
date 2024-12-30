@@ -56,6 +56,28 @@ export const RoomSocket = (io: Server) => {
       }
     })
 
+    socket.on('video_ready', (payload: { roomId: string; videoId: string }) => {
+      console.log(`Video ready for room ${payload.roomId}:`, payload.videoId)
+
+      // Phát sự kiện play cho tất cả client trong room
+      io.to(payload.roomId).emit('playback_event', {
+        event: 'play',
+        videoId: payload.videoId,
+        currentTime: 0 // Bắt đầu từ đầu
+      })
+
+      // Lưu trạng thái vào Redis (nếu cần)
+      redis.set(
+        `room_${payload.roomId}_playback`,
+        JSON.stringify({
+          videoId: payload.videoId,
+          event: 'play',
+          currentTime: 0,
+          timestamp: Date.now()
+        })
+      )
+    })
+
     // Phục hồi trạng thái video khi client reconnect
     socket.on('get_video_state', async () => {
       try {

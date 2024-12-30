@@ -11,7 +11,6 @@ import {
 import { protect } from '~/middlewares/auth.middleware'
 import {
   checkPricingExists,
-  checkPricingIdArrayValidator,
   checkPricingIdValidator,
   checkPricingNotExists,
   createPricingValidator
