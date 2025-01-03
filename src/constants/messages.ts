@@ -77,15 +77,15 @@ export const SONG_QUEUE_MESSAGES = {
   SONG_PAUSED: 'Song is paused'
 } as const
 
-export const PRICING_MESSAGES = {
-  GET_PRICING_SUCCESS: 'Get pricing success',
-  GET_PRICING_BY_ID_SUCCESS: 'Get pricing by id success',
-  CREATE_PRICING_SUCCESS: 'Create pricing success',
-  UPDATE_PRICING_SUCCESS: 'Update pricing success',
-  DELETE_PRICING_SUCCESS: 'Delete pricing success',
-  DELETE_MULTIPLE_PRICING_SUCCESS: 'Delete multiple pricing success',
-  PRICING_NOT_FOUND: 'Pricing not found',
-  PRICING_EXISTS: 'Pricing already exists'
+export const Price_MESSAGES = {
+  GET_Price_SUCCESS: 'Get Price success',
+  GET_Price_BY_ID_SUCCESS: 'Get Price by id success',
+  CREATE_Price_SUCCESS: 'Create Price success',
+  UPDATE_Price_SUCCESS: 'Update Price success',
+  DELETE_Price_SUCCESS: 'Delete Price success',
+  DELETE_MULTIPLE_Price_SUCCESS: 'Delete multiple Price success',
+  Price_NOT_FOUND: 'Price not found',
+  Price_EXISTS: 'Price already exists'
 } as const
 
 export const ROOM_CATEGORY_MESSAGES = {

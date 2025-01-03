@@ -5,7 +5,7 @@ import { HouseRule } from '~/models/schemas/HouseRules.schema'
 import RoomType from '~/models/schemas/RoomType.schema'
 import { Room } from '~/models/schemas/Room.schema'
 import { SongHistory } from '~/models/schemas/SongHistiry.schema'
-import { Pricing } from '~/models/schemas/Price.schema'
+import { Price } from '~/models/schemas/Price.schema'
 import { RoomCategory } from '~/models/schemas/RoomCategory.schema'
 dotenv.config()
 
@@ -58,7 +58,7 @@ class DatabaseService {
     return this.db.collection('history')
   }
 
-  get price(): Collection<Pricing> {
+  get price(): Collection<Price> {
     return this.db.collection('prices')
   }
 

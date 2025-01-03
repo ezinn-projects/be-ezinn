@@ -41,9 +41,3 @@ export enum DayType {
   Weekend = 'weekend',
   Holiday = 'holiday'
 }
-
-export enum RoomSize {
-  Small = 'small',
-  Medium = 'medium',
-  Large = 'large'
-}

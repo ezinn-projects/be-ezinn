@@ -8,7 +8,7 @@ export interface StatusHistory {
   changedBy: string // Người thực hiện thay đổi (nếu có)
 }
 
-export interface DynamicPricing {
+export interface DynamicPrice {
   low: number // Giá trong giờ thấp điểm (VND/phút)
   normal: number // Giá cơ bản (VND/phút)
   high: number // Giá trong giờ cao điểm (VND/phút)
@@ -16,7 +16,7 @@ export interface DynamicPricing {
 
 export interface PricePerTime {
   basePrice: number // Giá cơ bản mỗi phút (VND/phút)
-  dynamicPricing: DynamicPricing // Giá linh hoạt
+  dynamicPrice: DynamicPrice // Giá linh hoạt
 }
 
 export interface Equipment {
