@@ -8,6 +8,7 @@ import { verifyToken } from '~/utils/jwt'
 
 export const protect = (roles: UserRole[]) => async (req: Request, res: Response, next: NextFunction) => {
   const authHeader = req.headers['authorization']
+
   let token
   if (authHeader && authHeader.startsWith('Bearer ')) {
     token = authHeader.split(' ')[1]
@@ -20,8 +21,12 @@ export const protect = (roles: UserRole[]) => async (req: Request, res: Response
     )
   }
 
+  console.log('token', token)
+
   try {
     const decoded = await verifyToken(token)
+
+    console.log('decoded', decoded)
 
     req.decoded_authorization = decoded
 
