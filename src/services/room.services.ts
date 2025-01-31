@@ -1,12 +1,15 @@
 import { IAddRoomRequestBody } from '~/models/requests/Room.request'
 import databaseService from './database.services'
-import { Room } from '~/models/schemas/Room.schema'
+import { IRoom, Room } from '~/models/schemas/Room.schema'
 import { ObjectId } from 'mongodb'
 import { ROOM_MESSAGES } from '~/constants/messages'
 
 class RoomServices {
   async addRoom(payload: IAddRoomRequestBody) {
-    const result = await databaseService.rooms.insertOne(new Room(payload))
+    const result = await databaseService.rooms.insertOne({
+      ...payload,
+      createdAt: new Date().toISOString()
+    })
 
     return new Room({
       ...payload,
@@ -16,42 +19,22 @@ class RoomServices {
   }
 
   async getRooms() {
-    const result = await databaseService.rooms.find().toArray()
-
-    return result
+    return await databaseService.rooms.find().toArray()
   }
 
   async getRoom(id: string) {
-    const result = await databaseService.rooms.findOne({
-      _id: new ObjectId(id)
-    })
-
-    if (!result) {
-      throw new Error(ROOM_MESSAGES.ROOM_NOT_FOUND)
-    }
-
+    const result = await databaseService.rooms.findOne({ _id: new ObjectId(id) })
+    if (!result) throw new Error(ROOM_MESSAGES.ROOM_NOT_FOUND)
     return result
   }
 
-  async updateRoom(id: string, payload: IAddRoomRequestBody) {
-    const result = await databaseService.rooms.updateOne(
-      {
-        _id: new ObjectId(id)
-      },
-      {
-        $set: payload
-      }
-    )
-
+  async updateRoom(id: string, payload: Partial<IRoom>) {
+    const result = await databaseService.rooms.updateOne({ _id: new ObjectId(id) }, { $set: payload })
     return result
   }
 
   async deleteRoom(id: string) {
-    const result = await databaseService.rooms.deleteOne({
-      _id: new ObjectId(id)
-    })
-
-    return result
+    return await databaseService.rooms.deleteOne({ _id: new ObjectId(id) })
   }
 }
 

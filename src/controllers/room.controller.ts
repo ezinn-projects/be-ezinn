@@ -5,6 +5,8 @@ import { roomServices } from '~/services/room.services'
 
 import { HTTP_STATUS_CODE } from '~/constants/httpStatus'
 import { ROOM_MESSAGES } from '~/constants/messages'
+import multer from 'multer'
+import { uploadImageToCloudinary } from '~/services/cloudinary.service'
 
 /**
  * @description Controller xử lý tạo phòng mới
@@ -15,22 +17,48 @@ import { ROOM_MESSAGES } from '~/constants/messages'
  * @throws {Error} Chuyển tiếp lỗi đến middleware xử lý lỗi thông qua next(error)
  * @author QuangDo
  */
-export const addRoomController = async (
-  req: Request<ParamsDictionary, any, IAddRoomRequestBody>,
-  res: Response,
-  next: NextFunction
-) => {
-  try {
-    const result = await roomServices.addRoom(req.body)
+const storage = multer.memoryStorage()
+const upload = multer({ storage })
 
-    return res.status(HTTP_STATUS_CODE.OK).json({
-      message: ROOM_MESSAGES.ADD_ROOM_TYPE_SUCCESS,
-      result
-    })
-  } catch (error) {
-    next(error)
-  }
+interface CloudinaryResponse {
+  url: string
+  publicId: string
 }
+
+export const addRoomController = [
+  upload.array('images', 5),
+  async (req: Request<ParamsDictionary, any, IAddRoomRequestBody>, res: Response, next: NextFunction) => {
+    try {
+      const { roomName, roomType, maxCapacity, status, description } = req.body
+
+      // Upload từng file lên Cloudinary
+      const files = (req.files as Express.Multer.File[]) || []
+      const uploadedImages = (await Promise.all(
+        files.map((file) => uploadImageToCloudinary(file.buffer, 'rooms'))
+      )) as CloudinaryResponse[]
+
+      // Lấy URL từ kết quả upload
+      const images = uploadedImages.map((img) => img.url)
+
+      // Gọi service lưu phòng với danh sách hình ảnh
+      const result = await roomServices.addRoom({
+        roomName,
+        roomType,
+        maxCapacity: Number(maxCapacity),
+        status,
+        description,
+        images
+      })
+
+      return res.status(HTTP_STATUS_CODE.OK).json({
+        message: ROOM_MESSAGES.ADD_ROOM_TYPE_SUCCESS,
+        result
+      })
+    } catch (error) {
+      next(error)
+    }
+  }
+]
 
 /**
  * @description Controller xử lý lấy phòng theo id

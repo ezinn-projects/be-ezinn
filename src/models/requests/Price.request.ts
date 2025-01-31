@@ -4,13 +4,13 @@ import { DayType, RoomType } from '~/constants/enum'
 // Body for create/update Price
 export interface IPriceRequestBody {
   dayType: DayType
-  timeRange: {
-    start: string // e.g., "17:00"
-    end: string // e.g., "24:00"
-  }
-  prices: {
-    roomType: RoomType
-    price: number
+  timeSlots: {
+    start: string
+    end: string
+    prices: {
+      roomType: RoomType
+      price: number
+    }[]
   }[]
   effectiveDate: string
   endDate?: string
@@ -19,10 +19,9 @@ export interface IPriceRequestBody {
 
 // Query for get Price
 export interface IPriceRequestQuery {
-  roomSize?: string
-  dayType?: string
-  effectiveDate?: string
-  endDate?: string
+  roomType?: RoomType
+  dayType?: DayType
+  date?: string
 }
 
 // Body for delete multiple Price

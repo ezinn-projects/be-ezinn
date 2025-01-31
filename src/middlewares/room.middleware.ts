@@ -27,48 +27,23 @@ export const checkRoomExists = async (req: Request, res: Response, next: NextFun
   }
 }
 
-export const addRoomValidator = validate(
-  checkSchema<keyof IAddRoomRequestBody>(
-    {
-      roomName: {
-        notEmpty: {
-          errorMessage: 'Room name is required'
-        },
-        isString: {
-          errorMessage: 'Room name must be a string'
-        }
-      },
-      roomType: {
-        notEmpty: {
-          errorMessage: 'Room type is required'
-        },
-        isIn: {
-          options: [['Small', 'Medium', 'Large']],
-          errorMessage: 'Room type must be one of Small, Medium, or Large'
-        }
-      },
-      maxCapacity: {
-        notEmpty: {
-          errorMessage: 'Max capacity is required'
-        },
-        isInt: {
-          options: { min: 1 },
-          errorMessage: 'Max capacity must be an integer greater than 0'
-        }
-      },
-      images: {
-        isArray: {
-          errorMessage: 'Images must be an array of URLs'
-        },
-        custom: {
-          options: (value: string[]) => value.every((url: string) => /^https?:\/\/.+\.(jpg|jpeg|png|webp)$/.test(url)),
-          errorMessage: 'All images must be valid URLs ending with .jpg, .jpeg, .png, or .webp'
-        }
-      }
-    },
-    ['body']
-  )
-)
+export const validateFiles = (req: Request, res: Response, next: NextFunction) => {
+  const files = req.files as Express.Multer.File[]
+
+  if (files && files.length > 5) {
+    return res.status(400).json({
+      errors: [{ msg: 'Maximum 5 files allowed' }]
+    })
+  }
+
+  if (files && !files.every((file) => file.mimetype.startsWith('image/'))) {
+    return res.status(400).json({
+      errors: [{ msg: 'All files must be images' }]
+    })
+  }
+
+  next()
+}
 
 export const checkRoomNotExists = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -104,3 +79,90 @@ export const updateRoomValidator = validate(
     ['body']
   )
 )
+
+interface ValidationError {
+  type: string
+  value: any
+  msg: string
+  path: string
+  location: string
+}
+
+export const addRoomValidator = (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const roomName = req.body?.get('roomName')
+    const roomType = req.body?.get('roomType')
+    const maxCapacity = req.body?.get('maxCapacity')
+    const errors: Record<string, ValidationError> = {}
+
+    // Kiểm tra roomName
+    if (!roomName) {
+      errors.roomName = {
+        type: 'field',
+        value: roomName,
+        msg: 'Tên phòng là bắt buộc',
+        path: 'roomName',
+        location: 'formData'
+      }
+    } else if (typeof roomName !== 'string') {
+      errors.roomName = {
+        type: 'field',
+        value: roomName,
+        msg: 'Tên phòng phải là chuỗi',
+        path: 'roomName',
+        location: 'formData'
+      }
+    }
+
+    // Kiểm tra roomType
+    const validRoomTypes = ['Small', 'Medium', 'Large']
+    if (!roomType) {
+      errors.roomType = {
+        type: 'field',
+        value: roomType,
+        msg: 'Loại phòng là bắt buộc',
+        path: 'roomType',
+        location: 'formData'
+      }
+    } else if (!validRoomTypes.includes(roomType)) {
+      errors.roomType = {
+        type: 'field',
+        value: roomType,
+        msg: 'Loại phòng phải là một trong Small, Medium, hoặc Large',
+        path: 'roomType',
+        location: 'formData'
+      }
+    }
+
+    // Kiểm tra maxCapacity
+    const capacity = Number(maxCapacity)
+    if (!maxCapacity) {
+      errors.maxCapacity = {
+        type: 'field',
+        value: maxCapacity,
+        msg: 'Sức chứa tối đa là bắt buộc',
+        path: 'maxCapacity',
+        location: 'formData'
+      }
+    } else if (isNaN(capacity) || capacity < 1 || !Number.isInteger(capacity)) {
+      errors.maxCapacity = {
+        type: 'field',
+        value: maxCapacity,
+        msg: 'Sức chứa tối đa phải là số nguyên lớn hơn 0',
+        path: 'maxCapacity',
+        location: 'formData'
+      }
+    }
+
+    if (Object.keys(errors).length > 0) {
+      return res.status(HTTP_STATUS_CODE.UNPROCESSABLE_ENTITY).json({
+        message: 'Validation error',
+        errors
+      })
+    }
+
+    next()
+  } catch (error) {
+    next(error)
+  }
+}

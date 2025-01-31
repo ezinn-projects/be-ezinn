@@ -1,5 +1,4 @@
 import { Router } from 'express'
-import ytdl from 'ytdl-core'
 import { HTTP_STATUS_CODE } from '~/constants/httpStatus'
 import {
   addSong,
@@ -69,38 +68,6 @@ roomMusicRouter.get('/:roomId/now-playing', async (req, res, next) => {
     let nowPlaying = await roomMusicServices.getNowPlaying(roomId)
 
     res.status(HTTP_STATUS_CODE.OK).json({ result: nowPlaying })
-  } catch (error) {
-    console.error('Error fetching video details:', error)
-    next(error)
-  }
-}) // Lấy bài hát đang phát
-
-/**
- * @description Get now playing song
- * @path /song-queue/:roomId/now-playing
- * @method GET
- * @author QuangDoo
- */
-roomMusicRouter.get('/song-info/:videoId', async (req, res, next) => {
-  try {
-    const { videoId } = req.params
-    // URL của video
-    const url = `https://www.youtube.com/watch?v=${videoId}`
-
-    // Lấy thông tin video
-    const info = await ytdl.getInfo(url)
-
-    // Trích xuất thông tin cần thiết
-    const videoDetails = {
-      title: info.videoDetails.title, // Tiêu đề video
-      duration: parseInt(info.videoDetails.lengthSeconds, 10), // Thời lượng (giây)
-      url: info.videoDetails.video_url, // URL của video
-      thumbnails: info.videoDetails.thumbnails, // Danh sách thumbnail
-      author: info.videoDetails.author.name // Tên kênh
-    }
-
-    console.log('Video Details:', videoDetails)
-    res.status(HTTP_STATUS_CODE.OK).json({ videoDetails })
   } catch (error) {
     console.error('Error fetching video details:', error)
     next(error)
