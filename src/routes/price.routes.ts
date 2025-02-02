@@ -18,7 +18,7 @@ import {
 
 import { wrapRequestHanlder } from '~/utils/handlers'
 
-const PriceRouter = Router()
+const priceRouter = Router()
 
 /**
  * @description Get Price
@@ -27,7 +27,7 @@ const PriceRouter = Router()
  * @body {room_size: RoomSize, day_type: DayType, date: Date}
  * @author QuangDoo
  */
-PriceRouter.get('/', wrapRequestHanlder(getPrice))
+priceRouter.get('/', wrapRequestHanlder(getPrice))
 
 /**
  * @description Get Price by id
@@ -35,7 +35,7 @@ PriceRouter.get('/', wrapRequestHanlder(getPrice))
  * @method GET
  * @author QuangDoo
  */
-PriceRouter.get('/:id', checkPriceNotExists, wrapRequestHanlder(getPriceById))
+priceRouter.get('/:id', checkPriceNotExists, wrapRequestHanlder(getPriceById))
 
 /**
  * @description Create Price
@@ -44,7 +44,7 @@ PriceRouter.get('/:id', checkPriceNotExists, wrapRequestHanlder(getPriceById))
  * @body {room_size: RoomSize, day_type: DayType, effective_date: Date, end_date: Date}
  * @author QuangDoo
  */
-PriceRouter.post(
+priceRouter.post(
   '/',
   protect([UserRole.Admin]),
   createPriceValidator,
@@ -59,7 +59,7 @@ PriceRouter.post(
  * @body {room_size: RoomSize, day_type: DayType, effective_date: Date, end_date: Date}
  * @author QuangDoo
  */
-PriceRouter.put('/:id', protect([UserRole.Admin]), createPriceValidator, wrapRequestHanlder(updatePrice))
+priceRouter.put('/:id', protect([UserRole.Admin]), createPriceValidator, wrapRequestHanlder(updatePrice))
 
 /**
  * @description Delete multiple Price
@@ -68,7 +68,7 @@ PriceRouter.put('/:id', protect([UserRole.Admin]), createPriceValidator, wrapReq
  * @method DELETE
  * @author QuangDoo
  */
-PriceRouter.delete('/multiple', protect([UserRole.Admin]), wrapRequestHanlder(deleteMultiplePrice))
+priceRouter.delete('/multiple', protect([UserRole.Admin]), wrapRequestHanlder(deleteMultiplePrice))
 
 /**
  * @description Delete Price
@@ -76,7 +76,7 @@ PriceRouter.delete('/multiple', protect([UserRole.Admin]), wrapRequestHanlder(de
  * @method DELETE
  * @author QuangDoo
  */
-PriceRouter.delete(
+priceRouter.delete(
   '/:id',
   protect([UserRole.Admin]),
   checkPriceIdValidator,
@@ -84,4 +84,4 @@ PriceRouter.delete(
   wrapRequestHanlder(deletePrice)
 )
 
-export default PriceRouter
+export default priceRouter

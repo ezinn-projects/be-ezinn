@@ -61,28 +61,6 @@ export const addRoomController = [
 ]
 
 /**
- * @description Controller xử lý lấy phòng theo id
- * @param {Request} req - Express request object
- * @param {Response} res - Express response object
- * @param {NextFunction} next - Express next middleware function
- * @returns {Promise<Response>} Response với status 200 và thông tin phòng
- * @throws {Error} Chuyển tiếp lỗi đến middleware xử lý lỗi thông qua next(error)
- * @author QuangDo
- */
-export const getRoomController = async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const result = await roomServices.getRoom(req.params.id)
-
-    return res.status(HTTP_STATUS_CODE.OK).json({
-      message: ROOM_MESSAGES.GET_ROOM_SUCCESS,
-      result
-    })
-  } catch (error) {
-    next(error)
-  }
-}
-
-/**
  * @description Controller xử lý lấy tất cả phòng
  * @param {Request} req - Express request object
  * @param {Response} res - Express response object
@@ -97,6 +75,28 @@ export const getRoomsController = async (req: Request, res: Response, next: Next
 
     return res.status(HTTP_STATUS_CODE.OK).json({
       message: ROOM_MESSAGES.GET_ROOMS_SUCCESS,
+      result
+    })
+  } catch (error) {
+    next(error)
+  }
+}
+
+/**
+ * @description Controller xử lý lấy phòng theo id
+ * @param {Request} req - Express request object
+ * @param {Response} res - Express response object
+ * @param {NextFunction} next - Express next middleware function
+ * @returns {Promise<Response>} Response với status 200 và thông tin phòng
+ * @throws {Error} Chuyển tiếp lỗi đến middleware xử lý lỗi thông qua next(error)
+ * @author QuangDo
+ */
+export const getRoomController = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const result = await roomServices.getRoom(req.params.id)
+
+    return res.status(HTTP_STATUS_CODE.OK).json({
+      message: ROOM_MESSAGES.GET_ROOM_SUCCESS,
       result
     })
   } catch (error) {
