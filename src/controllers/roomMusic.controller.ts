@@ -8,6 +8,24 @@ import { roomMusicServices } from '~/services/roomMusic.service'
 import redis from '~/services/redis.service'
 
 /**
+ * @description Search song
+ * @path /song-queue/rooms/:roomId/search
+ * @method POST
+ * @body {keyword: string} @type {AddSongRequestBody}
+ * @author QuangDoo
+ */
+export const searchSong = async (req: Request, res: Response, next: NextFunction) => {
+  const { roomId } = req.params
+  const { keyword } = req.body
+
+  try {
+    const result = await roomMusicServices.searchSong(roomId, keyword)
+  } catch (error) {
+    next(error)
+  }
+}
+
+/**
  * @description Add song to queue
  * @path /song-queue/rooms/:roomId/queue
  * @method POST

@@ -5,50 +5,59 @@ import { DayType, RoomType } from '~/constants/enum'
 import { HTTP_STATUS_CODE } from '~/constants/httpStatus'
 import { Price_MESSAGES } from '~/constants/messages'
 import { ErrorWithStatus } from '~/models/Error'
+import { TimeSlot } from '~/models/schemas/Price.schema'
 import databaseService from '~/services/database.services'
 import { validate } from '~/utils/validation'
 
 export const createPriceValidator = validate(
   checkSchema({
-    prices: {
+    timeSlots: {
       notEmpty: {
-        errorMessage: 'Prices array is required'
+        errorMessage: 'Time slots array is required'
       },
       isArray: {
-        errorMessage: 'Prices must be an array'
+        errorMessage: 'Time slots must be an array'
       },
       custom: {
-        options: (prices: { roomType: string; price: number }[]) => {
-          if (!prices.length) {
-            throw new Error('Prices array cannot be empty')
+        options: (timeSlots: TimeSlot[]) => {
+          if (!timeSlots.length || timeSlots.length !== 3) {
+            throw new ErrorWithStatus({
+              message: 'Must have exactly 3 time slots',
+              status: HTTP_STATUS_CODE.BAD_REQUEST
+            })
           }
 
-          // Kiểm tra từng item trong mảng prices
-          return prices.every((item) => {
-            if (!item.roomType || !Object.values(RoomType).includes(item.roomType as RoomType)) {
-              throw new Error('Invalid room type')
+          // Kiểm tra từng time slot
+          return timeSlots.every((slot, index) => {
+            if (!slot.start || !slot.end) {
+              throw new ErrorWithStatus({
+                message: 'Start and end time are required',
+                status: HTTP_STATUS_CODE.BAD_REQUEST
+              })
             }
-            if (typeof item.price !== 'number' || item.price <= 0) {
-              throw new Error('Price must be a positive number')
+
+            // Kiểm tra thời gian hợp lệ
+            const start = new Date(`2024-01-01T${slot.start}`)
+            const end = new Date(`2024-01-01T${slot.end}`)
+
+            if (start >= end) {
+              throw new ErrorWithStatus({
+                message: 'End time must be greater than start time',
+                status: HTTP_STATUS_CODE.BAD_REQUEST
+              })
             }
+
+            // Kiểm tra prices
+            if (!slot.prices?.length) {
+              throw new ErrorWithStatus({
+                message: 'Prices are required for each time slot',
+                status: HTTP_STATUS_CODE.BAD_REQUEST
+              })
+            }
+
             return true
           })
         }
-      }
-    },
-    timeRange: {
-      notEmpty: {
-        errorMessage: 'Time range is required'
-      },
-      custom: {
-        options: (value: { start: string; end: string }) => {
-          const { start, end } = value
-
-          const adjustedEnd = end === '00:00' ? '24:00' : end
-
-          return new Date(`2024-12-21T${start}`) <= new Date(`2024-12-21T${adjustedEnd}`)
-        },
-        errorMessage: 'End time must be greater than start time'
       }
     },
     dayType: {
@@ -58,6 +67,14 @@ export const createPriceValidator = validate(
       isIn: {
         options: [Object.values(DayType)],
         errorMessage: 'Invalid day type'
+      }
+    },
+    effectiveDate: {
+      notEmpty: {
+        errorMessage: 'Effective date is required'
+      },
+      isISO8601: {
+        errorMessage: 'Invalid date format'
       }
     }
   })

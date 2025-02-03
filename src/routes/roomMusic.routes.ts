@@ -1,5 +1,4 @@
 import { Router } from 'express'
-import ytdl from 'ytdl-core'
 import { HTTP_STATUS_CODE } from '~/constants/httpStatus'
 import {
   addSong,
@@ -10,8 +9,10 @@ import {
   removeSong
 } from '~/controllers/roomMusic.controller'
 import { addSongValidator } from '~/middlewares/roomMusic.middleware'
+import { VideoSchema } from '~/models/schemas/Video.schema'
 import { roomMusicServices } from '~/services/roomMusic.service'
 import { wrapRequestHanlder } from '~/utils/handlers'
+import ytSearch from 'yt-search'
 
 const roomMusicRouter = Router()
 
@@ -76,38 +77,6 @@ roomMusicRouter.get('/:roomId/now-playing', async (req, res, next) => {
 }) // Lấy bài hát đang phát
 
 /**
- * @description Get now playing song
- * @path /song-queue/:roomId/now-playing
- * @method GET
- * @author QuangDoo
- */
-roomMusicRouter.get('/song-info/:videoId', async (req, res, next) => {
-  try {
-    const { videoId } = req.params
-    // URL của video
-    const url = `https://www.youtube.com/watch?v=${videoId}`
-
-    // Lấy thông tin video
-    const info = await ytdl.getInfo(url)
-
-    // Trích xuất thông tin cần thiết
-    const videoDetails = {
-      title: info.videoDetails.title, // Tiêu đề video
-      duration: parseInt(info.videoDetails.lengthSeconds, 10), // Thời lượng (giây)
-      url: info.videoDetails.video_url, // URL của video
-      thumbnails: info.videoDetails.thumbnails, // Danh sách thumbnail
-      author: info.videoDetails.author.name // Tên kênh
-    }
-
-    console.log('Video Details:', videoDetails)
-    res.status(HTTP_STATUS_CODE.OK).json({ videoDetails })
-  } catch (error) {
-    console.error('Error fetching video details:', error)
-    next(error)
-  }
-}) // Lấy bài hát đang phát
-
-/**
  * @description Control song playback (play/pause)
  * @path /song-queue/rooms/:roomId/playback/:action
  * @method POST
@@ -115,5 +84,51 @@ roomMusicRouter.get('/song-info/:videoId', async (req, res, next) => {
  * @author QuangDoo
  */
 roomMusicRouter.post('/:roomId/playback/:action', wrapRequestHanlder(controlPlayback)) // Điều khiển phát nhạc (play/pause)
+
+/**
+ * @description search songs
+ * @path /rooms/search-songs
+ * @method GET
+ * @author QuangDoo
+ */
+roomMusicRouter.get('/:roomId/search-songs', async (req, res) => {
+  const { q, limit = '50' } = req.query
+  const parsedLimit = parseInt(limit as string, 10)
+
+  // Validate search query
+  if (!q || typeof q !== 'string') {
+    return res.status(400).json({ error: 'Missing or invalid search query' })
+  }
+
+  // Validate limit parameter
+  if (isNaN(parsedLimit) || parsedLimit < 1 || parsedLimit > 100) {
+    return res.status(400).json({ error: 'Invalid limit parameter. Must be between 1 and 100' })
+  }
+
+  try {
+    // Tìm kiếm trên YouTube
+    const searchResults = await ytSearch(q)
+
+    // Trích xuất danh sách video
+    const videos = searchResults.videos.slice(0, parsedLimit).map(
+      (video) =>
+        new VideoSchema({
+          video_id: video.videoId,
+          title: video.title,
+          duration: video.duration.seconds,
+          url: video.url,
+          thumbnail: video.thumbnail || '',
+          author: video.author.name
+        })
+    )
+
+    return res.status(HTTP_STATUS_CODE.OK).json({ result: videos })
+  } catch (error) {
+    return res.status(HTTP_STATUS_CODE.INTERNAL_SERVER_ERROR).json({
+      error: 'Failed to search YouTube',
+      message: (error as Error).message
+    })
+  }
+})
 
 export default roomMusicRouter

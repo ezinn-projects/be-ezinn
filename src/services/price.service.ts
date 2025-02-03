@@ -12,12 +12,12 @@ class PriceService {
    */
   async getPrice(filter: IPriceRequestQuery) {
     const query: any = {}
-    if (filter.roomSize) query.room_size = filter.roomSize
+    if (filter.roomType) query.room_type = filter.roomType
     if (filter.dayType) query.day_type = filter.dayType
 
-    if (filter.effectiveDate) {
-      query.effectiveDate = { $lte: filter.effectiveDate }
-      query.endDate = { $gte: filter.effectiveDate }
+    if (filter.date) {
+      query.effectiveDate = { $lte: filter.date }
+      query.endDate = { $gte: filter.date }
     }
 
     return await databaseService.price.find(query).toArray()
@@ -42,10 +42,13 @@ class PriceService {
   async createPrice(price: IPriceRequestBody) {
     const priceData = new Price({
       day_type: price.dayType,
-      time_range: price.timeRange,
-      prices: price.prices.map((p) => ({
-        room_type: p.roomType,
-        price: p.price
+      time_slots: price.timeSlots.map((slot) => ({
+        start: slot.start,
+        end: slot.end,
+        prices: slot.prices.map((p) => ({
+          room_type: p.roomType,
+          price: p.price
+        }))
       })),
       effective_date: new Date(price.effectiveDate),
       end_date: price.endDate ? new Date(price.endDate) : null,
@@ -66,10 +69,13 @@ class PriceService {
   async updatePrice(id: string, price: IPriceRequestBody) {
     const priceData = new Price({
       day_type: price.dayType,
-      time_range: price.timeRange,
-      prices: price.prices.map((p) => ({
-        room_type: p.roomType,
-        price: p.price
+      time_slots: price.timeSlots.map((slot) => ({
+        start: slot.start,
+        end: slot.end,
+        prices: slot.prices.map((p) => ({
+          room_type: p.roomType,
+          price: p.price
+        }))
       })),
       effective_date: new Date(price.effectiveDate),
       end_date: price.endDate ? new Date(price.endDate) : null,

@@ -100,6 +100,11 @@ export const addRoomTypeValidator = validate(
             return true
           }
         }
+      },
+      description: {
+        notEmpty: {
+          errorMessage: 'Description is required'
+        }
       }
     },
 

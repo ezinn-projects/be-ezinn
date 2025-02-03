@@ -1,4 +1,5 @@
 import { Router } from 'express'
+import multer from 'multer'
 import { UserRole } from '~/constants/enum'
 import {
   addRoomController,
@@ -8,26 +9,29 @@ import {
   updateRoomController
 } from '~/controllers/room.controller'
 import { protect } from '~/middlewares/auth.middleware'
-import { addRoomValidator, checkRoomExists } from '~/middlewares/room.middleware'
+import { checkRoomExists, validateFiles } from '~/middlewares/room.middleware'
 import { wrapRequestHanlder } from '~/utils/handlers'
-import ytSearch from 'yt-search'
-import { VideoSchema } from '~/models/schemas/Video.schema'
 
 const roomRouter = Router()
+
+const upload = multer({ storage: multer.memoryStorage() })
 
 /**
  * @description Add room
  * @path /rooms/add-room
  * @method POST
- * @body {roomId: string, roomName: string, roomType: string, maxCapacity: number, status: string, pricePerTime: {startTime: string, endTime: string, price: number}[], equipment: {name: string, quantity: number}[], description: string, images: string[]} @type {IAddRoomRequestBody}
+ * @body multipart/form-data
+ * Fields: roomId, roomName, roomType, maxCapacity, status, pricePerTime, equipment, description
  * @author QuangDoo
  */
 roomRouter.post(
   '/add-room',
-  protect([UserRole.Admin]), // Kiểm tra quyền trước
-  addRoomValidator, // Kiểm tra dữ liệu từ request
-  checkRoomExists, // Kiểm tra trùng lặp trong DB
-  wrapRequestHanlder(addRoomController) // Xử lý logic tạo phòng
+  protect([UserRole.Admin]),
+  validateFiles,
+  checkRoomExists,
+  // addRoomValidator,
+  upload.array('images', 5),
+  wrapRequestHanlder(addRoomController)
 )
 
 /**

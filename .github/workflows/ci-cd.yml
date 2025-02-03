@@ -113,11 +113,15 @@ jobs:
           password: ${{ secrets.VPS_PASSWORD }}
           port: 22
           script: |
-            docker image prune -f --filter "until=24h"
+            # Xóa các container không sử dụng trong 7 ngày
+            docker container prune -f --filter "until=168h"
+            # Xóa các image không sử dụng trong 7 ngày
+            docker image prune -f --filter "until=168h"
 
       - name: Remove old images from Docker Hub
         run: |
-          images=$(docker images -q --filter "dangling=true")
+          # Xóa các image không gắn tag (dangling) và cũ hơn 7 ngày
+          images=$(docker images -q --filter "dangling=true" --filter "until=168h")
           if [ -n "$images" ]; then
             docker rmi $images
           fi

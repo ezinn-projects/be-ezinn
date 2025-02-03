@@ -9,17 +9,19 @@ import { DayType, RoomType } from '~/constants/enum'
 // effective_date	Date	Ngày bắt đầu áp dụng giá
 // end_date	Date (nullable)	Ngày kết thúc áp dụng giá (nếu có)
 
-export interface IPrice {
-  _id?: ObjectId
-  day_type: DayType
-  time_range: {
-    start: string
-    end: string
-  }
+export interface TimeSlot {
+  start: string // Format: "HH:mm"
+  end: string
   prices: {
     room_type: RoomType
     price: number
   }[]
+}
+
+export interface IPrice {
+  _id?: ObjectId
+  day_type: DayType
+  time_slots: TimeSlot[]
   effective_date: Date
   end_date?: Date | null
   note?: string
@@ -28,14 +30,7 @@ export interface IPrice {
 export class Price {
   _id?: ObjectId
   day_type: DayType
-  time_range: {
-    start: string
-    end: string
-  }
-  prices: {
-    room_type: RoomType
-    price: number
-  }[]
+  time_slots: TimeSlot[]
   effective_date: Date
   end_date?: Date | null
   note?: string
@@ -43,8 +38,7 @@ export class Price {
   constructor(price: IPrice) {
     this._id = price._id
     this.day_type = price.day_type
-    this.time_range = price.time_range
-    this.prices = price.prices
+    this.time_slots = price.time_slots
     this.effective_date = price.effective_date
     this.end_date = price.end_date
     this.note = price.note
