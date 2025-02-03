@@ -6,7 +6,7 @@ import { roomServices } from '~/services/room.services'
 import { HTTP_STATUS_CODE } from '~/constants/httpStatus'
 import { ROOM_MESSAGES } from '~/constants/messages'
 import multer from 'multer'
-import { uploadImageToCloudinary } from '~/services/cloudinary.service'
+import { uploadImageToCloudinary, deleteImageFromCloudinary } from '~/services/cloudinary.service'
 
 /**
  * @description Controller xử lý tạo phòng mới
@@ -25,40 +25,47 @@ interface CloudinaryResponse {
   publicId: string
 }
 
-export const addRoomController = [
-  upload.array('images', 5),
-  async (req: Request<ParamsDictionary, any, IAddRoomRequestBody>, res: Response, next: NextFunction) => {
-    try {
-      const { roomName, roomType, maxCapacity, status, description } = req.body
+export const addRoomController = async (
+  req: Request<ParamsDictionary, any, IAddRoomRequestBody>,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { roomName, roomType, maxCapacity, status, description } = req.body
+    const files = req.files as Express.Multer.File[] | undefined
 
-      // Upload từng file lên Cloudinary
-      const files = (req.files as Express.Multer.File[]) || []
-      const uploadedImages = (await Promise.all(
-        files.map((file) => uploadImageToCloudinary(file.buffer, 'rooms'))
-      )) as CloudinaryResponse[]
+    const uploadedImages: CloudinaryResponse[] = []
 
-      // Lấy URL từ kết quả upload
-      const images = uploadedImages.map((img) => img.url)
-
-      // Gọi service lưu phòng với danh sách hình ảnh
-      const result = await roomServices.addRoom({
-        roomName,
-        roomType,
-        maxCapacity: Number(maxCapacity),
-        status,
-        description,
-        images
-      })
-
-      return res.status(HTTP_STATUS_CODE.OK).json({
-        message: ROOM_MESSAGES.ADD_ROOM_TYPE_SUCCESS,
-        result
-      })
-    } catch (error) {
-      next(error)
+    if (files?.length) {
+      for (const file of files) {
+        try {
+          const result = await uploadImageToCloudinary(file.buffer, 'rooms')
+          uploadedImages.push(result as CloudinaryResponse)
+        } catch (error) {
+          // Cleanup already uploaded images if any upload fails
+          await Promise.all(uploadedImages.map((img) => deleteImageFromCloudinary(img.publicId)))
+          throw new Error(`Failed to upload images: ${(error as Error).message}`)
+        }
+      }
     }
+
+    const result = await roomServices.addRoom({
+      roomName,
+      roomType,
+      maxCapacity: Number(maxCapacity),
+      status,
+      description,
+      images: uploadedImages.map((img) => img.url)
+    })
+
+    return res.status(HTTP_STATUS_CODE.OK).json({
+      message: ROOM_MESSAGES.ADD_ROOM_TYPE_SUCCESS,
+      result
+    })
+  } catch (error) {
+    next(error)
   }
-]
+}
 
 /**
  * @description Controller xử lý lấy tất cả phòng

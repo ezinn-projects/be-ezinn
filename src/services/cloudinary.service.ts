@@ -1,25 +1,14 @@
 import cloudinary from '~/cloudinary.config'
+import { CLOUDINARY_UPLOAD_CONFIG } from '~/constants/config'
 
 // Hàm upload ảnh lên Cloudinary
 export const uploadImageToCloudinary = async (fileBuffer: Buffer, folder: string) => {
   try {
-    const result = await cloudinary.uploader.upload_stream({
-      folder,
-      resource_type: 'auto',
-      quality: 'auto',
-      fetch_format: 'auto',
-      timeout: 60000,
-      transformation: [{ width: 'auto', crop: 'scale' }]
-    })
     return new Promise((resolve, reject) => {
       const uploadStream = cloudinary.uploader.upload_stream(
         {
           folder,
-          resource_type: 'auto',
-          quality: 'auto',
-          fetch_format: 'auto',
-          timeout: 60000,
-          transformation: [{ width: 'auto', crop: 'scale' }]
+          ...CLOUDINARY_UPLOAD_CONFIG
         },
         (error, result) => {
           if (error) {

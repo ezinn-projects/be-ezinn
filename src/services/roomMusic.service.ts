@@ -3,12 +3,6 @@ import redis from '~/services/redis.service'
 import { historyService } from '~/services/songHistory.service'
 
 class RoomMusicServices {
-  async searchSong(roomId: string, keyword: string) {
-    // const queueKey = `room_${roomId}_queue`
-    // const songs = await redis.lrange(queueKey, 0, -1)
-    // return songs.filter((song) => song.title.includes(keyword))
-  }
-
   async addSongToQueue(roomId: string, song: AddSongRequestBody, position: 'top' | 'end') {
     const queueKey = `room_${roomId}_queue`
 

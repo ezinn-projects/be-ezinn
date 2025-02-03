@@ -14,6 +14,8 @@ import { wrapRequestHanlder } from '~/utils/handlers'
 
 const roomRouter = Router()
 
+const upload = multer({ storage: multer.memoryStorage() })
+
 /**
  * @description Add room
  * @path /rooms/add-room
@@ -28,8 +30,8 @@ roomRouter.post(
   validateFiles,
   checkRoomExists,
   // addRoomValidator,
-  addRoomController[0],
-  wrapRequestHanlder(addRoomController[1] as any)
+  upload.array('images', 5),
+  wrapRequestHanlder(addRoomController)
 )
 
 /**

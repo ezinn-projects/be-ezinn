@@ -92,33 +92,42 @@ roomMusicRouter.post('/:roomId/playback/:action', wrapRequestHanlder(controlPlay
  * @author QuangDoo
  */
 roomMusicRouter.get('/:roomId/search-songs', async (req, res) => {
-  const { q, limit = 50 } = req.query
+  const { q, limit = '50' } = req.query
+  const parsedLimit = parseInt(limit as string, 10)
 
-  if (!q) {
-    return res.status(400).json({ error: 'Missing query parameter: q' })
+  // Validate search query
+  if (!q || typeof q !== 'string') {
+    return res.status(400).json({ error: 'Missing or invalid search query' })
+  }
+
+  // Validate limit parameter
+  if (isNaN(parsedLimit) || parsedLimit < 1 || parsedLimit > 100) {
+    return res.status(400).json({ error: 'Invalid limit parameter. Must be between 1 and 100' })
   }
 
   try {
     // Tìm kiếm trên YouTube
-    const searchResults = await ytSearch(q as string)
+    const searchResults = await ytSearch(q)
 
     // Trích xuất danh sách video
-    const videos = searchResults.videos.slice(0, Number(limit)).map(
+    const videos = searchResults.videos.slice(0, parsedLimit).map(
       (video) =>
         new VideoSchema({
           video_id: video.videoId,
           title: video.title,
-          duration: video.duration.seconds, // Thời lượng (giây)
+          duration: video.duration.seconds,
           url: video.url,
           thumbnail: video.thumbnail || '',
-          author: video.author.name // Tên kênh
+          author: video.author.name
         })
     )
 
-    res.json({ result: videos })
+    return res.status(HTTP_STATUS_CODE.OK).json({ result: videos })
   } catch (error) {
-    console.error('Error searching YouTube:', error)
-    res.status(500).json({ error: 'Failed to search YouTube' })
+    return res.status(HTTP_STATUS_CODE.INTERNAL_SERVER_ERROR).json({
+      error: 'Failed to search YouTube',
+      message: (error as Error).message
+    })
   }
 })
 
