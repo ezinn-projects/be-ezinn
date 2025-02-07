@@ -31,7 +31,9 @@ export const USER_MESSAGES = {
   REFRESH_TOKEN_NOT_EMPTY: 'Refresh token is not empty',
   LOGOUT_SUCCESS: 'Logout success',
   INVALID_ROLE: 'Invalid role',
-  ROLE_NOT_EMPTY: 'Role is not empty'
+  ROLE_NOT_EMPTY: 'Role is not empty',
+  PHONE_NUMBER_NOT_EMPTY: 'Phone number is not empty',
+  INVALID_PHONE_NUMBER: 'Invalid phone number'
 } as const
 
 export const HOUSE_RULES_MESSAGES = {

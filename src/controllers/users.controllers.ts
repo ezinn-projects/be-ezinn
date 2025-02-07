@@ -75,8 +75,8 @@ export const registerController = async (
     }
 
     // Generate JWT tokens (access and refresh tokens)
-    const accessTokenOptions = { expiresIn: '15m' } // e.g., 15 minutes for the access token
-    const refreshTokenOptions = { expiresIn: '7d' } // e.g., 7 days for the refresh token
+    const accessTokenOptions = { expiresIn: process.env.ACCESS_TOKEN_EXPIRES_IN } // e.g., 15 minutes for the access token
+    const refreshTokenOptions = { expiresIn: process.env.REFRESH_TOKEN_EXPIRES_IN } // e.g., 7 days for the refresh token
     const accessToken: any = await signToken({ payload, options: accessTokenOptions })
     const refreshToken: any = await signToken({ payload, options: refreshTokenOptions })
 

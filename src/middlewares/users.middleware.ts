@@ -143,6 +143,15 @@ export const registerValidator = validate(
         },
         trim: true
       },
+      phone_number: {
+        notEmpty: {
+          errorMessage: USER_MESSAGES.PHONE_NUMBER_NOT_EMPTY
+        },
+        isMobilePhone: {
+          errorMessage: USER_MESSAGES.INVALID_PHONE_NUMBER
+        },
+        trim: true
+      },
       password: {
         notEmpty: {
           errorMessage: USER_MESSAGES.PASSWORD_NOT_EMPTY
