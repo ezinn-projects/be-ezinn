@@ -1,26 +1,26 @@
 import { ObjectId } from 'mongodb'
 import { UserRole, UserVerifyStatus } from '~/constants/enum'
 
-interface UserType {
-  _id?: ObjectId
+export interface IUser {
+  _id: ObjectId
   name: string
-  email: string
+  email?: string
+  phone_number: string
   date_of_birth: Date
-  password: string
-  created_at?: Date
-  updated_at?: Date
+  password: string // Hashed
+  pin_code?: string // Hashed PIN for tablet access
   email_verify_token?: string
   forgot_password_token?: string
   verify?: UserVerifyStatus
-
+  sso_provider?: string
+  sso_id?: string
+  created_at: Date
+  updated_at?: Date
+  // Additional profile fields
   bio?: string
   location?: string
-  website?: string
-  username?: string
-  cover_photo?: string
   avatar?: string
-
-  role: UserRole
+  role: UserRole // e.g., User, Admin, Employee
 }
 
 // Tại sao lại dùng class thay vì dùng interface để đại diện schema
@@ -43,19 +43,16 @@ export class User {
 
   bio: string
   location: string
-  website: string
-  username: string
-  cover_photo: string
   avatar: string
 
   role: UserRole
 
   // khai báo contructor với thuộc tính trên
-  constructor(user: UserType) {
+  constructor(user: IUser) {
     const date = new Date()
 
     this._id = user._id
-    this.email = user.email
+    this.email = user.email || ''
     this.name = user.name || ''
     this.date_of_birth = user.date_of_birth || date
     this.password = user.password
@@ -68,9 +65,6 @@ export class User {
 
     this.bio = user.bio || ''
     this.location = user.location || ''
-    this.website = user.website || ''
-    this.username = user.username || ''
-    this.cover_photo = user.cover_photo || ''
     this.avatar = user.avatar || ''
 
     this.role = user.role || UserRole.User
