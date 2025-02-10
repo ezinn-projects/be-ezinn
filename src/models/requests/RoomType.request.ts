@@ -1,4 +1,14 @@
+// import { DayTypePrice } from '~/models/schemas/RoomType.schema'
+
+import { RoomType } from '~/constants/enum'
+
 export interface AddRoomTypeRequestBody {
   name: string
-  description?: string
+  capacity: number
+  area: number
+  description: string
+  images: string[]
+  type: RoomType
 }
+
+export interface UpdateRoomTypeRequestBody extends Partial<AddRoomTypeRequestBody> {}

@@ -7,17 +7,16 @@ import {
   getRoomTypeByIdController,
   getRoomTypesController,
   updateRoomTypeByIdController
-} from '~/controllers/roomType.controllers'
+} from '~/controllers/roomType.controller'
+
+import multer from 'multer'
 import { protect } from '~/middlewares/auth.middleware'
-import {
-  addRoomTypeValidator,
-  checkRoomTypeExists,
-  checkRoomTypeIsNotExists,
-  validateRoomTypeIds
-} from '~/middlewares/roomType.middleware'
+import { checkRoomTypeExists, checkRoomTypeIsNotExists, validateRoomTypeIds } from '~/middlewares/roomType.middleware'
 import { wrapRequestHanlder } from '~/utils/handlers'
 
 const roomTypeRouter = Router()
+
+const upload = multer({ storage: multer.memoryStorage() })
 
 /**
  * @description Get room types
@@ -39,14 +38,15 @@ roomTypeRouter.get('/:roomTypeId', checkRoomTypeIsNotExists, wrapRequestHanlder(
  * @description Add room type
  * @path /room-types/add-room-type
  * @method POST
- * @body {name: string, description: string} @type {AddRoomTypeRequestBody}
+ * @body multipart/form-data
+ * Fields: name, description, images, type
  * @author QuangDoo
  */
 roomTypeRouter.post(
   '/add-room-type',
   protect([UserRole.Admin]),
   checkRoomTypeExists,
-  addRoomTypeValidator,
+  upload.array('images', 5),
   wrapRequestHanlder(addRoomTypeController)
 )
 

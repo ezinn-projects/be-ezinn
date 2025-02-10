@@ -4,7 +4,7 @@ import {
   getUserController,
   loginController,
   registerController
-} from '~/controllers/users.controllers'
+} from '~/controllers/users.controller'
 import {
   accessTokenValidator,
   checkLoginUserExists,

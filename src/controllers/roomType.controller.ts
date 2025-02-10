@@ -2,8 +2,10 @@ import { NextFunction, Request, Response } from 'express'
 import { type ParamsDictionary } from 'express-serve-static-core'
 import { HTTP_STATUS_CODE } from '~/constants/httpStatus'
 import { ROOM_TYPE_MESSAGES } from '~/constants/messages'
+import CloudinaryResponse from '~/models/CloudinaryResponse'
 import { AddRoomTypeRequestBody } from '~/models/requests/RoomType.request'
-import { roomTypeServices } from '~/services/roomType.services'
+import { roomTypeServices } from '~/services/roomType.service'
+import { uploadImageToCloudinary, deleteImageFromCloudinary } from '~/services/cloudinary.service'
 
 export const addRoomTypeController = async (
   req: Request<ParamsDictionary, any, AddRoomTypeRequestBody>,
@@ -11,7 +13,32 @@ export const addRoomTypeController = async (
   next: NextFunction
 ) => {
   try {
-    const result = await roomTypeServices.addRoomType(req.body)
+    const { name, capacity, area, description, type } = req.body
+    const files = req.files as Express.Multer.File[] | undefined
+
+    const uploadedImages: CloudinaryResponse[] = []
+
+    if (files?.length) {
+      for (const file of files) {
+        try {
+          const result = await uploadImageToCloudinary(file.buffer, 'room-types')
+          uploadedImages.push(result as CloudinaryResponse)
+        } catch (error) {
+          // Cleanup already uploaded images if any upload fails
+          await Promise.all(uploadedImages.map((img) => deleteImageFromCloudinary(img.publicId)))
+          throw new Error(`Failed to upload images: ${(error as Error).message}`)
+        }
+      }
+    }
+
+    const result = await roomTypeServices.addRoomType({
+      name,
+      capacity: Number(capacity),
+      area: Number(area),
+      description,
+      images: uploadedImages.map((img) => img.url),
+      type
+    })
 
     return res.status(HTTP_STATUS_CODE.OK).json({
       message: ROOM_TYPE_MESSAGES.ADD_ROOM_TYPE_SUCCESS,

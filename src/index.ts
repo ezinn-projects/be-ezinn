@@ -1,15 +1,14 @@
 import cors from 'cors'
 import express from 'express'
 import { defaultErrorHandler } from '~/middlewares/error.middleware'
-import houseRulesRouter from '~/routes/houseRules.routes'
+import fileRouter from '~/routes/file.routes'
+import priceRouter from '~/routes/price.routes'
 import roomRouter from '~/routes/room.routes'
 import roomMusicRouter from '~/routes/roomMusic.routes'
-import roomTypeRouter from '~/routes/roomType.routes'
 import usersRouter from '~/routes/users.routes'
 import databaseService from '~/services/database.services'
 import serverService from '~/services/server.services'
-import priceRouter from '~/routes/price.routes'
-import fileRouter from '~/routes/file.routes'
+import roomTypeRouter from '~/routes/roomType.routes'
 
 databaseService.connect()
 serverService.start()
@@ -23,8 +22,6 @@ app.use(cors())
 app.use(express.json())
 
 app.use('/users', usersRouter)
-
-app.use('/house-rules', houseRulesRouter)
 
 app.use('/room-types', roomTypeRouter)
 

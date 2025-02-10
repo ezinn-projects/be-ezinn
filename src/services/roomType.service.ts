@@ -5,26 +5,48 @@ import { ObjectId } from 'mongodb'
 
 class RoomTypeServices {
   async addRoomType(payload: AddRoomTypeRequestBody) {
-    const result = await databaseService.roomTypes.insertOne(new RoomType(payload))
+    const result = await databaseService.roomTypes.insertOne({
+      ...payload,
+      created_at: new Date(),
+      updated_at: new Date(),
+      images: payload.images || [],
+      type: payload.type
+    })
 
     return new RoomType({
+      ...payload,
       _id: result.insertedId,
-      ...payload
+      created_at: new Date(),
+      updated_at: new Date(),
+      images: payload.images || [],
+      type: payload.type
     })
   }
 
-  async getRoomTypes(page: number = 1, limit: number = 10) {
-    const result = await databaseService.roomTypes
-      .find()
-      .skip((page - 1) * limit)
-      .limit(limit)
-      .toArray()
-    const totalItems = await databaseService.roomTypes.countDocuments()
+  async getRoomTypes() {
+    // Lấy tất cả room types
+    const roomTypes = await databaseService.roomTypes.find().toArray()
 
-    return {
-      data: result.map((roomType) => new RoomType(roomType)),
-      totalItems
-    }
+    // Lấy bảng giá hiện tại
+    const currentPrice = await databaseService.price.findOne({
+      effective_date: { $lte: new Date() },
+      $or: [{ end_date: null }, { end_date: { $gte: new Date() } }]
+    })
+
+    // Kết hợp thông tin room type với giá
+    const roomTypesWithPrices = roomTypes.map((roomType) => {
+      const roomTypePrices = currentPrice?.time_slots.map((slot) => ({
+        timeSlot: `${slot.start}-${slot.end}`,
+        price: slot.prices.find((p) => p.room_type === roomType.type)?.price || 0
+      }))
+
+      return {
+        ...roomType,
+        prices: roomTypePrices || []
+      }
+    })
+
+    return roomTypesWithPrices
   }
 
   async getRoomTypeById(roomTypeId: string) {

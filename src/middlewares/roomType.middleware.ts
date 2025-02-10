@@ -85,29 +85,108 @@ export function validateRoomTypeIds(req: Request, res: Response, next: NextFunct
   next()
 }
 
-export const addRoomTypeValidator = validate(
-  checkSchema(
-    {
-      name: {
-        notEmpty: {
-          errorMessage: 'Name is required'
-        },
-        custom: {
-          options: (value: string, { req }) => {
-            if (value.length < 3) {
-              throw new Error('Name must be at least 3 characters long')
-            }
-            return true
-          }
-        }
-      },
-      description: {
-        notEmpty: {
-          errorMessage: 'Description is required'
+interface ValidationError {
+  type: string
+  value: any
+  msg: string
+  path: string
+  location: string
+}
+
+export const addRoomTypeValidator = (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const name = req.body?.get('name')
+    const capacity = req.body?.get('capacity')
+    const files = req.files as Express.Multer.File[] | undefined
+
+    const errors: Record<string, ValidationError> = {}
+
+    // Kiểm tra name (bắt buộc và phải là 1 trong 3 loại)
+    const validRoomTypes = ['Small', 'Medium', 'Large']
+    if (!name) {
+      errors.name = {
+        type: 'field',
+        value: name,
+        msg: 'Tên loại phòng là bắt buộc',
+        path: 'name',
+        location: 'formData'
+      }
+    } else if (!validRoomTypes.includes(name)) {
+      errors.name = {
+        type: 'field',
+        value: name,
+        msg: 'Loại phòng phải là một trong: Small, Medium, hoặc Large',
+        path: 'name',
+        location: 'formData'
+      }
+    }
+
+    // Kiểm tra capacity (bắt buộc)
+    const capacityNum = Number(capacity)
+    if (!capacity) {
+      errors.capacity = {
+        type: 'field',
+        value: capacity,
+        msg: 'Sức chứa là bắt buộc',
+        path: 'capacity',
+        location: 'formData'
+      }
+    } else if (isNaN(capacityNum) || capacityNum < 1 || !Number.isInteger(capacityNum)) {
+      errors.capacity = {
+        type: 'field',
+        value: capacity,
+        msg: 'Sức chứa phải là số nguyên lớn hơn 0',
+        path: 'capacity',
+        location: 'formData'
+      }
+    }
+
+    // Kiểm tra images (bắt buộc)
+    if (!files || files.length === 0) {
+      errors.images = {
+        type: 'field',
+        value: null,
+        msg: 'Phải có ít nhất một hình ảnh',
+        path: 'images',
+        location: 'formData'
+      }
+    } else {
+      // Kiểm tra định dạng file
+      const allowedTypes = ['image/jpeg', 'image/png', 'image/webp']
+      const invalidFile = files.some((file) => !allowedTypes.includes(file.mimetype))
+      if (invalidFile) {
+        errors.images = {
+          type: 'field',
+          value: null,
+          msg: 'Hình ảnh phải có định dạng JPEG, PNG hoặc WebP',
+          path: 'images',
+          location: 'formData'
         }
       }
-    },
 
-    ['body']
-  )
-)
+      // Kiểm tra kích thước file
+      const maxSize = 5 * 1024 * 1024 // 5MB
+      const oversizedFile = files.some((file) => file.size > maxSize)
+      if (oversizedFile) {
+        errors.images = {
+          type: 'field',
+          value: null,
+          msg: 'Kích thước hình ảnh không được vượt quá 5MB',
+          path: 'images',
+          location: 'formData'
+        }
+      }
+    }
+
+    if (Object.keys(errors).length > 0) {
+      return res.status(HTTP_STATUS_CODE.UNPROCESSABLE_ENTITY).json({
+        message: 'Validation error',
+        errors
+      })
+    }
+
+    next()
+  } catch (error) {
+    next(error)
+  }
+}
