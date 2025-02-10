@@ -59,7 +59,6 @@ roomTypeRouter.post(
 roomTypeRouter.patch(
   '/:roomTypeId',
   protect([UserRole.Admin]),
-  checkRoomTypeExists,
   checkRoomTypeIsNotExists,
   wrapRequestHanlder(updateRoomTypeByIdController)
 )

@@ -27,22 +27,39 @@ class RoomTypeServices {
     // Lấy tất cả room types
     const roomTypes = await databaseService.roomTypes.find().toArray()
 
-    // Lấy bảng giá hiện tại
-    const currentPrice = await databaseService.price.findOne({
-      effective_date: { $lte: new Date() },
-      $or: [{ end_date: null }, { end_date: { $gte: new Date() } }]
-    })
+    // Lấy bảng giá hiện tại cho cả ngày thường và cuối tuần
+    const currentPrices = await databaseService.price
+      .find({
+        effective_date: { $lte: new Date() },
+        $or: [{ end_date: null }, { end_date: { $gte: new Date() } }]
+      })
+      .toArray()
 
-    // Kết hợp thông tin room type với giá
+    // Kết hợp thông tin room type với giá theo day_type
     const roomTypesWithPrices = roomTypes.map((roomType) => {
-      const roomTypePrices = currentPrice?.time_slots.map((slot) => ({
-        timeSlot: `${slot.start}-${slot.end}`,
-        price: slot.prices.find((p) => p.room_type === roomType.type)?.price || 0
-      }))
+      type DayType = 'weekday' | 'weekend' | 'holiday'
+      const prices: Record<DayType, { timeSlot: string; price: number }[]> = {
+        weekday: [],
+        weekend: [],
+        holiday: []
+      }
+
+      // Xử lý giá cho từng day_type
+      currentPrices.forEach((priceDoc) => {
+        const dayType = priceDoc.day_type as DayType
+        prices[dayType] = priceDoc.time_slots.map((slot) => ({
+          timeSlot: `${slot.start}-${slot.end}`,
+          price: slot.prices.find((p) => p.room_type === roomType.type)?.price || 0
+        }))
+      })
 
       return {
         ...roomType,
-        prices: roomTypePrices || []
+        prices: {
+          weekday: prices.weekday,
+          weekend: prices.weekend,
+          holiday: prices.holiday
+        }
       }
     })
 

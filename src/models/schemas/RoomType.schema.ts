@@ -6,7 +6,7 @@ interface RoomTypeType {
   type: RoomTypeEnum
   name: string
   capacity: number
-  area: number
+  area: string
   description: string
   images: string[]
   created_at?: Date
@@ -18,7 +18,7 @@ export default class RoomType {
   type: RoomTypeEnum
   name: string
   capacity: number
-  area: number
+  area: string
   description: string
   images: string[]
   created_at: Date

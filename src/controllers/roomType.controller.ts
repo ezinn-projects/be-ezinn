@@ -34,7 +34,7 @@ export const addRoomTypeController = async (
     const result = await roomTypeServices.addRoomType({
       name,
       capacity: Number(capacity),
-      area: Number(area),
+      area: area,
       description,
       images: uploadedImages.map((img) => img.url),
       type

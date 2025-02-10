@@ -5,7 +5,7 @@ import { RoomType } from '~/constants/enum'
 export interface AddRoomTypeRequestBody {
   name: string
   capacity: number
-  area: number
+  area: string
   description: string
   images: string[]
   type: RoomType
