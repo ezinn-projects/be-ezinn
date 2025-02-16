@@ -76,6 +76,8 @@ class RoomMusicServices {
       duration
     }
 
+    console.log('nowPlayingData', nowPlayingData)
+
     // Lưu vào Redis
     await redis.set(nowPlayingKey, JSON.stringify(nowPlayingData))
 

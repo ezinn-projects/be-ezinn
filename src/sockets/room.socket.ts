@@ -1,5 +1,6 @@
 import { Server, Socket } from 'socket.io'
 import redis from '~/services/redis.service'
+import { roomMusicServices } from '~/services/roomMusic.service'
 
 interface CommandPayload {
   action: string
@@ -121,6 +122,25 @@ export const RoomSocket = (io: Server) => {
 
       // Phát sự kiện đồng bộ tới tất cả các client trong room
       io.to(roomId).emit('synchronize_queue', payload)
+    })
+
+    // Trong file xử lý socket của Backend
+    socket.on('get_now_playing', async ({ roomId }) => {
+      const nowPlaying = await roomMusicServices.getNowPlaying(roomId)
+      socket.emit('now_playing', nowPlaying)
+    })
+
+    socket.on('next_song', async ({ roomId }) => {
+      try {
+        // Broadcast sự kiện này đến tất cả clients trong cùng room
+        io.to(roomId).emit('next_song')
+
+        // Hoặc nếu bạn muốn xử lý logic thêm ở server
+        const nowPlaying = await roomMusicServices.getNowPlaying(roomId)
+        io.to(roomId).emit('now_playing', nowPlaying)
+      } catch (error) {
+        console.error('Error handling next song:', error)
+      }
     })
 
     // Khi client ngắt kết nối
