@@ -143,6 +143,25 @@ export const RoomSocket = (io: Server) => {
       }
     })
 
+    socket.on('sync_time', (payload: { roomId: string; videoId: string; currentTime: number; timestamp: number }) => {
+      // Broadcast current time cho tất cả client trong room
+      io.to(payload.roomId).emit('video_time_update', {
+        videoId: payload.videoId,
+        currentTime: payload.currentTime,
+        timestamp: payload.timestamp
+      })
+
+      // Lưu trạng thái vào Redis nếu cần
+      redis.set(
+        `room_${payload.roomId}_playback`,
+        JSON.stringify({
+          videoId: payload.videoId,
+          currentTime: payload.currentTime,
+          timestamp: payload.timestamp
+        })
+      )
+    })
+
     // Khi client ngắt kết nối
     socket.on('disconnect', () => {
       console.log(`Client disconnected: ${socket.id}`)
