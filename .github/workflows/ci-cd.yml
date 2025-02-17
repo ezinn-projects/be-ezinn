@@ -93,7 +93,7 @@ jobs:
             docker pull ${{ secrets.DOCKER_USERNAME }}/jozo-be:${{ steps.get_sha.outputs.GIT_SHA }}
             docker stop jozo-be || true
             docker rm jozo-be || true
-            docker run -d --name jozo-be -p 4000:4000 ${{ secrets.DOCKER_USERNAME }}/jozo-be:${{ steps.get_sha.outputs.GIT_SHA }}
+            docker run -d --name jozo-be -p 4000:4000 -p 8080:8080 ${{ secrets.DOCKER_USERNAME }}/jozo-be:${{ steps.get_sha.outputs.GIT_SHA }}
 
   cleanup:
     runs-on: ubuntu-latest
