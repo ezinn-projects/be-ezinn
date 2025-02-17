@@ -31,8 +31,12 @@ class UsersServices {
       const result = await databaseService.users.insertOne(
         new User({
           ...payload,
+          _id: new ObjectId(),
           date_of_birth: new Date(payload.date_of_birth),
-          password: hashPassword(payload.password)
+          password: hashPassword(payload.password),
+          phone_number: payload.phone_number,
+          created_at: new Date(),
+          updated_at: new Date()
         })
       )
 

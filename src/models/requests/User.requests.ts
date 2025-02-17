@@ -7,4 +7,5 @@ export interface RegisterRequestBody {
   confirm_password: string
   date_of_birth: Date
   role: UserRole
+  phone_number: string
 }
