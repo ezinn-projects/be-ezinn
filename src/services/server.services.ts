@@ -1,9 +1,9 @@
+import cors from 'cors'
 import express, { Express } from 'express'
 import { createServer, Server as HttpServer } from 'http'
 import { Server as SocketIOServer } from 'socket.io'
-import { RoomSocket } from '~/sockets/room.socket'
 import roomRoutes from '~/routes/room.routes'
-import songQueueRouter from '~/routes/roomMusic.routes'
+import { RoomSocket } from '~/sockets/room.socket'
 
 class Server {
   private app: Express
@@ -16,7 +16,8 @@ class Server {
     this.httpServer = createServer(this.app)
     this.io = new SocketIOServer(this.httpServer, {
       cors: {
-        origin: '*'
+        origin: '*',
+        credentials: true
       }
     })
 
@@ -27,6 +28,12 @@ class Server {
 
   // Khởi tạo middleware
   private initializeMiddleware() {
+    this.app.use(
+      cors({
+        origin: '*',
+        credentials: true
+      })
+    )
     this.app.use(express.json())
   }
 

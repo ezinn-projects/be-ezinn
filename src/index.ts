@@ -17,7 +17,12 @@ export const app = express()
 
 const port = 4000
 
-app.use(cors())
+app.use(
+  cors({
+    origin: '*',
+    credentials: true
+  })
+)
 // parse application/json sang object
 app.use(express.json())
 
