@@ -16,7 +16,14 @@ class Server {
     this.httpServer = createServer(this.app)
     this.io = new SocketIOServer(this.httpServer, {
       cors: {
-        origin: ['http://localhost:3000', 'http://203.145.46.244', 'http://203.145.46.244:3001'],
+        origin: (origin, callback) => {
+          const allowedOrigins = ['http://localhost:3000', 'http://203.145.46.244', 'http://203.145.46.244:3001']
+          // Nếu không có origin (ví dụ từ các công cụ hay server-side) hoặc origin có trong danh sách cho phép
+          if (!origin || allowedOrigins.includes(origin)) {
+            return callback(null, true)
+          }
+          return callback(new Error('Origin not allowed: ' + origin))
+        },
         methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
         allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
         credentials: true
@@ -32,6 +39,7 @@ class Server {
 
   // Khởi tạo middleware
   private initializeMiddleware() {
+    // Sử dụng middleware của cors để tự động xử lý preflight và thiết lập header cho đúng
     this.app.use(
       cors({
         origin: ['http://localhost:3000', 'http://203.145.46.244', 'http://203.145.46.244:3001'],
@@ -41,21 +49,14 @@ class Server {
       })
     )
 
-    this.app.use((req, res, next) => {
-      res.header('Access-Control-Allow-Origin', '*')
-      res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
-      res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept')
-      res.header('Access-Control-Allow-Credentials', 'true')
-      next()
-    })
-
+    // Không cần thiết lập header thủ công nữa
     this.app.use(express.json())
   }
 
   // Khởi tạo routes
   private initializeRoutes() {
     this.app.use('/api/rooms', roomRoutes)
-    // this.app.use('/api/song-queue', songQueueRouter)
+    // Các route khác nếu có
   }
 
   // Khởi tạo WebSocket logic
@@ -66,7 +67,7 @@ class Server {
   // Chạy server
   public start() {
     this.httpServer.listen(Number(this.PORT), '0.0.0.0', () => {
-      console.log(`Socket server is running on http://localhost:${this.PORT}`)
+      console.log(`Socket server is running on port ${this.PORT}`)
     })
   }
 }
