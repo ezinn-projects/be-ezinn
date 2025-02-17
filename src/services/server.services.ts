@@ -16,8 +16,11 @@ class Server {
     this.httpServer = createServer(this.app)
     this.io = new SocketIOServer(this.httpServer, {
       cors: {
-        origin: '*'
-      }
+        origin: '*',
+        credentials: false
+      },
+      allowEIO3: true,
+      transports: ['websocket', 'polling']
     })
 
     this.initializeMiddleware()
