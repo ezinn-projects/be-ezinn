@@ -16,9 +16,13 @@ class Server {
     this.httpServer = createServer(this.app)
     this.io = new SocketIOServer(this.httpServer, {
       cors: {
-        origin: '*',
+        origin: ['http://localhost:3000', 'http://203.145.46.244', 'http://203.145.46.244:3001'],
+        methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+        allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
         credentials: true
-      }
+      },
+      allowEIO3: true,
+      transports: ['websocket', 'polling']
     })
 
     this.initializeMiddleware()
@@ -30,10 +34,21 @@ class Server {
   private initializeMiddleware() {
     this.app.use(
       cors({
-        origin: '*',
+        origin: ['http://localhost:3000', 'http://203.145.46.244', 'http://203.145.46.244:3001'],
+        methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+        allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
         credentials: true
       })
     )
+
+    this.app.use((req, res, next) => {
+      res.header('Access-Control-Allow-Origin', '*')
+      res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
+      res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept')
+      res.header('Access-Control-Allow-Credentials', 'true')
+      next()
+    })
+
     this.app.use(express.json())
   }
 
@@ -50,7 +65,7 @@ class Server {
 
   // Chạy server
   public start() {
-    this.httpServer.listen(this.PORT, () => {
+    this.httpServer.listen(Number(this.PORT), '0.0.0.0', () => {
       console.log(`Socket server is running on http://localhost:${this.PORT}`)
     })
   }
