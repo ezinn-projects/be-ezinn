@@ -76,7 +76,9 @@ export const SONG_QUEUE_MESSAGES = {
   SONG_IS_NOW_PLAYING: 'Song is now playing',
   GET_SONGS_IN_QUEUE_SUCCESS: 'Get songs in queue success',
   SONG_PLAYING: 'Song is playing',
-  SONG_PAUSED: 'Song is paused'
+  SONG_PAUSED: 'Song is paused',
+  SONG_SKIPPED: 'Song is skipped',
+  GET_VIDEO_INFO_SUCCESS: 'Get video info success'
 } as const
 
 export const Price_MESSAGES = {

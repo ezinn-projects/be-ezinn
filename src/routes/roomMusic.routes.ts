@@ -4,6 +4,7 @@ import {
   addSong,
   controlPlayback,
   getSongsInQueue,
+  getVideoInfo,
   playNextSong,
   removeAllSongsInQueue,
   removeSong
@@ -130,5 +131,14 @@ roomMusicRouter.get('/:roomId/search-songs', async (req, res) => {
     })
   }
 })
+
+/**
+ * @description Get video info
+ * @path /song-queue/rooms/:roomId/:videoId
+ * @method GET
+ * @author QuangDoo
+ */
+
+roomMusicRouter.get('/:roomId/:videoId', wrapRequestHanlder(getVideoInfo))
 
 export default roomMusicRouter

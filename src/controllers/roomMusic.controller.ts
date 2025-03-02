@@ -1,29 +1,11 @@
-import { Request, Response, NextFunction } from 'express'
+import { NextFunction, Request, Response } from 'express'
 import { type ParamsDictionary } from 'express-serve-static-core'
 import { HTTP_STATUS_CODE } from '~/constants/httpStatus'
 import { SONG_QUEUE_MESSAGES } from '~/constants/messages'
 import { AddSongRequestBody } from '~/models/requests/Song.request'
-import serverService from '~/services/server.services'
-import { roomMusicServices } from '~/services/roomMusic.service'
 import redis from '~/services/redis.service'
-
-// /**
-//  * @description Search song
-//  * @path /song-queue/rooms/:roomId/search
-//  * @method POST
-//  * @body {keyword: string} @type {AddSongRequestBody}
-//  * @author QuangDoo
-//  */
-// export const searchSong = async (req: Request, res: Response, next: NextFunction) => {
-//   const { roomId } = req.params
-//   const { keyword } = req.body
-
-//   try {
-//     const result = await roomMusicServices.searchSong(roomId, keyword)
-//   } catch (error) {
-//     next(error)
-//   }
-// }
+import { roomMusicServices } from '~/services/roomMusic.service'
+import serverService from '~/services/server.services'
 
 /**
  * @description Add song to queue
@@ -218,6 +200,23 @@ export const controlPlayback = async (req: Request<ParamsDictionary, any>, res: 
       message: action === 'play' ? SONG_QUEUE_MESSAGES.SONG_PLAYING : SONG_QUEUE_MESSAGES.SONG_PAUSED,
       result: { action, current_time }
     })
+  } catch (error) {
+    next(error)
+  }
+}
+
+/**
+ * get video info by ytdl
+ * @path /song-queue/rooms/:roomId/youtube/:url
+ * @method GET
+ * @author QuangDoo
+ */
+export const getVideoInfo = async (req: Request, res: Response, next: NextFunction) => {
+  const { videoId } = req.params
+  try {
+    console.log('videoId', videoId)
+    const videoInfo = await roomMusicServices.getVideoInfo(videoId)
+    res.status(HTTP_STATUS_CODE.OK).json({ message: SONG_QUEUE_MESSAGES.GET_VIDEO_INFO_SUCCESS, result: videoInfo })
   } catch (error) {
     next(error)
   }

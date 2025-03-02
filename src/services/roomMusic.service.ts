@@ -1,6 +1,7 @@
 import { AddSongRequestBody } from '~/models/requests/Song.request'
 import redis from '~/services/redis.service'
 import { historyService } from '~/services/songHistory.service'
+import youtubeDl, { Payload } from 'youtube-dl-exec'
 
 class RoomMusicServices {
   async addSongToQueue(roomId: string, song: AddSongRequestBody, position: 'top' | 'end') {
@@ -134,6 +135,42 @@ class RoomMusicServices {
   async removeAllSongsInQueue(roomId: string) {
     const queueKey = `room_${roomId}_queue`
     await redis.del(queueKey)
+  }
+
+  /**
+   * @description Lấy thông tin video từ YouTube và map thành AddSongRequestBody
+   * @param url - Đường dẫn video YouTube
+   * @returns AddSongRequestBody
+   * @author QuangDoo
+   */
+  async getVideoInfo(videoId: string): Promise<AddSongRequestBody> {
+    try {
+      const videoUrl = `https://www.youtube.com/watch?v=${videoId}`
+
+      const info = (await youtubeDl(videoUrl, {
+        dumpSingleJson: true,
+        noCheckCertificates: true,
+        preferFreeFormats: true,
+        youtubeSkipDashManifest: true,
+        format: 'best',
+        // ytdlpArgs: ['--extractor-args', 'youtube:player_client=web youtube:formats=missing_pot'],
+        addHeader: [
+          'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Referer: https://www.youtube.com/'
+        ]
+      })) as Payload & { url: string }
+
+      return {
+        video_id: videoId,
+        title: info.title || '',
+        duration: info.duration,
+        url: info.url,
+        thumbnail: info.thumbnail || info.thumbnails?.[0]?.url,
+        author: info.uploader || 'Jozo music - recording'
+      }
+    } catch (error: unknown) {
+      throw new Error(`Failed to fetch video data: ${(error as Error).message}`)
+    }
   }
 }
 
