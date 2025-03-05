@@ -30,22 +30,45 @@ export const addSong = async (
     )
 
     let nowPlaying = await roomMusicServices.getNowPlaying(roomId)
+    const currentQueue = await roomMusicServices.getSongsInQueue(roomId)
+
+    // Emit sự kiện cập nhật queue cho tất cả client trong phòng
+    serverService.io.to(roomId).emit('queue_updated', updatedQueue)
 
     if (!nowPlaying) {
-      const { nowPlaying, queue } = await roomMusicServices.playNextSong(roomId)
-      return res.status(HTTP_STATUS_CODE.CREATED).json({
-        message: SONG_QUEUE_MESSAGES.ADD_SONG_TO_QUEUE_SUCCESS,
-        result: {
-          nowPlaying,
-          queue
-        }
-      })
+      nowPlaying = await roomMusicServices.getNowPlaying(roomId)
+
+      if (!nowPlaying && currentQueue.length > 0) {
+        const { nowPlaying: nextSong, queue } = await roomMusicServices.playNextSong(roomId)
+
+        // Emit các sự kiện khi bắt đầu phát bài hát mới
+        serverService.io.to(roomId).emit('queue_updated', queue)
+        serverService.io.to(roomId).emit('video_event', {
+          event: 'play',
+          videoId: nextSong?.video_id,
+          currentTime: 0
+        })
+        serverService.io.to(roomId).emit('play_song', {
+          ...nextSong,
+          isPlaying: true,
+          currentTime: 0,
+          timestamp: Date.now()
+        })
+
+        return res.status(HTTP_STATUS_CODE.CREATED).json({
+          message: SONG_QUEUE_MESSAGES.ADD_SONG_TO_QUEUE_SUCCESS,
+          result: {
+            nowPlaying: nextSong,
+            queue
+          }
+        })
+      }
     }
 
     res.status(HTTP_STATUS_CODE.CREATED).json({
       message: SONG_QUEUE_MESSAGES.ADD_SONG_TO_QUEUE_SUCCESS,
       result: {
-        now_Playing: nowPlaying,
+        nowPlaying: nowPlaying,
         queue: updatedQueue
       }
     })
@@ -107,25 +130,65 @@ export const playNextSong = async (req: Request, res: Response, next: NextFuncti
   const { roomId } = req.params
 
   try {
+    // Kiểm tra trạng thái hiện tại trước khi thực hiện thay đổi
+    const currentNowPlaying = await roomMusicServices.getNowPlaying(roomId)
+
     const { nowPlaying, queue } = await roomMusicServices.playNextSong(roomId)
 
-    if (!nowPlaying) {
+    if (!nowPlaying && queue.length === 0) {
+      // Chỉ xóa now_playing khi không còn bài hát nào trong hàng đợi
+      await redis.del(`room_${roomId}_now_playing`)
+      serverService.io.to(roomId).emit('now_playing_cleared')
+
       return res.status(HTTP_STATUS_CODE.NOT_FOUND).json({
-        message: SONG_QUEUE_MESSAGES.NO_SONG_IN_QUEUE
+        message: SONG_QUEUE_MESSAGES.NO_SONG_IN_QUEUE,
+        result: {
+          previousSong: currentNowPlaying, // Thêm thông tin về bài hát trước đó
+          queue: []
+        }
       })
     }
 
-    await redis.set(`room_${roomId}_playback`, 'play')
+    // Reset các trạng thái liên quan đến playback
+    await Promise.all([
+      redis.set(`room_${roomId}_playback`, 'play'),
+      redis.set(`room_${roomId}_current_time`, '0'),
+      redis.set(
+        `room_${roomId}_now_playing`,
+        JSON.stringify({
+          ...nowPlaying,
+          currentTime: 0,
+          timestamp: Date.now()
+        })
+      )
+    ])
 
-    // Emit socket event
-    serverService.io.to(roomId).emit(`room_${roomId}_playback`, 'play')
+    // Emit các sự kiện theo thứ tự
+    serverService.io.to(roomId).emit('queue_updated', queue)
 
-    serverService.io.to(roomId).emit('play_song', nowPlaying)
+    // 2. Reset và load video mới
+    serverService.io.to(roomId).emit('video_event', {
+      event: 'play',
+      videoId: nowPlaying?.video_id,
+      currentTime: 0
+    })
+
+    // 3. Cập nhật thông tin now playing
+    serverService.io.to(roomId).emit('play_song', {
+      ...nowPlaying,
+      isPlaying: true,
+      currentTime: 0,
+      timestamp: Date.now()
+    })
 
     res.status(HTTP_STATUS_CODE.OK).json({
       message: SONG_QUEUE_MESSAGES.SONG_IS_NOW_PLAYING,
       result: {
-        nowPlaying,
+        nowPlaying: {
+          ...nowPlaying,
+          currentTime: 0,
+          timestamp: Date.now()
+        },
         queue
       }
     })
@@ -168,7 +231,8 @@ export const getSongsInQueue = async (req: Request, res: Response, next: NextFun
  */
 export const controlPlayback = async (req: Request<ParamsDictionary, any>, res: Response, next: NextFunction) => {
   const { roomId, action } = req.params
-  const { current_time } = req.body // Client gửi current_time kèm theo lệnh
+  const { current_time } = req.body
+  const BUFFER_TIME = 1.5 // Buffer 1.5 giây
 
   try {
     const nowPlaying = await roomMusicServices.getNowPlaying(roomId)
@@ -179,22 +243,44 @@ export const controlPlayback = async (req: Request<ParamsDictionary, any>, res: 
       })
     }
 
-    if (action === 'pause') {
-      serverService.io.to(roomId).emit('pause_song', nowPlaying)
-      // Cập nhật current_time vào Redis khi pause
-      await redis.set(`room_${roomId}_current_time`, current_time)
-    } else if (action === 'play') {
-      serverService.io.to(roomId).emit('play_song', nowPlaying)
-      // Tính timestamp mới khi phát lại
-      const newTimestamp = Math.floor(Date.now() / 1000) - (current_time || 0)
-      await redis.set(`room_${roomId}_timestamp`, newTimestamp)
+    // Kiểm tra nếu video gần kết thúc (còn 1.5s hoặc ít hơn)
+    if (current_time && nowPlaying.duration) {
+      const remainingTime = nowPlaying.duration - current_time
+      if (remainingTime <= BUFFER_TIME) {
+        // Tự động chuyển sang bài tiếp theo
+        const { nowPlaying: nextSong, queue } = await roomMusicServices.playNextSong(roomId)
+
+        if (nextSong) {
+          serverService.io.to(roomId).emit('video_event', {
+            event: 'play',
+            videoId: nextSong.video_id,
+            currentTime: 0
+          })
+
+          return res.status(HTTP_STATUS_CODE.OK).json({
+            message: SONG_QUEUE_MESSAGES.SONG_IS_NOW_PLAYING,
+            result: {
+              nowPlaying: nextSong,
+              queue
+            }
+          })
+        }
+      }
     }
+
+    // Emit video_event thay vì play_song/pause_song riêng lẻ
+    serverService.io.to(roomId).emit('video_event', {
+      event: action, // 'play' hoặc 'pause'
+      videoId: nowPlaying.video_id,
+      currentTime: current_time || 0
+    })
 
     // Lưu trạng thái playback
     await redis.set(`room_${roomId}_playback`, action)
 
-    // Emit socket event
-    serverService.io.to(roomId).emit(`room_${roomId}_playback`, { action, current_time })
+    if (current_time) {
+      await redis.set(`room_${roomId}_current_time`, current_time)
+    }
 
     res.status(HTTP_STATUS_CODE.OK).json({
       message: action === 'play' ? SONG_QUEUE_MESSAGES.SONG_PLAYING : SONG_QUEUE_MESSAGES.SONG_PAUSED,
