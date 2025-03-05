@@ -307,3 +307,21 @@ export const getVideoInfo = async (req: Request, res: Response, next: NextFuncti
     next(error)
   }
 }
+
+/**
+ * Update queue
+ * @path /song-queue/rooms/:roomId/queue
+ * @method PUT
+ * @author QuangDoo
+ */
+export const updateQueue = async (req: Request, res: Response, next: NextFunction) => {
+  const { roomId } = req.params
+  const { queue } = req.body
+
+  try {
+    const updatedQueue = await roomMusicServices.updateQueue(roomId, queue)
+    res.status(HTTP_STATUS_CODE.OK).json({ message: SONG_QUEUE_MESSAGES.UPDATE_QUEUE_SUCCESS, result: updatedQueue })
+  } catch (error) {
+    next(error)
+  }
+}

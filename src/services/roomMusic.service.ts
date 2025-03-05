@@ -172,6 +172,14 @@ class RoomMusicServices {
       throw new Error(`Failed to fetch video data: ${(error as Error).message}`)
     }
   }
+
+  async updateQueue(roomId: string, queue: AddSongRequestBody[]) {
+    const queueKey = `room_${roomId}_queue`
+    await redis.del(queueKey)
+    await redis.rpush(queueKey, ...queue.map((song) => JSON.stringify(song)))
+    console.log('queue', queue)
+    return queue
+  }
 }
 
 export const roomMusicServices = new RoomMusicServices()

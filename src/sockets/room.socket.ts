@@ -66,7 +66,15 @@ export const RoomSocket = (io: Server) => {
       })
     })
 
-    // // Phục hồi trạng thái video khi client reconnect
+    // Lắng nghe sự kiện 'adjustVolume' từ Client A
+    socket.on('adjustVolume', (volume: number) => {
+      console.log('Nhận âm lượng từ Client A:', volume)
+
+      // Gửi sự kiện 'volumeChange' đến tất cả client khác (Client B)
+      socket.broadcast.emit('volumeChange', volume)
+    })
+
+    // Phục hồi trạng thái video khi client reconnect
     socket.on('get_video_state', async () => {
       try {
         const videoState = await redis.get(`room_${roomId}_now_playing`)
@@ -103,26 +111,18 @@ export const RoomSocket = (io: Server) => {
           // Phát sự kiện play_song tới tất cả client trong room
           io.to(roomId).emit('play_song', nowPlaying)
 
-          // Thêm emit playback_event để đảm bảo video sẽ play
-          io.to(roomId).emit('playback_event', {
-            event: 'play',
-            videoId: payload.videoId,
-            currentTime: 0
-          })
+          // // Thêm emit playback_event để đảm bảo video sẽ play
+          // io.to(roomId).emit('playback_event', {
+          //   event: 'play',
+          //   videoId: payload.videoId,
+          //   currentTime: 0
+          // })
         } catch (error) {
           console.error(`Failed to process play_song for room ${roomId}:`, error)
           socket.emit('error', { message: 'Failed to play song', error })
         }
       }
     )
-
-    // Cập nhật get_now_playing để trả về đúng cấu trúc
-    socket.on('get_now_playing', async ({ roomId }) => {
-      const nowPlaying = await roomMusicServices.getNowPlaying(roomId)
-      if (nowPlaying) {
-        socket.emit('now_playing', nowPlaying)
-      }
-    })
 
     // Xử lý sự kiện song_ended
     socket.on('song_ended', async ({ roomId }) => {

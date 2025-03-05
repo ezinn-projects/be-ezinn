@@ -7,7 +7,8 @@ import {
   getVideoInfo,
   playNextSong,
   removeAllSongsInQueue,
-  removeSong
+  removeSong,
+  updateQueue
 } from '~/controllers/roomMusic.controller'
 import { addSongValidator } from '~/middlewares/roomMusic.middleware'
 import { VideoSchema } from '~/models/schemas/Video.schema'
@@ -140,5 +141,13 @@ roomMusicRouter.get('/:roomId/search-songs', async (req, res) => {
  */
 
 roomMusicRouter.get('/:roomId/:videoId', wrapRequestHanlder(getVideoInfo))
+
+/**
+ * @description Update queue
+ * @path /song-queue/rooms/:roomId/queue
+ * @method PUT
+ * @author QuangDoo
+ */
+roomMusicRouter.put('/:roomId/queue', wrapRequestHanlder(updateQueue))
 
 export default roomMusicRouter
