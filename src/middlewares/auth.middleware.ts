@@ -21,19 +21,15 @@ export const protect = (roles: UserRole[]) => async (req: Request, res: Response
     )
   }
 
-  console.log('token', token)
-
   try {
     const decoded = await verifyToken(token)
-
-    console.log('decoded', decoded)
 
     req.decoded_authorization = decoded
 
     const user = await usersServices.getUserById(decoded.user_id)
 
     // Kiểm tra quyền hạn (nếu roles được cung cấp)
-    if (roles.length && !roles.includes(user?.role || UserRole.User)) {
+    if (roles.length && !roles.includes(user?.role || UserRole.Admin)) {
       return next(
         new ErrorWithStatus({
           message: AUTH_MESSAGES.INSUFFICIENT_PRIVILEGES,

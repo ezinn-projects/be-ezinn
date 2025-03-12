@@ -18,7 +18,7 @@ export enum HouseRuleStatus {
 
 export enum UserRole {
   Admin = 'admin',
-  User = 'user',
+  Staff = 'staff',
   Client = 'client'
 }
 
@@ -40,4 +40,13 @@ export enum DayType {
   Weekday = 'weekday',
   Weekend = 'weekend',
   Holiday = 'holiday'
+}
+
+export enum RoomScheduleStatus {
+  Available = 'available',
+  Booked = 'booked',
+  InUse = 'in use',
+  Maintenance = 'maintenance',
+  Locked = 'locked',
+  Cancelled = 'cancelled'
 }

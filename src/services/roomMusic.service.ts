@@ -2,6 +2,7 @@ import { AddSongRequestBody } from '~/models/requests/Song.request'
 import redis from '~/services/redis.service'
 import { historyService } from '~/services/songHistory.service'
 import youtubeDl, { Payload } from 'youtube-dl-exec'
+import ytSearch from 'yt-search'
 
 class RoomMusicServices {
   async addSongToQueue(roomId: string, song: AddSongRequestBody, position: 'top' | 'end') {
@@ -179,6 +180,121 @@ class RoomMusicServices {
     await redis.rpush(queueKey, ...queue.map((song) => JSON.stringify(song)))
     console.log('queue', queue)
     return queue
+  }
+
+  async getSongName(keyword: string, isKaraoke: boolean = false): Promise<string[]> {
+    try {
+      if (keyword.length < 2) {
+        return []
+      }
+
+      const searchQuery = isKaraoke ? `${keyword} karaoke` : keyword
+
+      const searchResults = await ytSearch({
+        query: searchQuery,
+        pageStart: 1,
+        pageEnd: 2
+      })
+
+      // Hàm chuyển text có dấu thành không dấu
+      const removeAccents = (str: string): string => {
+        return str
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .replace(/đ/g, 'd')
+          .replace(/Đ/g, 'D')
+      }
+
+      const keywordNoAccent = removeAccents(keyword.toLowerCase())
+
+      // Kiểm tra xem có phải đang tìm nghệ sĩ không
+      const isSearchingArtist = searchResults.videos.some((video) =>
+        video.author.name?.toLowerCase().includes(keyword.toLowerCase())
+      )
+
+      const calculateSimilarity = (str1: string, str2: string, checkAuthor: boolean = false): number => {
+        const s1 = str1.toLowerCase()
+        const s2 = str2.toLowerCase()
+
+        // Nếu đang tìm nghệ sĩ và là author name
+        if (isSearchingArtist && checkAuthor && s2.includes(s1)) {
+          return 2000 // Ưu tiên cao nhất cho tên nghệ sĩ
+        }
+
+        // Kiểm tra chứa từ khóa chính xác
+        if (s2.includes(s1)) return 1000
+
+        // Tính số ký tự giống nhau liên tiếp
+        let maxCommonLength = 0
+        for (let i = 0; i < s1.length; i++) {
+          for (let j = 0; j < s2.length; j++) {
+            let length = 0
+            while (i + length < s1.length && j + length < s2.length && s1[i + length] === s2[j + length]) {
+              length++
+            }
+            maxCommonLength = Math.max(maxCommonLength, length)
+          }
+        }
+        return maxCommonLength
+      }
+
+      const suggestions = searchResults.videos
+        .sort((a, b) => {
+          if (isKaraoke) {
+            const aHasKaraoke = a.title.toLowerCase().includes('karaoke')
+            const bHasKaraoke = b.title.toLowerCase().includes('karaoke')
+            if (aHasKaraoke && !bHasKaraoke) return -1
+            if (!aHasKaraoke && bHasKaraoke) return 1
+          }
+
+          // Tính điểm tương đồng cho cả title và author
+          const aSimilarityTitle = calculateSimilarity(keyword, a.title)
+          const bSimilarityTitle = calculateSimilarity(keyword, b.title)
+          const aSimilarityAuthor = calculateSimilarity(keyword, a.author.name || '', true)
+          const bSimilarityAuthor = calculateSimilarity(keyword, b.author.name || '', true)
+
+          // Lấy điểm cao nhất giữa title và author
+          const aSimilarity = Math.max(aSimilarityTitle, aSimilarityAuthor)
+          const bSimilarity = Math.max(bSimilarityTitle, bSimilarityAuthor)
+
+          if (aSimilarity !== bSimilarity) {
+            return bSimilarity - aSimilarity
+          }
+
+          return (b.views || 0) - (a.views || 0)
+        })
+        .map((video) => {
+          if (isSearchingArtist && video.author.name?.toLowerCase().includes(keyword.toLowerCase())) {
+            return video.author.name
+          }
+
+          let title = video.title
+            // Tách phần trước và sau dấu gạch ngang
+            .split('-')[0]
+            // Chỉ xóa một số từ khóa không cần thiết
+            .replace(/(Official Music Video|Official MV|Official Video|MV|Lyric Video|Audio|Official|M\/V)/gi, '')
+            .replace(/[^\p{L}\p{N}\s-]/gu, ' ')
+            .replace(/\s+/g, ' ')
+            .trim()
+
+          return title
+        })
+        .filter((title, index, self) => {
+          const titleNoAccent = removeAccents(title.toLowerCase())
+          return (
+            // Loại bỏ các kết quả trùng lặp
+            self.indexOf(title) === index &&
+            // Kiểm tra cả dạng có dấu và không dấu
+            (titleNoAccent.includes(keywordNoAccent) || title.toLowerCase().includes(keyword.toLowerCase()))
+          )
+        })
+        .slice(0, 5)
+
+      return suggestions
+    } catch (error) {
+      console.error('Error getting song suggestions:', error)
+      return []
+    }
   }
 }
 

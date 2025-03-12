@@ -325,3 +325,22 @@ export const updateQueue = async (req: Request, res: Response, next: NextFunctio
     next(error)
   }
 }
+
+/**
+ * Get song name
+ * @path /song-queue/rooms/:roomId/autocomplete
+ * @method GET
+ * @author QuangDoo
+ */
+export const getSongName = async (req: Request, res: Response, next: NextFunction) => {
+  const { isKaraoke, keyword } = req.query
+
+  try {
+    const _keyword = String(keyword || '')
+    const isKaraokeBoolean = isKaraoke === 'true'
+    const songName = await roomMusicServices.getSongName(_keyword, isKaraokeBoolean)
+    res.status(HTTP_STATUS_CODE.OK).json({ message: SONG_QUEUE_MESSAGES.GET_SONG_NAME_SUCCESS, result: songName })
+  } catch (error) {
+    next(error)
+  }
+}

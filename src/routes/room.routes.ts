@@ -40,7 +40,7 @@ roomRouter.post(
  * @method GET
  * @author QuangDoo
  */
-roomRouter.get('/', wrapRequestHanlder(getRoomsController))
+roomRouter.get('/', protect([UserRole.Admin]), wrapRequestHanlder(getRoomsController))
 
 /**
  * @description Lấy phòng theo id

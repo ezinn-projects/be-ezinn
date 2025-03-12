@@ -68,10 +68,10 @@ export const RoomSocket = (io: Server) => {
 
     // Lắng nghe sự kiện 'adjustVolume' từ Client A
     socket.on('adjustVolume', (volume: number) => {
-      console.log('Nhận âm lượng từ Client A:', volume)
+      console.log(`Nhận âm lượng từ Client A trong phòng ${roomId}:`, volume)
 
-      // Gửi sự kiện 'volumeChange' đến tất cả client khác (Client B)
-      socket.broadcast.emit('volumeChange', volume)
+      // Gửi sự kiện 'volumeChange' chỉ đến các client khác trong cùng phòng
+      socket.to(roomId).emit('volumeChange', volume)
     })
 
     // Phục hồi trạng thái video khi client reconnect

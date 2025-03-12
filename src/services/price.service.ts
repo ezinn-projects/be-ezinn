@@ -67,7 +67,7 @@ class PriceService {
    * @author QuangDoo
    */
   async updatePrice(id: string, price: IPriceRequestBody) {
-    const priceData = new Price({
+    const priceData = {
       day_type: price.dayType,
       time_slots: price.timeSlots.map((slot) => ({
         start: slot.start,
@@ -80,7 +80,7 @@ class PriceService {
       effective_date: new Date(price.effectiveDate),
       end_date: price.endDate ? new Date(price.endDate) : null,
       note: price.note
-    })
+    }
     const result = await databaseService.price.updateOne({ _id: new ObjectId(id) }, { $set: priceData })
 
     return result.modifiedCount

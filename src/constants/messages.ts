@@ -79,7 +79,8 @@ export const SONG_QUEUE_MESSAGES = {
   SONG_PAUSED: 'Song is paused',
   SONG_SKIPPED: 'Song is skipped',
   GET_VIDEO_INFO_SUCCESS: 'Get video info success',
-  UPDATE_QUEUE_SUCCESS: 'Update queue success'
+  UPDATE_QUEUE_SUCCESS: 'Update queue success',
+  GET_SONG_NAME_SUCCESS: 'Get song name success'
 } as const
 
 export const Price_MESSAGES = {
@@ -103,4 +104,18 @@ export const ROOM_CATEGORY_MESSAGES = {
   ROOM_CATEGORY_EXISTS: 'Room category already exists',
   ROOM_CATEGORY_NOT_FOUND: 'Room category not found',
   ROOM_CATEGORY_NAME_ALREADY_EXISTS: 'Room category name already exists'
+} as const
+
+export const ROOM_SCHEDULE_MESSAGES = {
+  GET_SCHEDULES_SUCCESS: 'Get schedules success',
+  CREATE_SCHEDULE_SUCCESS: 'Create schedule success',
+  UPDATE_SCHEDULE_SUCCESS: 'Update schedule success',
+  CANCEL_SCHEDULE_SUCCESS: 'Cancel schedule success',
+  SCHEDULE_NOT_FOUND: 'Schedule not found',
+  SCHEDULE_EXISTS: 'Schedule already exists',
+  DATE_REQUIRED: 'Date parameter is required',
+  ROOM_ID_REQUIRED: 'Room ID is required',
+  START_TIME_REQUIRED: 'Start time is required',
+  STATUS_REQUIRED: 'Status is required',
+  SCHEDULE_ID_REQUIRED: 'Schedule ID is required'
 } as const

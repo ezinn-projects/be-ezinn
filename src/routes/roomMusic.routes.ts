@@ -3,6 +3,7 @@ import { HTTP_STATUS_CODE } from '~/constants/httpStatus'
 import {
   addSong,
   controlPlayback,
+  getSongName,
   getSongsInQueue,
   getVideoInfo,
   playNextSong,
@@ -134,12 +135,19 @@ roomMusicRouter.get('/:roomId/search-songs', async (req, res) => {
 })
 
 /**
+ * @description Get song name
+ * @path /autocomplete
+ * @method GET
+ * @author QuangDoo
+ */
+roomMusicRouter.get('/:roomId/autocomplete', wrapRequestHanlder(getSongName))
+
+/**
  * @description Get video info
  * @path /song-queue/rooms/:roomId/:videoId
  * @method GET
  * @author QuangDoo
  */
-
 roomMusicRouter.get('/:roomId/:videoId', wrapRequestHanlder(getVideoInfo))
 
 /**
