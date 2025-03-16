@@ -19,7 +19,8 @@ export enum HouseRuleStatus {
 export enum UserRole {
   Admin = 'admin',
   Staff = 'staff',
-  Client = 'client'
+  Client = 'client',
+  User = 'user'
 }
 
 export enum RoomType {
