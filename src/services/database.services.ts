@@ -1,7 +1,6 @@
 import { Collection, Db, MongoClient } from 'mongodb'
 import { User } from '~/models/schemas/User.schema'
 import dotenv from 'dotenv'
-import { HouseRule } from '~/models/schemas/HouseRules.schema'
 import RoomType from '~/models/schemas/RoomType.schema'
 import { Room } from '~/models/schemas/Room.schema'
 import { SongHistory } from '~/models/schemas/SongHistiry.schema'
@@ -41,10 +40,6 @@ class DatabaseService {
 
   get users(): Collection<User> {
     return this.db.collection('users')
-  }
-
-  get houseRules(): Collection<HouseRule> {
-    return this.db.collection('houseRules')
   }
 
   get roomTypes(): Collection<RoomType> {

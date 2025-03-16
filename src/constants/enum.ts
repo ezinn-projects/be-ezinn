@@ -11,11 +11,6 @@ export enum TokenType {
   EmailVerificationToken
 }
 
-export enum HouseRuleStatus {
-  Active = 'active',
-  Inactive = 'inactive'
-}
-
 export enum UserRole {
   Admin = 'admin',
   Staff = 'staff',

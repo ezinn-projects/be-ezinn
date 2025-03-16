@@ -36,10 +36,6 @@ export const USER_MESSAGES = {
   INVALID_PHONE_NUMBER: 'Invalid phone number'
 } as const
 
-export const HOUSE_RULES_MESSAGES = {
-  ADD_HOUSE_RULES_SUCCESS: 'Add house rule success'
-} as const
-
 export const ROOM_TYPE_MESSAGES = {
   INVALID_ROOM_TYPE_ID: 'Invalid room type id',
   ROOM_TYPE_EXISTS: 'Room type already exists',
