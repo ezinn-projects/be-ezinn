@@ -10,7 +10,7 @@ import {
 } from '~/controllers/room.controller'
 import { protect } from '~/middlewares/auth.middleware'
 import { checkRoomExists, validateFiles } from '~/middlewares/room.middleware'
-import { wrapRequestHanlder } from '~/utils/handlers'
+import { wrapRequestHandler } from '~/utils/handlers'
 
 const roomRouter = Router()
 
@@ -31,7 +31,7 @@ roomRouter.post(
   checkRoomExists,
   // addRoomValidator,
   upload.array('images', 5),
-  wrapRequestHanlder(addRoomController)
+  wrapRequestHandler(addRoomController)
 )
 
 /**
@@ -40,7 +40,7 @@ roomRouter.post(
  * @method GET
  * @author QuangDoo
  */
-roomRouter.get('/', protect([UserRole.Admin]), wrapRequestHanlder(getRoomsController))
+roomRouter.get('/', protect([UserRole.Admin]), wrapRequestHandler(getRoomsController))
 
 /**
  * @description Lấy phòng theo id
@@ -48,7 +48,7 @@ roomRouter.get('/', protect([UserRole.Admin]), wrapRequestHanlder(getRoomsContro
  * @method GET
  * @author QuangDoo
  */
-roomRouter.get('/:id', wrapRequestHanlder(getRoomController))
+roomRouter.get('/:id', wrapRequestHandler(getRoomController))
 
 /**
  * @description Cập nhật phòng
@@ -56,7 +56,7 @@ roomRouter.get('/:id', wrapRequestHanlder(getRoomController))
  * @method PUT
  * @author QuangDoo
  */
-roomRouter.put('/:id', wrapRequestHanlder(updateRoomController))
+roomRouter.put('/:id', wrapRequestHandler(updateRoomController))
 
 /**
  * @description Xóa phòng
@@ -64,6 +64,6 @@ roomRouter.put('/:id', wrapRequestHanlder(updateRoomController))
  * @method DELETE
  * @author QuangDoo
  */
-roomRouter.delete('/:id', wrapRequestHanlder(deleteRoomController))
+roomRouter.delete('/:id', wrapRequestHandler(deleteRoomController))
 
 export default roomRouter

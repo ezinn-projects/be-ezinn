@@ -13,7 +13,7 @@ import {
   loginValidator,
   registerValidator
 } from '~/middlewares/users.middleware'
-import { wrapRequestHanlder } from '~/utils/handlers'
+import { wrapRequestHandler } from '~/utils/handlers'
 
 const usersRouter = Router()
 
@@ -24,7 +24,7 @@ const usersRouter = Router()
  * @body {name: string, email: string, password: string, confirm_password: string, date_of_birth: ISOString}
  * @author QuangDoo
  */
-usersRouter.post('/register', checkRegisterUserExists, registerValidator, wrapRequestHanlder(registerController))
+usersRouter.post('/register', checkRegisterUserExists, registerValidator, wrapRequestHandler(registerController))
 
 /**
  * @description Login user
@@ -44,16 +44,16 @@ usersRouter.post('/login', checkLoginUserExists, loginValidator, loginController
  * @author QuangDoo
  */
 
-// usersRouter.post('/logout', accessTokenValidator, wrapRequestHanlder(logoutController))
+// usersRouter.post('/logout', accessTokenValidator, wrapRequestHandler(logoutController))
 
 /**
  * @description Get all users
  */
-usersRouter.get('/get-all-users', wrapRequestHanlder(getAllUsersController))
+usersRouter.get('/get-all-users', wrapRequestHandler(getAllUsersController))
 
 /**
  * @description Get user by id
  */
-usersRouter.get('/get-user', accessTokenValidator, checkUserId, wrapRequestHanlder(getUserController))
+usersRouter.get('/get-user', accessTokenValidator, checkUserId, wrapRequestHandler(getUserController))
 
 export default usersRouter

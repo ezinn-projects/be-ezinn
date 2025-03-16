@@ -7,6 +7,7 @@ import { ErrorWithStatus } from '~/models/Error'
 import { IRoomScheduleRequestBody } from '~/models/requests/RoomSchedule.request'
 import { RoomSchedule } from '~/models/schemas/RoomSchdedule.schema'
 import databaseService from './database.services'
+import { parseDate } from '~/utils/common'
 
 /**
  * RoomScheduleService
@@ -63,32 +64,53 @@ class RoomScheduleService {
   }
 
   /**
+   * Validate thời gian cho lịch phòng.
+   * Đối với trạng thái "Booked":
+   * - Bắt buộc phải có endTime.
+   * - endTime phải lớn hơn startTime.
+   * - Khoảng cách giữa startTime và endTime không vượt quá 2 tiếng.
+   *
+   * @param schedule - Đối tượng lịch phòng {IRoomScheduleRequestBody}
+   * @returns Một object chứa startTime và endTime (có thể null nếu không được cung cấp)
+   * @throws ErrorWithStatus nếu dữ liệu không hợp lệ
+   */
+  private validateScheduleTimes(schedule: IRoomScheduleRequestBody): { startTime: Date; endTime: Date | null } {
+    const startTime = parseDate(schedule.startTime)
+    const endTime = schedule.endTime ? parseDate(schedule.endTime) : null
+
+    if (schedule.status === RoomScheduleStatus.Booked) {
+      if (!endTime) {
+        throw new ErrorWithStatus({
+          message: 'For booked status, endTime is required.',
+          status: HTTP_STATUS_CODE.UNPROCESSABLE_ENTITY
+        })
+      }
+      if (endTime.getTime() <= startTime.getTime()) {
+        throw new ErrorWithStatus({
+          message: 'endTime must be greater than startTime.',
+          status: HTTP_STATUS_CODE.UNPROCESSABLE_ENTITY
+        })
+      }
+      const diffMs = endTime.getTime() - startTime.getTime()
+      const maxDurationMs = 2 * 60 * 60 * 1000 // 2 tiếng
+      if (diffMs > maxDurationMs) {
+        throw new ErrorWithStatus({
+          message: 'For booked status, the maximum duration is 2 hours.',
+          status: HTTP_STATUS_CODE.UNPROCESSABLE_ENTITY
+        })
+      }
+    }
+    return { startTime, endTime }
+  }
+
+  /**
    * Tạo mới một event lịch phòng
    * @param schedule - Đối tượng lịch phòng {IRoomScheduleRequestBody}
    * @returns id của lịch phòng vừa tạo
    */
   async createSchedule(schedule: IRoomScheduleRequestBody) {
-    // Chuyển đổi startTime và endTime
-    const startTime = new Date(schedule.startTime)
-    const endTime = schedule.endTime ? new Date(schedule.endTime) : null
-
-    // Nếu trạng thái là "booked", thì bắt buộc phải có endTime và khoảng cách giữa startTime và endTime không vượt quá 2 tiếng
-    if (schedule.status === RoomScheduleStatus.Booked) {
-      if (!endTime) {
-        throw new ErrorWithStatus({
-          message: 'For booked status, endTime is required.',
-          status: HTTP_STATUS_CODE.BAD_REQUEST
-        })
-      }
-      const diffMs = endTime.getTime() - startTime.getTime()
-      const maxDurationMs = 2 * 60 * 60 * 1000 // 2 tiếng tính bằng ms
-      if (diffMs > maxDurationMs) {
-        throw new ErrorWithStatus({
-          message: 'For booked status, the maximum duration is 2 hours.',
-          status: HTTP_STATUS_CODE.BAD_REQUEST
-        })
-      }
-    }
+    // Validate và parse startTime, endTime dựa trên nghiệp vụ
+    const { startTime, endTime } = this.validateScheduleTimes(schedule)
 
     // Nếu không có endTime (ví dụ: trạng thái "in use"), sử dụng effectiveNewEndTime là một giá trị xa trong tương lai
     const effectiveNewEndTime = endTime || new Date('9999-12-31T23:59:59.999Z')

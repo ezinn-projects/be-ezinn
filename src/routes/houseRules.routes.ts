@@ -1,6 +1,6 @@
 import { Router } from 'express'
 import { addHouseRuleValidator } from '~/middlewares/houseRules.middleware'
-import { wrapRequestHanlder } from '~/utils/handlers'
+import { wrapRequestHandler } from '~/utils/handlers'
 
 const houseRulesRouter = Router()
 
@@ -11,6 +11,6 @@ const houseRulesRouter = Router()
  * @body {name: string, description: string}
  * @author QuangDoo
  */
-houseRulesRouter.post('/add-house-rule', addHouseRuleValidator, wrapRequestHanlder(addHouseRuleController))
+houseRulesRouter.post('/add-house-rule', addHouseRuleValidator, wrapRequestHandler(addHouseRuleController))
 
 export default houseRulesRouter

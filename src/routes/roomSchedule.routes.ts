@@ -6,7 +6,7 @@ import {
   getSchedulesByRoom,
   updateSchedule
 } from '~/controllers/roomSchedule.controller'
-import { wrapRequestHanlder } from '~/utils/handlers'
+import { wrapRequestHandler } from '~/utils/handlers'
 import {
   createScheduleValidator,
   getSchedulesByRoomValidator,
@@ -19,14 +19,14 @@ import { UserRole } from '~/constants/enum'
 const roomScheduleRouter = Router()
 
 // API endpoint lấy lịch phòng
-roomScheduleRouter.get('/', protect([UserRole.Admin, UserRole.Staff]), wrapRequestHanlder(getSchedules))
+roomScheduleRouter.get('/', protect([UserRole.Admin, UserRole.Staff]), wrapRequestHandler(getSchedules))
 
 // API endpoint lấy lịch phòng của một phòng cụ thể
 roomScheduleRouter.get(
   '/:roomId',
   protect([UserRole.Admin, UserRole.Staff]),
   getSchedulesByRoomValidator,
-  wrapRequestHanlder(getSchedulesByRoom)
+  wrapRequestHandler(getSchedulesByRoom)
 )
 
 // API endpoint tạo lịch phòng
@@ -34,7 +34,7 @@ roomScheduleRouter.post(
   '/',
   protect([UserRole.Admin, UserRole.Staff]),
   createScheduleValidator,
-  wrapRequestHanlder(createSchedule)
+  wrapRequestHandler(createSchedule)
 )
 
 // API endpoint cập nhật lịch phòng
@@ -42,7 +42,7 @@ roomScheduleRouter.put(
   '/:id',
   protect([UserRole.Admin, UserRole.Staff]),
   updateScheduleValidator,
-  wrapRequestHanlder(updateSchedule)
+  wrapRequestHandler(updateSchedule)
 )
 
 // API endpoint hủy lịch phòng
@@ -50,7 +50,7 @@ roomScheduleRouter.put(
   '/:id/cancel',
   protect([UserRole.Admin, UserRole.Staff]),
   updateScheduleValidator,
-  wrapRequestHanlder(cancelSchedule)
+  wrapRequestHandler(cancelSchedule)
 )
 
 export default roomScheduleRouter

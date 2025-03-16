@@ -14,7 +14,7 @@ import {
 import { addSongValidator } from '~/middlewares/roomMusic.middleware'
 import { VideoSchema } from '~/models/schemas/Video.schema'
 import { roomMusicServices } from '~/services/roomMusic.service'
-import { wrapRequestHanlder } from '~/utils/handlers'
+import { wrapRequestHandler } from '~/utils/handlers'
 import ytSearch from 'yt-search'
 
 const roomMusicRouter = Router()
@@ -26,7 +26,7 @@ const roomMusicRouter = Router()
  * @body {video_id: string, title: string, thumbnail: string, author: string, position?: "top" | "end"} @type {AddSongRequestBody}
  * @author QuangDoo
  */
-roomMusicRouter.post('/:roomId', addSongValidator, wrapRequestHanlder(addSong)) // Thêm bài hát vào hàng đợi
+roomMusicRouter.post('/:roomId', addSongValidator, wrapRequestHandler(addSong)) // Thêm bài hát vào hàng đợi
 
 /**
  * @description Remove song from queue
@@ -35,7 +35,7 @@ roomMusicRouter.post('/:roomId', addSongValidator, wrapRequestHanlder(addSong)) 
  * @body {video_id: string} @type {AddSongRequestBody}
  * @author QuangDoo
  */
-roomMusicRouter.delete('/:roomId/:index', wrapRequestHanlder(removeSong)) // Xóa bài hát khỏi hàng đợi
+roomMusicRouter.delete('/:roomId/:index', wrapRequestHandler(removeSong)) // Xóa bài hát khỏi hàng đợi
 
 /**
  * @description Remove all songs in queue
@@ -43,7 +43,7 @@ roomMusicRouter.delete('/:roomId/:index', wrapRequestHanlder(removeSong)) // Xó
  * @method DELETE
  * @author QuangDoo
  */
-roomMusicRouter.delete('/:roomId', wrapRequestHanlder(removeAllSongsInQueue)) // Xóa tất cả bài hát trong hàng đợi
+roomMusicRouter.delete('/:roomId', wrapRequestHandler(removeAllSongsInQueue)) // Xóa tất cả bài hát trong hàng đợi
 
 /**
  * @description Play next song
@@ -51,7 +51,7 @@ roomMusicRouter.delete('/:roomId', wrapRequestHanlder(removeAllSongsInQueue)) //
  * @method POST
  * @author QuangDoo
  */
-roomMusicRouter.post('/:roomId/play-next-song', wrapRequestHanlder(playNextSong)) // Phát bài hát tiếp theo
+roomMusicRouter.post('/:roomId/play-next-song', wrapRequestHandler(playNextSong)) // Phát bài hát tiếp theo
 
 /**
  * @description Get songs in queue
@@ -59,7 +59,7 @@ roomMusicRouter.post('/:roomId/play-next-song', wrapRequestHanlder(playNextSong)
  * @method GET
  * @author QuangDoo
  */
-roomMusicRouter.get('/:roomId', wrapRequestHanlder(getSongsInQueue)) // Lấy danh sách bài hát trong hàng đợi
+roomMusicRouter.get('/:roomId', wrapRequestHandler(getSongsInQueue)) // Lấy danh sách bài hát trong hàng đợi
 
 /**
  * @description Get now playing song
@@ -86,7 +86,7 @@ roomMusicRouter.get('/:roomId/now-playing', async (req, res, next) => {
  * @params action: "play" | "pause"
  * @author QuangDoo
  */
-roomMusicRouter.post('/:roomId/playback/:action', wrapRequestHanlder(controlPlayback)) // Điều khiển phát nhạc (play/pause)
+roomMusicRouter.post('/:roomId/playback/:action', wrapRequestHandler(controlPlayback)) // Điều khiển phát nhạc (play/pause)
 
 /**
  * @description search songs
@@ -109,11 +109,39 @@ roomMusicRouter.get('/:roomId/search-songs', async (req, res) => {
   }
 
   try {
-    // Tìm kiếm trên YouTube
-    const searchResults = await ytSearch(q)
+    // Tìm kiếm trên YouTube với từ khóa âm nhạc
+    const searchQuery = `${q} lyrics music audio`
+    const searchResults = await ytSearch(searchQuery)
+
+    // Lọc và chỉ giữ lại các video liên quan đến âm nhạc
+    const musicVideos = searchResults.videos.filter((video) => {
+      const lowerTitle = video.title.toLowerCase()
+      const lowerAuthor = video.author.name.toLowerCase()
+      const lowerDescription = (video.description || '').toLowerCase()
+
+      // Các từ khóa thường xuất hiện trong video âm nhạc
+      const musicKeywords = ['audio', 'lyrics', 'music', 'mv', 'official', 'song', 'nhạc', 'bài hát', 'karaoke']
+      const nonMusicKeywords = ['podcast', 'talk show', 'news', 'tin tức', 'gameplay', 'tutorial', 'hướng dẫn']
+
+      // Kiểm tra xem video có chứa các từ khóa âm nhạc không
+      const hasMusicKeyword = musicKeywords.some(
+        (keyword) => lowerTitle.includes(keyword) || lowerDescription.includes(keyword)
+      )
+
+      // Kiểm tra xem video có chứa các từ khóa không liên quan đến âm nhạc không
+      const hasNonMusicKeyword = nonMusicKeywords.some(
+        (keyword) => lowerTitle.includes(keyword) || lowerDescription.includes(keyword)
+      )
+
+      // Kiểm tra thời lượng video (hầu hết bài hát có thời lượng từ 2-10 phút)
+      const duration = video.duration.seconds
+      const isValidDuration = duration >= 60 && duration <= 600
+
+      return hasMusicKeyword && !hasNonMusicKeyword && isValidDuration
+    })
 
     // Trích xuất danh sách video
-    const videos = searchResults.videos.slice(0, parsedLimit).map(
+    const videos = musicVideos.slice(0, parsedLimit).map(
       (video) =>
         new VideoSchema({
           video_id: video.videoId,
@@ -140,7 +168,7 @@ roomMusicRouter.get('/:roomId/search-songs', async (req, res) => {
  * @method GET
  * @author QuangDoo
  */
-roomMusicRouter.get('/:roomId/autocomplete', wrapRequestHanlder(getSongName))
+roomMusicRouter.get('/:roomId/autocomplete', wrapRequestHandler(getSongName))
 
 /**
  * @description Get video info
@@ -148,7 +176,7 @@ roomMusicRouter.get('/:roomId/autocomplete', wrapRequestHanlder(getSongName))
  * @method GET
  * @author QuangDoo
  */
-roomMusicRouter.get('/:roomId/:videoId', wrapRequestHanlder(getVideoInfo))
+roomMusicRouter.get('/:roomId/:videoId', wrapRequestHandler(getVideoInfo))
 
 /**
  * @description Update queue
@@ -156,6 +184,6 @@ roomMusicRouter.get('/:roomId/:videoId', wrapRequestHanlder(getVideoInfo))
  * @method PUT
  * @author QuangDoo
  */
-roomMusicRouter.put('/:roomId/queue', wrapRequestHanlder(updateQueue))
+roomMusicRouter.put('/:roomId/queue', wrapRequestHandler(updateQueue))
 
 export default roomMusicRouter

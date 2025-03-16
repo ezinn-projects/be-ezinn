@@ -148,17 +148,20 @@ class RoomMusicServices {
     try {
       const videoUrl = `https://www.youtube.com/watch?v=${videoId}`
 
+      // Configure youtube-dl with basic options
       const info = (await youtubeDl(videoUrl, {
         dumpSingleJson: true,
-        noCheckCertificates: true,
-        preferFreeFormats: true,
-        youtubeSkipDashManifest: true,
-        format: 'best',
-        // ytdlpArgs: ['--extractor-args', 'youtube:player_client=web youtube:formats=missing_pot'],
+        format: 'b', // Using 'b' instead of 'best' as recommended
         addHeader: [
           'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+          'Accept-Language: en-US,en;q=0.5',
           'Referer: https://www.youtube.com/'
-        ]
+        ],
+        // Basic options to improve reliability
+        noCheckCertificates: true,
+        noWarnings: true,
+        skipDownload: true
       })) as Payload & { url: string }
 
       return {

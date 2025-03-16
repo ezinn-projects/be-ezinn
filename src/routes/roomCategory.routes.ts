@@ -11,7 +11,7 @@ import {
   checkRoomCategoryNameExist,
   createRoomCategoryValidator
 } from '~/middlewares/roomCategory.middleware'
-import { wrapRequestHanlder } from '~/utils/handlers'
+import { wrapRequestHandler } from '~/utils/handlers'
 
 const roomCategoryRouter = Router()
 
@@ -21,7 +21,7 @@ const roomCategoryRouter = Router()
  * @method GET
  * @author QuangDoo
  */
-roomCategoryRouter.get('/', wrapRequestHanlder(getAllRoomCategories))
+roomCategoryRouter.get('/', wrapRequestHandler(getAllRoomCategories))
 
 /**
  * @description Get room category by id
@@ -29,7 +29,7 @@ roomCategoryRouter.get('/', wrapRequestHanlder(getAllRoomCategories))
  * @method GET
  * @author QuangDoo
  */
-roomCategoryRouter.get('/:id', wrapRequestHanlder(getRoomCategoryById))
+roomCategoryRouter.get('/:id', wrapRequestHandler(getRoomCategoryById))
 
 /**
  * @description Create room category
@@ -42,7 +42,7 @@ roomCategoryRouter.post(
   '/',
   createRoomCategoryValidator,
   checkRoomCategoryNameExist,
-  wrapRequestHanlder(createRoomCategory)
+  wrapRequestHandler(createRoomCategory)
 )
 
 /**
@@ -52,7 +52,7 @@ roomCategoryRouter.post(
  * @body {name: string, capacity: number, pricePerHour: number, equipment: {tv: boolean, soundSystem: string, microphone: number}, description: string}
  * @author QuangDoo
  */
-roomCategoryRouter.put('/:id', checkRoomCategoryExist, wrapRequestHanlder(updateRoomCategory))
+roomCategoryRouter.put('/:id', checkRoomCategoryExist, wrapRequestHandler(updateRoomCategory))
 
 /**
  * @description Delete room category
@@ -60,4 +60,4 @@ roomCategoryRouter.put('/:id', checkRoomCategoryExist, wrapRequestHanlder(update
  * @method DELETE
  * @author QuangDoo
  */
-roomCategoryRouter.delete('/:id', wrapRequestHanlder(deleteRoomCategory))
+roomCategoryRouter.delete('/:id', wrapRequestHandler(deleteRoomCategory))

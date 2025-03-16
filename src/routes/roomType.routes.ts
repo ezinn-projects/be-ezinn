@@ -12,7 +12,7 @@ import {
 import multer from 'multer'
 import { protect } from '~/middlewares/auth.middleware'
 import { checkRoomTypeExists, checkRoomTypeIsNotExists, validateRoomTypeIds } from '~/middlewares/roomType.middleware'
-import { wrapRequestHanlder } from '~/utils/handlers'
+import { wrapRequestHandler } from '~/utils/handlers'
 
 const roomTypeRouter = Router()
 
@@ -24,7 +24,7 @@ const upload = multer({ storage: multer.memoryStorage() })
  * @method GET
  * @author QuangDoo
  */
-roomTypeRouter.get('/', wrapRequestHanlder(getRoomTypesController))
+roomTypeRouter.get('/', wrapRequestHandler(getRoomTypesController))
 
 /**
  * @description Get room type by id
@@ -32,7 +32,7 @@ roomTypeRouter.get('/', wrapRequestHanlder(getRoomTypesController))
  * @method GET
  * @author QuangDoo
  */
-roomTypeRouter.get('/:roomTypeId', checkRoomTypeIsNotExists, wrapRequestHanlder(getRoomTypeByIdController))
+roomTypeRouter.get('/:roomTypeId', checkRoomTypeIsNotExists, wrapRequestHandler(getRoomTypeByIdController))
 
 /**
  * @description Add room type
@@ -47,7 +47,7 @@ roomTypeRouter.post(
   protect([UserRole.Admin]),
   checkRoomTypeExists,
   upload.array('images', 5),
-  wrapRequestHanlder(addRoomTypeController)
+  wrapRequestHandler(addRoomTypeController)
 )
 
 /**
@@ -60,7 +60,7 @@ roomTypeRouter.patch(
   '/:roomTypeId',
   protect([UserRole.Admin]),
   checkRoomTypeIsNotExists,
-  wrapRequestHanlder(updateRoomTypeByIdController)
+  wrapRequestHandler(updateRoomTypeByIdController)
 )
 
 /**
@@ -73,7 +73,7 @@ roomTypeRouter.delete(
   '/:roomTypeId',
   protect([UserRole.Admin]),
   checkRoomTypeIsNotExists,
-  wrapRequestHanlder(deleteRoomTypeByIdController)
+  wrapRequestHandler(deleteRoomTypeByIdController)
 )
 
 /**
@@ -86,7 +86,7 @@ roomTypeRouter.delete(
   '/delete-many',
   protect([UserRole.Admin]),
   validateRoomTypeIds,
-  wrapRequestHanlder(deleteManyRoomTypesController)
+  wrapRequestHandler(deleteManyRoomTypesController)
 )
 
 export default roomTypeRouter

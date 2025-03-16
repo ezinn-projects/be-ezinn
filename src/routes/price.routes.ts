@@ -16,7 +16,7 @@ import {
   createPriceValidator
 } from '~/middlewares/price.middleware'
 
-import { wrapRequestHanlder } from '~/utils/handlers'
+import { wrapRequestHandler } from '~/utils/handlers'
 
 const priceRouter = Router()
 
@@ -27,7 +27,7 @@ const priceRouter = Router()
  * @body {room_size: RoomSize, day_type: DayType, date: Date}
  * @author QuangDoo
  */
-priceRouter.get('/', wrapRequestHanlder(getPrice))
+priceRouter.get('/', wrapRequestHandler(getPrice))
 
 /**
  * @description Get Price by id
@@ -35,7 +35,7 @@ priceRouter.get('/', wrapRequestHanlder(getPrice))
  * @method GET
  * @author QuangDoo
  */
-priceRouter.get('/:id', checkPriceNotExists, wrapRequestHanlder(getPriceById))
+priceRouter.get('/:id', checkPriceNotExists, wrapRequestHandler(getPriceById))
 
 /**
  * @description Create Price
@@ -49,7 +49,7 @@ priceRouter.post(
   protect([UserRole.Admin]),
   createPriceValidator,
   checkPriceExists,
-  wrapRequestHanlder(createPrice)
+  wrapRequestHandler(createPrice)
 )
 
 /**
@@ -59,7 +59,7 @@ priceRouter.post(
  * @body {room_size: RoomSize, day_type: DayType, effective_date: Date, end_date: Date}
  * @author QuangDoo
  */
-priceRouter.put('/:id', protect([UserRole.Admin]), createPriceValidator, wrapRequestHanlder(updatePrice))
+priceRouter.put('/:id', protect([UserRole.Admin]), createPriceValidator, wrapRequestHandler(updatePrice))
 
 /**
  * @description Delete multiple Price
@@ -68,7 +68,7 @@ priceRouter.put('/:id', protect([UserRole.Admin]), createPriceValidator, wrapReq
  * @method DELETE
  * @author QuangDoo
  */
-priceRouter.delete('/multiple', protect([UserRole.Admin]), wrapRequestHanlder(deleteMultiplePrice))
+priceRouter.delete('/multiple', protect([UserRole.Admin]), wrapRequestHandler(deleteMultiplePrice))
 
 /**
  * @description Delete Price
@@ -81,7 +81,7 @@ priceRouter.delete(
   protect([UserRole.Admin]),
   checkPriceIdValidator,
   checkPriceNotExists,
-  wrapRequestHanlder(deletePrice)
+  wrapRequestHandler(deletePrice)
 )
 
 export default priceRouter
