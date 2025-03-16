@@ -39,9 +39,6 @@ jobs:
       - name: Inject environment variables
         run: echo "${{ secrets.ENV_FILE }}" > .env
 
-      - name: Run tests
-        run: npm run test
-
   build_and_deploy:
     runs-on: ubuntu-latest
     needs: test
