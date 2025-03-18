@@ -5,7 +5,7 @@ import { SONG_QUEUE_MESSAGES } from '~/constants/messages'
 import { AddSongRequestBody } from '~/models/requests/Song.request'
 import redis from '~/services/redis.service'
 import { roomMusicServices } from '~/services/roomMusic.service'
-import serverService from '~/services/server.services'
+import serverService from '~/services/server.service'
 
 /**
  * @description Add song to queue

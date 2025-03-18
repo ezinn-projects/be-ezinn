@@ -4,9 +4,9 @@ import dayjs from 'dayjs'
 import { RoomScheduleStatus } from '~/constants/enum'
 import { HTTP_STATUS_CODE } from '~/constants/httpStatus'
 import { ErrorWithStatus } from '~/models/Error'
-import { IRoomScheduleRequestBody } from '~/models/requests/RoomSchedule.request'
+import { IRoomScheduleRequestBody, IRoomScheduleRequestQuery } from '~/models/requests/RoomSchedule.request'
 import { RoomSchedule } from '~/models/schemas/RoomSchdedule.schema'
-import databaseService from './database.services'
+import databaseService from './database.service'
 import { parseDate } from '~/utils/common'
 
 /**
@@ -20,7 +20,7 @@ class RoomScheduleService {
    *    Có thể bao gồm: roomId, date (ISO string hoặc Date), status
    * @returns Mảng các lịch phòng
    */
-  async getSchedules(filter: any) {
+  async getSchedules(filter: IRoomScheduleRequestQuery): Promise<RoomSchedule[]> {
     const query: {
       roomId?: ObjectId
       startTime?: { $gte: Date; $lt: Date }
@@ -28,20 +28,16 @@ class RoomScheduleService {
     } = {}
 
     if (filter.roomId) {
-      query.roomId = filter.roomId
+      query.roomId = new ObjectId(filter.roomId)
     }
 
-    console.log('query', query)
-
-    // Nếu có filter.startTime (từ controller), sử dụng trực tiếp
-    if (filter.startTime) {
-      query.startTime = filter.startTime
-    }
-    // Nếu không có filter.startTime nhưng có filter.date, xử lý như cũ
-    else if (filter.date) {
+    if (filter.date) {
       const timeZone = 'Asia/Ho_Chi_Minh'
-      const startOfDay = dayjs.tz(filter.date, timeZone).startOf('day').utc().toDate()
-      const endOfDay = dayjs.tz(filter.date, timeZone).startOf('day').add(1, 'day').utc().toDate()
+      // FE truyền "2025-03-15T17:00:00.000Z" đại diện cho 00:00 ngày 16 theo giờ Việt Nam,
+      // vì vậy ta tạo đối tượng dayjs từ UTC rồi chuyển sang múi giờ Việt Nam.
+      const localDate = dayjs.utc(filter.date).tz(timeZone)
+      const startOfDay = localDate.startOf('day').utc().toDate() // 00:00 ngày 16 VN → UTC: 2025-03-15T17:00:00.000Z
+      const endOfDay = localDate.endOf('day').utc().toDate() // 23:59:59.999 ngày 16 VN → UTC: 2025-03-16T16:59:59.999Z
       query.startTime = { $gte: startOfDay, $lt: endOfDay }
     }
 
@@ -50,7 +46,6 @@ class RoomScheduleService {
     }
 
     console.log('Final query:', query)
-
     return await databaseService.roomSchedule.find(query).toArray()
   }
 
@@ -92,10 +87,10 @@ class RoomScheduleService {
         })
       }
       const diffMs = endTime.getTime() - startTime.getTime()
-      const maxDurationMs = 2 * 60 * 60 * 1000 // 2 tiếng
+      const maxDurationMs = 8 * 60 * 60 * 1000 // 8 tiếng
       if (diffMs > maxDurationMs) {
         throw new ErrorWithStatus({
-          message: 'For booked status, the maximum duration is 2 hours.',
+          message: 'For booked status, the maximum duration is 8 hours.',
           status: HTTP_STATUS_CODE.UNPROCESSABLE_ENTITY
         })
       }
@@ -112,26 +107,41 @@ class RoomScheduleService {
     // Validate và parse startTime, endTime dựa trên nghiệp vụ
     const { startTime, endTime } = this.validateScheduleTimes(schedule)
 
+    const now = new Date()
+    const nowMinutesOfDay = now.getHours() * 60 + now.getMinutes()
+    const scheduleMinutesOfDay = startTime.getHours() * 60 + startTime.getMinutes()
+
+    if (scheduleMinutesOfDay < nowMinutesOfDay) {
+      throw new ErrorWithStatus({
+        message: 'Cannot create a schedule in the past.',
+        status: HTTP_STATUS_CODE.BAD_REQUEST
+      })
+    }
+
     // Nếu không có endTime (ví dụ: trạng thái "in use"), sử dụng effectiveNewEndTime là một giá trị xa trong tương lai
     const effectiveNewEndTime = endTime || new Date('9999-12-31T23:59:59.999Z')
 
     // Kiểm tra event trùng lặp:
     // Truy vấn các event có cùng roomId và có khoảng thời gian giao nhau với event mới.
+    // Lưu ý: Loại trừ những event có trạng thái "cancelled" hoặc "finished"
     const overlap = await databaseService.roomSchedule.findOne({
       roomId: new ObjectId(schedule.roomId),
+      status: { $nin: [RoomScheduleStatus.Cancelled, RoomScheduleStatus.Finished] },
       $or: [
         {
-          // Điều kiện cho event có endTime xác định: bắt đầu trước effectiveNewEndTime và kết thúc sau startTime
+          // Nếu event có endTime xác định: bắt đầu trước effectiveNewEndTime và kết thúc sau startTime
           startTime: { $lt: effectiveNewEndTime },
           endTime: { $gt: startTime }
         },
         {
-          // Nếu event hiện tại chưa có endTime (đang "in use"), coi như luôn giao nhau nếu bắt đầu trước effectiveNewEndTime
+          // Nếu event hiện tại chưa có endTime (đang "in use"): coi như luôn giao nhau nếu bắt đầu trước effectiveNewEndTime
           endTime: null,
           startTime: { $lt: effectiveNewEndTime }
         }
       ]
     })
+
+    console.log('overlap', overlap)
 
     if (overlap) {
       // Nếu tìm thấy event giao nhau, ném lỗi để thông báo không được tạo event mới
@@ -147,7 +157,9 @@ class RoomScheduleService {
       startTime,
       schedule.status,
       endTime,
-      schedule.createdBy || 'system'
+      schedule.createdBy || 'system',
+      schedule.updatedBy || 'system',
+      schedule.note
     )
 
     const result = await databaseService.roomSchedule.insertOne(scheduleData)
@@ -241,6 +253,40 @@ class RoomScheduleService {
       }
     } catch (error) {
       console.error('Error in autoCancelLateBookings:', error)
+    }
+  }
+
+  /**
+   * autoFinishAllScheduleInADay
+   * Finish (ho  c cancel) tất c  event c  trạng thái "booked" v  "ongoing" trong ng y
+   */
+  async autoFinishAllScheduleInADay(): Promise<void> {
+    try {
+      const now = new Date()
+      // Tính điểm kết thúc của ngày hôm đó (ngày mai lúc 00:00)
+      const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1)
+
+      // Cập nhật tất cả các event có startTime nhỏ hơn endOfDay và status là một trong các trạng thái cần tổng kết
+      // Ví dụ: tổng kết các trạng thái "Booked", "Ongoing", "Locked", "Maintenance" thành "Finished"
+      const result = await databaseService.roomSchedule.updateMany(
+        {
+          startTime: { $lt: endOfDay },
+          status: {
+            $in: [
+              RoomScheduleStatus.Booked,
+              RoomScheduleStatus.InUse,
+              RoomScheduleStatus.Locked,
+              RoomScheduleStatus.Maintenance
+            ]
+          }
+        },
+        { $set: { status: RoomScheduleStatus.Finished, updatedAt: new Date() } }
+      )
+
+      console.log(`${result.modifiedCount} events finished automatically.`)
+      // (Optional) Emit event hoặc gửi thông báo tới client nếu cần
+    } catch (error) {
+      console.error('Error in autoFinishAllScheduleInADay:', error)
     }
   }
 }

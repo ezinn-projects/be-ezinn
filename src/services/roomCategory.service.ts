@@ -1,6 +1,6 @@
 import { IRoomCategoryRequest } from '~/models/requests/RoomCategory.request'
 import { IRoomCategorySchema, RoomCategory } from '~/models/schemas/RoomCategory.schema'
-import databaseService from './database.services'
+import databaseService from './database.service'
 import { ObjectId } from 'mongodb'
 
 class RoomCategoryService {

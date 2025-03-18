@@ -1,5 +1,5 @@
 import { MongoClient, Collection } from 'mongodb'
-import databaseService from './database.services'
+import databaseService from './database.service'
 import { SongHistory } from '~/models/schemas/SongHistiry.schema'
 
 // Lớp dịch vụ xử lý lịch sử bài hát

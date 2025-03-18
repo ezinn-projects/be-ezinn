@@ -44,5 +44,6 @@ export enum RoomScheduleStatus {
   InUse = 'in use',
   Maintenance = 'maintenance',
   Locked = 'locked',
-  Cancelled = 'cancelled'
+  Cancelled = 'cancelled',
+  Finished = 'finished'
 }

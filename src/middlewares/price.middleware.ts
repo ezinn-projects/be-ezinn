@@ -6,7 +6,7 @@ import { HTTP_STATUS_CODE } from '~/constants/httpStatus'
 import { Price_MESSAGES } from '~/constants/messages'
 import { ErrorWithStatus } from '~/models/Error'
 import { TimeSlot } from '~/models/schemas/Price.schema'
-import databaseService from '~/services/database.services'
+import databaseService from '~/services/database.service'
 import { validate } from '~/utils/validation'
 
 export const createPriceValidator = validate(
@@ -20,9 +20,9 @@ export const createPriceValidator = validate(
       },
       custom: {
         options: (timeSlots: TimeSlot[]) => {
-          if (!timeSlots.length || timeSlots.length !== 3) {
+          if (!timeSlots.length || timeSlots.length !== 2) {
             throw new ErrorWithStatus({
-              message: 'Must have exactly 3 time slots',
+              message: 'Must have exactly 2 time slots',
               status: HTTP_STATUS_CODE.BAD_REQUEST
             })
           }

@@ -13,4 +13,5 @@ export interface IRoomScheduleRequestBody {
   status: RoomScheduleStatus
   createdBy?: string
   updatedBy?: string
+  note?: string
 }

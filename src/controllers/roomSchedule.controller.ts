@@ -15,55 +15,28 @@ dayjs.extend(timezone)
 
 // Lấy lịch của tất cả các phòng theo ngày (truyền date từ body dưới dạng ISO string)
 export const getSchedules = async (
-  req: Request<ParamsDictionary, any, any, { date?: string | string[]; status?: RoomScheduleStatus | string }>,
+  req: Request<
+    ParamsDictionary,
+    any,
+    any,
+    { roomId?: string; date?: string | string[]; status?: RoomScheduleStatus | string }
+  >,
   res: Response,
   next: NextFunction
 ) => {
   try {
-    const dateParam = req.query.date
-    const status = req.query.status
-
-    if (!dateParam || Array.isArray(dateParam)) {
-      return res.status(HTTP_STATUS_CODE.BAD_REQUEST).json({
-        message: 'Date parameter is required and must be a single string value (format: ISO date string)'
-      })
+    // Lấy các tham số filter từ query string của request
+    const filter: IRoomScheduleRequestQuery = {
+      roomId: req.query.roomId as string,
+      // Nếu FE truyền date dưới dạng ISO có hậu tố Z, ví dụ "2025-03-15T17:00:00.000Z"
+      date: req.query.date as string,
+      status: req.query.status as RoomScheduleStatus
     }
-
-    // Giả sử bạn muốn lọc theo múi giờ "Asia/Ho_Chi_Minh"
-    const timeZone = 'Asia/Ho_Chi_Minh'
-
-    // Sử dụng dayjs để tính startOfDay và endOfDay theo múi giờ mong muốn
-    const startOfDayUTC = dayjs.tz(dateParam, timeZone).startOf('day').utc().toDate()
-    const endOfDayUTC = dayjs.tz(dateParam, timeZone).endOf('day').utc().toDate()
-
-    console.log('Query date range:', {
-      start: startOfDayUTC,
-      end: endOfDayUTC
-    })
-
-    const filter = {
-      startTime: { $gte: startOfDayUTC, $lt: endOfDayUTC },
-      ...(status && { status: status as RoomScheduleStatus })
-    }
-
-    console.log('MongoDB filter:', JSON.stringify(filter, null, 2))
 
     const schedules = await roomScheduleService.getSchedules(filter)
-
-    console.log(
-      'Schedules found:',
-      schedules.map((s) => ({
-        id: s._id,
-        startTime: s.startTime,
-        year: new Date(s.startTime).getFullYear()
-      }))
-    )
-
-    return res
-      .status(HTTP_STATUS_CODE.OK)
-      .json({ message: ROOM_SCHEDULE_MESSAGES.GET_SCHEDULES_SUCCESS, result: schedules })
-  } catch (err) {
-    next(err)
+    res.status(200).json({ message: 'Get schedules success', result: schedules })
+  } catch (error) {
+    next(error)
   }
 }
 
@@ -77,13 +50,11 @@ export const getSchedulesByRoom = async (
     const { roomId } = req.params
     const { date, status } = req.body
 
-    const filter = {
-      roomId: new ObjectId(roomId), // Chuyển đổi roomId thành ObjectId ngay tại đây
+    const filter: IRoomScheduleRequestQuery = {
+      roomId: roomId, // Chuyển đổi roomId thành ObjectId ngay tại đây
       date: date as string,
       status: status ? (status as RoomScheduleStatus) : undefined
     }
-
-    console.log('filter', filter)
 
     const schedules = await roomScheduleService.getSchedules(filter)
 

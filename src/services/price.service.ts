@@ -1,6 +1,6 @@
 import { ObjectId } from 'mongodb'
 import { IPriceRequestBody, IPriceRequestQuery } from '~/models/requests/Price.request'
-import databaseService from './database.services'
+import databaseService from './database.service'
 import { Price } from '~/models/schemas/Price.schema'
 
 class PriceService {

@@ -11,6 +11,7 @@ export class RoomSchedule {
   updatedAt?: Date
   createdBy?: string
   updatedBy?: string
+  note?: string
 
   constructor(
     roomId: string,
@@ -18,7 +19,8 @@ export class RoomSchedule {
     status: RoomScheduleStatus,
     endTime?: Date | null,
     createdBy?: string,
-    updatedBy?: string
+    updatedBy?: string,
+    note?: string
   ) {
     this.roomId = new ObjectId(roomId)
     this.startTime = startTime
@@ -27,6 +29,6 @@ export class RoomSchedule {
     this.createdAt = new Date()
     this.createdBy = createdBy || 'system'
     this.updatedAt = new Date()
-    this.updatedBy = updatedBy || 'system'
+    ;(this.updatedBy = updatedBy || 'system'), (this.note = note)
   }
 }

@@ -115,3 +115,13 @@ export const ROOM_SCHEDULE_MESSAGES = {
   STATUS_REQUIRED: 'Status is required',
   SCHEDULE_ID_REQUIRED: 'Schedule ID is required'
 } as const
+
+export const FNB_MESSAGES = {
+  CREATE_FNB_ORDER_SUCCESS: 'Create FNB order success',
+  GET_FNB_ORDER_BY_ID_SUCCESS: 'Get FNB order by id success',
+  UPDATE_FNB_ORDER_SUCCESS: 'Update FNB order success',
+  DELETE_FNB_ORDER_SUCCESS: 'DELETE_FNB_ORDER_SUCCESS',
+  GET_FNB_ORDERS_BY_ROOM_SCHEDULE_SUCCESS: 'Get FNB orders by room schedule success',
+  FNB_ORDER_NOT_FOUND: 'FNB order not found',
+  UPSERT_FNB_ORDER_SUCCESS: 'Upsert FNB order success'
+}

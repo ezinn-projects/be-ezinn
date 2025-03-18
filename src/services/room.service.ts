@@ -1,5 +1,5 @@
 import { IAddRoomRequestBody } from '~/models/requests/Room.request'
-import databaseService from './database.services'
+import databaseService from './database.service'
 import { IRoom, Room } from '~/models/schemas/Room.schema'
 import { ObjectId } from 'mongodb'
 import { ROOM_MESSAGES } from '~/constants/messages'
@@ -9,16 +9,14 @@ class RoomServices {
     const result = await databaseService.rooms.insertOne({
       ...payload,
       createdAt: new Date(),
-      updatedAt: new Date(),
-      images: payload.images || []
+      updatedAt: new Date()
     })
 
     return new Room({
       ...payload,
       _id: result.insertedId,
       createdAt: new Date(),
-      updatedAt: new Date(),
-      images: payload.images || []
+      updatedAt: new Date()
     })
   }
 
@@ -55,7 +53,18 @@ class RoomServices {
   }
 
   async updateRoom(id: string, payload: Partial<IRoom>) {
-    const result = await databaseService.rooms.updateOne({ _id: new ObjectId(id) }, { $set: payload })
+    // Remove _id from payload to prevent immutable field modification
+    const { _id, ...updateData } = payload
+
+    const result = await databaseService.rooms.updateOne(
+      { _id: new ObjectId(id) },
+      {
+        $set: {
+          ...updateData,
+          updatedAt: new Date()
+        }
+      }
+    )
     return result
   }
 

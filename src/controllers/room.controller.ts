@@ -1,7 +1,7 @@
 import { NextFunction, Request, Response } from 'express'
 import { type ParamsDictionary } from 'express-serve-static-core'
 import { IAddRoomRequestBody } from '~/models/requests/Room.request'
-import { roomServices } from '~/services/room.services'
+import { roomServices } from '~/services/room.service'
 
 import { HTTP_STATUS_CODE } from '~/constants/httpStatus'
 import { ROOM_MESSAGES } from '~/constants/messages'
@@ -36,26 +36,25 @@ export const addRoomController = async (
 
     const uploadedImages: CloudinaryResponse[] = []
 
-    if (files?.length) {
-      for (const file of files) {
-        try {
-          const result = await uploadImageToCloudinary(file.buffer, 'rooms')
-          uploadedImages.push(result as CloudinaryResponse)
-        } catch (error) {
-          // Cleanup already uploaded images if any upload fails
-          await Promise.all(uploadedImages.map((img) => deleteImageFromCloudinary(img.publicId)))
-          throw new Error(`Failed to upload images: ${(error as Error).message}`)
-        }
-      }
-    }
+    // if (files?.length) {
+    //   for (const file of files) {
+    //     try {
+    //       const result = await uploadImageToCloudinary(file.buffer, 'rooms')
+    //       uploadedImages.push(result as CloudinaryResponse)
+    //     } catch (error) {
+    //       // Cleanup already uploaded images if any upload fails
+    //       await Promise.all(uploadedImages.map((img) => deleteImageFromCloudinary(img.publicId)))
+    //       throw new Error(`Failed to upload images: ${(error as Error).message}`)
+    //     }
+    //   }
+    // }
 
     const result = await roomServices.addRoom({
       roomName,
       roomType,
       maxCapacity: Number(maxCapacity),
       status,
-      description,
-      images: uploadedImages.map((img) => img.url)
+      description
     })
 
     return res.status(HTTP_STATUS_CODE.OK).json({

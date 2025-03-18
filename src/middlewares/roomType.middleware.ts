@@ -4,7 +4,7 @@ import { ObjectId } from 'mongodb'
 import { HTTP_STATUS_CODE } from '~/constants/httpStatus'
 import { ROOM_TYPE_MESSAGES } from '~/constants/messages'
 import { ErrorWithStatus } from '~/models/Error'
-import databaseService from '~/services/database.services'
+import databaseService from '~/services/database.service'
 import { validate } from '~/utils/validation'
 
 export const checkRoomTypeExists = async (req: Request, res: Response, next: NextFunction) => {

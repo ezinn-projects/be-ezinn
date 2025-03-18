@@ -6,14 +6,15 @@ import priceRouter from '~/routes/price.routes'
 import roomRouter from '~/routes/room.routes'
 import roomMusicRouter from '~/routes/roomMusic.routes'
 import usersRouter from '~/routes/users.routes'
-import databaseService from '~/services/database.services'
-import serverService from '~/services/server.services'
+import databaseService from '~/services/database.service'
+import serverService from '~/services/server.service'
 import roomTypeRouter from '~/routes/roomType.routes'
 import roomScheduleRouter from '~/routes/roomSchedule.routes'
 import dayjs from 'dayjs'
 import utc from 'dayjs/plugin/utc'
 import timezone from 'dayjs/plugin/timezone'
-import { startBookingScheduler } from '~/jobs/bookingScheduler'
+import { finishSchedulerInADay, startBookingScheduler } from '~/jobs/bookingScheduler'
+import fnbOrderRouter from '~/routes/fnbOrder.route'
 // Khởi tạo plugin
 dayjs.extend(utc)
 dayjs.extend(timezone)
@@ -43,10 +44,15 @@ app.use('/file', fileRouter)
 
 app.use('/room-schedule', roomScheduleRouter)
 
+app.use('/fnb-order', fnbOrderRouter)
+
 app.use(defaultErrorHandler)
 
 // Sau khi các route và middleware đã được cấu hình, khởi chạy scheduler
 startBookingScheduler()
+
+// Start auto finish all schedule in a day
+finishSchedulerInADay()
 
 app.listen(port, () => {
   console.log(`App listening on port ${port}`)

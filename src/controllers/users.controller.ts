@@ -6,7 +6,7 @@ import { type RegisterRequestBody } from '~/models/requests/User.requests'
 import { usersServices } from '~/services/users.services'
 import { hashPassword } from '~/utils/crypto'
 import { signToken } from '~/utils/jwt'
-import databaseService from '~/services/database.services'
+import databaseService from '~/services/database.service'
 import { IUser } from '~/models/schemas/User.schema'
 
 /**

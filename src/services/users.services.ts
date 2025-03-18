@@ -4,7 +4,7 @@ import { RegisterRequestBody } from '~/models/requests/User.requests'
 import { User } from '~/models/schemas/User.schema'
 import { hashPassword } from '~/utils/crypto'
 import { signToken } from '~/utils/jwt'
-import databaseService from './database.services'
+import databaseService from './database.service'
 import { ObjectId } from 'mongodb'
 
 class UsersServices {

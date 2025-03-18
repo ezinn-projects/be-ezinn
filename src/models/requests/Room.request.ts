@@ -9,5 +9,4 @@ export interface IAddRoomRequestBody {
   maxCapacity: number
   status: RoomStatus
   description?: string
-  images?: string[]
 }

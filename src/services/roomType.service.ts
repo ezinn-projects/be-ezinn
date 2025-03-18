@@ -1,6 +1,6 @@
 import { AddRoomTypeRequestBody } from '~/models/requests/RoomType.request'
 import RoomType from '~/models/schemas/RoomType.schema'
-import databaseService from './database.services'
+import databaseService from './database.service'
 import { ObjectId } from 'mongodb'
 
 class RoomTypeServices {

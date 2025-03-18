@@ -5,7 +5,7 @@ import { HTTP_STATUS_CODE } from '~/constants/httpStatus'
 import { ROOM_MESSAGES } from '~/constants/messages'
 import { ErrorWithStatus } from '~/models/Error'
 import { IAddRoomRequestBody } from '~/models/requests/Room.request'
-import databaseService from '~/services/database.services'
+import databaseService from '~/services/database.service'
 import { validate } from '~/utils/validation'
 
 export const checkRoomExists = async (req: Request, res: Response, next: NextFunction) => {

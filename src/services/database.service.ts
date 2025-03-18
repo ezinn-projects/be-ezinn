@@ -7,6 +7,7 @@ import { SongHistory } from '~/models/schemas/SongHistiry.schema'
 import { Price } from '~/models/schemas/Price.schema'
 import { RoomCategory } from '~/models/schemas/RoomCategory.schema'
 import { RoomSchedule } from '~/models/schemas/RoomSchdedule.schema'
+import { RoomScheduleFNBOrder } from '~/models/schemas/FNB.schema'
 dotenv.config()
 
 const DB_USERNAME = process.env.DB_USERNAME
@@ -64,6 +65,10 @@ class DatabaseService {
 
   get roomSchedule(): Collection<RoomSchedule> {
     return this.db.collection('room_schedules')
+  }
+
+  get fnbOrder(): Collection<RoomScheduleFNBOrder> {
+    return this.db.collection('fnb_orders')
   }
 }
 
