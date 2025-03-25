@@ -1,8 +1,8 @@
 # Sử dụng Node.js image chính thức
 FROM node:22-alpine
 
-# Cài đặt Python và các dependencies cần thiết
-RUN apk add --no-cache python3 py3-pip bash
+# Cài đặt Python và các dependencies cần thiết, bao gồm build-base
+RUN apk add --no-cache python3 py3-pip bash build-base
 
 # Kiểm tra symbolic link trước khi tạo
 RUN [ -e /usr/bin/python ] || ln -s /usr/bin/python3 /usr/bin/python
@@ -22,7 +22,7 @@ COPY . .
 # Build ứng dụng TypeScript
 RUN npm run build
 
-# Mở cổng ứng dụng (sửa thành cổng bạn đang dùng)
+# Mở cổng ứng dụng
 EXPOSE 4000
 
 # Khởi động ứng dụng
