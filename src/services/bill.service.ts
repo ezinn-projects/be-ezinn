@@ -16,7 +16,7 @@ function encodeVietnameseText(text: string, encoding = 'windows-1258') {
 }
 
 // V� d? s? d?ng v?i text �?ng
-const dynamicText = 'Xin ch�o, ��y l� h�a ��n c?a b?n!'
+const dynamicText = 'Xin chào, đây là hóa đơn của bạn!'
 const encodedText = encodeVietnameseText(dynamicText)
 
 export class BillService {
@@ -48,7 +48,7 @@ export class BillService {
     const priceDoc = await databaseService.price.findOne({ day_type: dayType })
     if (!priceDoc || !priceDoc.time_slots) {
       throw new ErrorWithStatus({
-        message: 'Kh�ng t?m th?y c?u h?nh gi�',
+        message: 'Không tìm thấy cấu hình giá',
         status: HTTP_STATUS_CODE.NOT_FOUND
       })
     }
@@ -56,14 +56,14 @@ export class BillService {
     const timeSlot = priceDoc.time_slots.find((slot: any) => time >= slot.start && time <= slot.end)
     if (!timeSlot) {
       throw new ErrorWithStatus({
-        message: 'Kh�ng t?m th?y khung gi? ph� h?p',
+        message: 'Không tìm thấy khung giá phù hợp',
         status: HTTP_STATUS_CODE.NOT_FOUND
       })
     }
     const priceEntry = timeSlot.prices.find((p: any) => p.room_type === roomType)
     if (!priceEntry) {
       throw new ErrorWithStatus({
-        message: 'Kh�ng t?m th?y gi� cho lo?i ph?ng',
+        message: 'Không tìm thấy giá cho loại phòng',
         status: HTTP_STATUS_CODE.NOT_FOUND
       })
     }
@@ -85,15 +85,15 @@ export class BillService {
       console.log('Found devices:', devices)
       if (devices.length === 0) {
         throw new ErrorWithStatus({
-          message: 'Kh�ng t?m th?y m�y in USB',
+          message: 'Không tìm thấy máy in USB',
           status: HTTP_STATUS_CODE.NOT_FOUND
         })
       }
       // L�u l?i th�ng tin c?a device �?u ti�n
       this.deviceData = devices[0]
-      console.log('Printer device �? ��?c l�u l?i:', this.deviceData)
+      console.log('Printer device được lưu lại:', this.deviceData)
     } catch (error) {
-      console.error('L?i kh?i t?o m�y in (constructor):', error)
+      console.error('Lỗi khởi tạo máy in (constructor):', error)
     }
   }
 
@@ -104,7 +104,7 @@ export class BillService {
     const room = await databaseService.rooms.findOne({ _id: schedule?.roomId })
     if (!schedule) {
       throw new ErrorWithStatus({
-        message: 'Kh�ng t?m th?y l?ch �?t ph?ng',
+        message: 'Không tìm thấy lịch đặt phòng',
         status: HTTP_STATUS_CODE.NOT_FOUND
       })
     }
@@ -117,7 +117,7 @@ export class BillService {
     const endTime = actualEndTime ? new Date(actualEndTime) : new Date(schedule.endTime as Date)
     if (!dayjs(endTime).isValid()) {
       throw new ErrorWithStatus({
-        message: 'Th?i gian k?t th�c kh�ng h?p l?',
+        message: 'Thời gian kết thúc không hợp lý',
         status: HTTP_STATUS_CODE.BAD_REQUEST
       })
     }
@@ -150,7 +150,7 @@ export class BillService {
       }
     })
     items.unshift({
-      description: 'Ph� d?ch v? thu �m',
+      description: 'Phi dich vu thu am',
       quantity: hoursUsed,
       unitPrice: serviceFeeUnitPrice,
       totalPrice: serviceFeeTotal
