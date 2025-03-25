@@ -49,29 +49,6 @@ export const getFnbOrderById = async (
 }
 
 /**
- * @description Update FNB Order
- * @path /fnb-orders/:id
- * @method PUT
- */
-export const updateFnbOrder = async (
-  req: Request<ParamsDictionary, any, IUpdateFNBOrderRequestBody>,
-  res: Response,
-  next: NextFunction
-) => {
-  try {
-    const { id } = req.params
-    const { order, updatedBy } = req.body
-    const result = await fnbOrderService.updateFnbOrder(id, order, updatedBy)
-    return res.status(HTTP_STATUS_CODE.OK).json({
-      message: FNB_MESSAGES.UPDATE_FNB_ORDER_SUCCESS,
-      result
-    })
-  } catch (error) {
-    next(error)
-  }
-}
-
-/**
  * @description Delete FNB Order
  * @path /fnb-orders/:id
  * @method DELETE

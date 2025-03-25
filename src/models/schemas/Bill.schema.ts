@@ -1,0 +1,56 @@
+// src/models/Bill.ts
+import { ObjectId } from 'mongodb'
+
+export interface IBill {
+  _id?: ObjectId
+  scheduleId: ObjectId
+  roomId: ObjectId
+  items: Array<{ description: string; price: number; quantity: number }>
+  totalAmount: number
+  startTime: Date
+  endTime: Date
+  createdAt: Date
+  paymentMethod?: string
+  note?: string
+}
+
+/**
+ * Bill model
+ */
+export class Bill {
+  _id?: ObjectId
+  scheduleId: ObjectId
+  roomId: ObjectId
+  items: Array<{ description: string; price: number; quantity: number }>
+  totalAmount: number
+  createdAt: Date
+  paymentMethod?: string
+  note?: string
+
+  /**
+   * Tạo mới một Bill
+   *
+   * @param {string} scheduleId - Id của RoomSchedule
+   * @param {string} roomId - Id của phòng
+   * @param {Array<{ description: string; price: number; quantity: number }>} items - Danh sách mục trong bill
+   * @param {number} totalAmount - Tổng số tiền cần thanh toán
+   * @param {string} paymentMethod - Phương thức thanh toán (vd: "cash", "bank_transfer")
+   * @param {string} [note] - Ghi chú (nếu có)
+   */
+  constructor(
+    scheduleId: string,
+    roomId: string,
+    items: Array<{ description: string; price: number; quantity: number }>,
+    totalAmount: number,
+    paymentMethod?: string,
+    note?: string
+  ) {
+    this.scheduleId = new ObjectId(scheduleId)
+    this.roomId = new ObjectId(roomId)
+    this.items = items
+    this.totalAmount = totalAmount
+    this.paymentMethod = paymentMethod
+    this.createdAt = new Date()
+    this.note = note
+  }
+}

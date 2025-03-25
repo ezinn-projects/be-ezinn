@@ -17,32 +17,6 @@ class FnbOrderService {
       : null
   }
 
-  async updateFnbOrder(id: string, order: Partial<FNBOrder>, updatedBy?: string): Promise<RoomScheduleFNBOrder | null> {
-    const existingOrder = await this.getFnbOrderById(id)
-    if (!existingOrder) return null
-
-    const updateResult = await databaseService.fnbOrder.findOneAndUpdate(
-      { _id: new ObjectId(id) },
-      {
-        $set: {
-          order: { ...existingOrder.order, ...order },
-          updatedAt: new Date(),
-          updatedBy: updatedBy || 'system'
-        }
-      },
-      { returnDocument: 'after' }
-    )
-
-    return updateResult
-      ? new RoomScheduleFNBOrder(
-          updateResult.roomScheduleId.toString(),
-          updateResult.order,
-          updateResult.createdBy,
-          updateResult.updatedBy
-        )
-      : null
-  }
-
   async deleteFnbOrder(id: string): Promise<RoomScheduleFNBOrder | null> {
     const orderToDelete = await this.getFnbOrderById(id)
     if (!orderToDelete) return null
@@ -70,7 +44,6 @@ class FnbOrderService {
     for (const key in order) {
       if (order.hasOwnProperty(key)) {
         const value = order[key as keyof FNBOrder]
-        // Nếu value là object và rỗng, bỏ qua key đó
         if (typeof value === 'object' && value !== null && Object.keys(value).length === 0) {
           continue
         }
@@ -80,26 +53,59 @@ class FnbOrderService {
 
     const filter = { roomScheduleId: new ObjectId(roomScheduleId) }
 
-    const updatePipeline = [
-      {
-        $set: {
-          order: { $mergeObjects: [{ $ifNull: ['$order', {}] }, filteredOrder] },
-          updatedAt: new Date(),
+    // Update document (không dùng pipeline)
+    const update = {
+      $set: {
+        order: {
+          drinks: filteredOrder.drinks || {},
+          snacks: filteredOrder.snacks || {}
+        },
+        updatedAt: new Date(),
+        updatedBy: user || ' Ive',
+        createdAt: { $ifNull: ['$createdAt', new Date()] },
+        createdBy: { $ifNull: ['$createdBy', user || 'system'] }
+      },
+      $push: {
+        history: {
+          timestamp: new Date(),
           updatedBy: user || 'system',
-          createdAt: { $ifNull: ['$createdAt', new Date()] },
-          createdBy: { $ifNull: ['$createdBy', user || 'system'] }
+          changes: filteredOrder
         }
       }
-    ]
+    }
 
-    const options = { upsert: true, returnDocument: 'after' as const }
-    const updatedOrder = await databaseService.fnbOrder.findOneAndUpdate(filter, updatePipeline, options)
+    const validUpdate = {
+      $set: {
+        'order.drinks': filteredOrder.drinks || {},
+        'order.snacks': filteredOrder.snacks || {},
+        updatedAt: new Date(),
+        updatedBy: user || ' Ive'
+      },
+      $setOnInsert: {
+        createdAt: new Date(),
+        createdBy: user || 'system'
+      },
+      $push: {
+        history: {
+          timestamp: new Date(),
+          updatedBy: user || 'system',
+          changes: filteredOrder
+        }
+      }
+    }
+
+    const updatedOrder = await databaseService.fnbOrder.findOneAndUpdate(filter, validUpdate, {
+      upsert: true,
+      returnDocument: 'after' as const
+    })
     if (!updatedOrder) return null
+
     return new RoomScheduleFNBOrder(
       updatedOrder.roomScheduleId.toString(),
       updatedOrder.order,
       updatedOrder.createdBy,
-      updatedOrder.updatedBy
+      updatedOrder.updatedBy,
+      updatedOrder.history || []
     )
   }
 }

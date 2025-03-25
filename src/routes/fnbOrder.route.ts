@@ -5,7 +5,6 @@ import {
   deleteFnbOrder,
   getFnbOrderById,
   getFnbOrdersByRoomSchedule,
-  updateFnbOrder,
   upsertFnbOrder
 } from '~/controllers/fnbOrder.controller'
 import { protect } from '~/middlewares/auth.middleware'
@@ -37,7 +36,7 @@ fnbOrderRouter.get('/:id', wrapRequestHandler(getFnbOrderById))
  * @path /fnb-orders/:id
  * @method PUT
  */
-fnbOrderRouter.put('/:id', protect([UserRole.Admin]), createFNBOrderValidator, wrapRequestHandler(updateFnbOrder))
+fnbOrderRouter.put('/:id', protect([UserRole.Admin]), createFNBOrderValidator, wrapRequestHandler(upsertFnbOrder))
 
 /**
  * @description Delete FNB Order
