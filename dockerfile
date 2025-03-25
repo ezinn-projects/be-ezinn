@@ -1,12 +1,7 @@
-# Sử dụng Node.js image chính thức
-FROM node:22-alpine
+# Sử dụng Node.js image chính thức dựa trên Debian
+FROM node:22
 
-# Cài đặt Python và các dependencies cần thiết, bao gồm build-base
-RUN apk add --no-cache python3 py3-pip bash build-base
-
-# Kiểm tra symbolic link trước khi tạo
-RUN [ -e /usr/bin/python ] || ln -s /usr/bin/python3 /usr/bin/python
-
+# Không cần cài thêm build-base hay linux-headers vì image này đã có sẵn
 # Thiết lập thư mục làm việc trong container
 WORKDIR /usr/src/app
 
