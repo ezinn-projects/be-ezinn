@@ -228,64 +228,65 @@ export class BillService {
         const USB = require('escpos-usb')
         const escpos = require('escpos')
         const devices = USB.findPrinter()
+        console.log('Found devices:', devices)
+
         if (devices.length === 0) {
           throw new Error('Khong tim thay may in USB')
         }
-        console.log('Thiet bi tim thay:', devices)
 
-        const device = new USB(1137, 85)
+        // Lưu lại thông tin thiết bị tìm thấy để debug
+        const printerDevice = devices[0]
+        console.log('Printer device được lưu lại:', printerDevice)
+
+        // Sử dụng thông tin từ thiết bị tìm thấy
+        const device = new USB(printerDevice.deviceDescriptor.idVendor, printerDevice.deviceDescriptor.idProduct)
 
         // Sử dụng encoding GB18030 cho máy in Gainscha model GA-E200I
-        // Máy in này thường hỗ trợ tốt bảng mã GB18030 hoặc GB2312 cho tiếng Việt
-        // Nếu không hoạt động, có thể thử các bảng mã khác như: cp1258, cp850, utf8
         const printer = new escpos.Printer(device, { encoding: 'GB18030' })
 
-        // Dinh dang ngay gio
+        // Định dạng ngày giờ
         const formatDate = (date: Date) => {
           return `${date.getDate()}/${date.getMonth() + 1}/${date.getFullYear()} ${date.getHours()}:${date.getMinutes()}`
         }
+
+        // Tạo mã hóa đơn theo định dạng #DDMMHHMM (ngày, tháng, giờ, phút)
+        const now = new Date()
+        const invoiceCode = `#${now.getDate().toString().padStart(2, '0')}${(now.getMonth() + 1).toString().padStart(2, '0')}${now.getHours().toString().padStart(2, '0')}${now.getMinutes().toString().padStart(2, '0')}`
 
         device.open((error: any) => {
           if (error) {
             return reject(new Error('Loi mo may in: ' + error.message))
           }
 
-          // const setCodePageCmd = Buffer.from([0x1b, 0x74, 22])
-          // device.write(setCodePageCmd)
-
-          // const iconv = require('iconv-lite')
-          // const text = 'HOA DON THANH TOAN toàn'
-          // const convertedText = iconv.encode(text, 'cp850') // hoặc thử bảng mã khác như 'cp850'
-          // printer.text(convertedText)
-
-          // In hoa don
+          // In hóa đơn
           printer
             .font('a')
             .align('ct')
             .style('b')
             .size(1, 1)
             .text('Jozo Studio')
-            .text('HOA DON THANH TOAN toán')
+            .text('HOA DON THANH TOAN')
             .style('normal')
             .size(0, 0)
-            .text('------------------------------')
-            .align('lt')
-            .text(
-              `Ma HD: ${bill._id} - ${new Date().toLocaleDateString('vi-VN')} ${new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}`
-            )
-            .text(`Phong: ${room?.roomName || 'Khong xac dinh'}`)
-            .text(`Ngay: ${formatDate(new Date(bill.createdAt))}`)
-            .text(`Gio bat dau: ${formatDate(new Date(bill.startTime))}`)
-            .text(`Gio ket thuc: ${formatDate(new Date(bill.endTime))}`)
-            .text(`Phuong thuc thanh toan: ${paymentMethodText}`)
-            .text('------------------------------')
             .align('ct')
-            .text('CHI TIET DICH VU')
-            .align('lt')
             .text('------------------------------')
+            .align('lt')
+            .text(`Ma HD: ${invoiceCode}`)
+            .text(`ID: ${bill._id}`)
+            .text('╭─────────────────────────╮')
+            .text(`│ ${room?.roomName || 'Khong xac dinh'} │`)
+            .text('╰─────────────────────────╯')
+            .text(`Ngay: ${formatDate(new Date(bill.createdAt))}`)
+            .text(`Gio bat dau: ${dayjs(bill.startTime).format('HH:mm')}`)
+            .text(`Gio ket thuc: ${dayjs(bill.endTime).format('HH:mm')}`)
+            .text(`Phuong thuc thanh toan: ${paymentMethodText}`)
+            .align('ct')
+            .text('------------------------------')
+            .text('CHI TIET DICH VU')
+            .text('------------------------------')
+            .align('lt')
 
-          // In cac muc trong hoa don
-          // In ti�u �? c?t
+          // In tiêu đề cột
           printer
             .tableCustom([
               { text: 'Dich vu', width: 0.4, align: 'left' },
@@ -293,20 +294,21 @@ export class BillService {
               { text: 'Don gia', width: 0.2, align: 'right' },
               { text: 'Thanh tien', width: 0.25, align: 'right' }
             ])
+            .align('ct')
             .text('------------------------------')
 
-          // In chi ti?t t?ng m?c
+          // In chi tiết từng mục
           bill.items.forEach((item) => {
             let description = item.description
             let quantity = item.quantity
 
-            // Xu ly hien thi cho phi dich vu thu am
+            // Xử lý hiển thị cho phí dịch vụ thu âm
             if (description === 'Phí dịch vụ thu âm') {
-              // Lam tron den 1 chu so thap phan
+              // Làm tròn đến 1 chữ số thập phân
               quantity = Math.round(quantity * 10) / 10
               description = 'Phi dich vu thu am'
             } else {
-              // Don gian hoa ten cac loai do an, nuoc uong
+              // Đơn giản hóa tên các loại đồ ăn, nước uống
               description = description
                 .replace('Nước suối', 'Nuoc suoi')
                 .replace('Nước ngọt', 'Nuoc ngot')
@@ -338,7 +340,10 @@ export class BillService {
             .text('Dia chi: 123 Duong ABC, Quan XYZ, TP.HCM')
             .text('Hotline: 0123 456 789')
             .text('Website: www.jozo.vn')
-            .feed(3) // Th�m 3 d?ng tr?ng ? cu?i �? t�ng margin bottom
+            .style('i')
+            .text('Powered by Jozo')
+            .style('normal')
+            .feed(3) // Thêm 3 dòng trống ở cuối để tăng margin bottom
             .cut()
             .close(() => {
               console.log('In hoa don thanh cong')

@@ -19,9 +19,9 @@ export enum UserRole {
 }
 
 export enum RoomType {
-  Small = 'small',
-  Medium = 'medium',
-  Large = 'large'
+  Small = 'Small',
+  Medium = 'Medium',
+  Large = 'Large'
 }
 
 export enum RoomStatus {

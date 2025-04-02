@@ -49,6 +49,66 @@ export const addRoomTypeController = async (
   }
 }
 
+export const updateRoomTypeByIdController = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { name, capacity, area, description, type, existingImages } = req.body
+    const files = req.files as Express.Multer.File[] | undefined
+
+    // Prepare update data with existing fields
+    const updateData: Partial<AddRoomTypeRequestBody> = {}
+
+    if (name) updateData.name = name
+    if (capacity) updateData.capacity = Number(capacity)
+    if (area) updateData.area = area
+    if (description) updateData.description = description
+    if (type) updateData.type = type
+
+    // Initialize images array
+    let finalImages: string[] = []
+
+    // Add existing images if provided
+    if (existingImages) {
+      // Handle both string and array formats
+      if (typeof existingImages === 'string') {
+        finalImages = JSON.parse(existingImages)
+      } else if (Array.isArray(existingImages)) {
+        finalImages = existingImages
+      }
+    }
+
+    // Handle new image uploads if provided
+    if (files?.length) {
+      const uploadedImages: string[] = []
+
+      try {
+        const uploadPromises = files.map((file) => uploadImageToCloudinary(file.buffer, 'room-types'))
+        const results = await Promise.all(uploadPromises)
+
+        uploadedImages.push(...results.map((img) => (img as CloudinaryResponse).url))
+
+        // Combine existing and new images
+        finalImages = [...finalImages, ...uploadedImages]
+      } catch (error) {
+        throw new Error(`Failed to upload images: ${(error as Error).message}`)
+      }
+    }
+
+    // Only update images if we have any (new or existing)
+    if (finalImages.length > 0) {
+      updateData.images = finalImages
+    }
+
+    const result = await roomTypeServices.updateRoomTypeById(req.roomTypeId, updateData as AddRoomTypeRequestBody)
+
+    return res.status(HTTP_STATUS_CODE.OK).json({
+      message: ROOM_TYPE_MESSAGES.UPDATE_ROOM_TYPE_BY_ID_SUCCESS,
+      result
+    })
+  } catch (error) {
+    next(error)
+  }
+}
+
 export const getRoomTypesController = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const result = await roomTypeServices.getRoomTypes()
@@ -68,19 +128,6 @@ export const getRoomTypeByIdController = async (req: Request, res: Response, nex
 
     return res.status(HTTP_STATUS_CODE.OK).json({
       message: ROOM_TYPE_MESSAGES.GET_ROOM_TYPE_BY_ID_SUCCESS,
-      result
-    })
-  } catch (error) {
-    next(error)
-  }
-}
-
-export const updateRoomTypeByIdController = async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const result = await roomTypeServices.updateRoomTypeById(req.roomTypeId, req.body)
-
-    return res.status(HTTP_STATUS_CODE.OK).json({
-      message: ROOM_TYPE_MESSAGES.UPDATE_ROOM_TYPE_BY_ID_SUCCESS,
       result
     })
   } catch (error) {

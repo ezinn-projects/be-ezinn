@@ -53,13 +53,14 @@ roomTypeRouter.post(
 /**
  * @description Update room type by id
  * @path /room-types/:roomTypeId
- * @method PATCH
+ * @method PUT
  * @author QuangDoo
  */
-roomTypeRouter.patch(
+roomTypeRouter.put(
   '/:roomTypeId',
   protect([UserRole.Admin]),
   checkRoomTypeIsNotExists,
+  upload.array('images', 5),
   wrapRequestHandler(updateRoomTypeByIdController)
 )
 
