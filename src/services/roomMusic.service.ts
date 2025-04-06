@@ -153,10 +153,11 @@ class RoomMusicServices {
         dumpSingleJson: true,
         format: 'b', // Using 'b' instead of 'best' as recommended
         addHeader: [
-          'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 googlebot youtube.com',
           'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
           'Accept-Language: en-US,en;q=0.5',
-          'Referer: https://www.youtube.com/'
+          'Referer: https://www.youtube.com/',
+          'youtube-dl-options: --no-check-certificate --no-warnings --skip-download'
         ],
         // Basic options to improve reliability
         noCheckCertificates: true,
@@ -183,6 +184,59 @@ class RoomMusicServices {
     await redis.rpush(queueKey, ...queue.map((song) => JSON.stringify(song)))
     console.log('queue', queue)
     return queue
+  }
+
+  /**
+   * @description Play song at specific index in queue
+   * @param roomId - Room ID
+   * @param index - Index of song in queue to play
+   * @returns The now playing song and updated queue
+   * @author [Your Name]
+   */
+  async playChosenSong(
+    roomId: string,
+    index: number
+  ): Promise<{ nowPlaying: AddSongRequestBody | null; queue: AddSongRequestBody[] }> {
+    const queueKey = `room_${roomId}_queue`
+    const nowPlayingKey = `room_${roomId}_now_playing`
+
+    // Lấy danh sách bài hát trong hàng đợi
+    const queue = (await redis.lrange(queueKey, 0, -1)).map((item: string) => JSON.parse(item))
+
+    // Kiểm tra nếu index hợp lệ
+    if (index < 0 || index >= queue.length) {
+      // Trả về danh sách hiện tại nếu index không hợp lệ
+      const currentNowPlaying = await this.getNowPlaying(roomId)
+      return { nowPlaying: currentNowPlaying, queue }
+    }
+
+    // Lấy bài hát được chọn
+    const chosenSong = queue[index]
+
+    // Xóa bài hát khỏi hàng đợi
+    queue.splice(index, 1)
+
+    // Cập nhật lại hàng đợi trong Redis
+    await redis.del(queueKey)
+    if (queue.length > 0) {
+      await redis.rpush(queueKey, ...queue.map((song) => JSON.stringify(song)))
+    }
+
+    // Cập nhật thông tin bài hát đang phát
+    const timestamp = Date.now()
+    const duration = chosenSong.duration || 0
+
+    const nowPlayingData = {
+      ...chosenSong,
+      timestamp,
+      duration
+    }
+
+    // Lưu vào Redis
+    await redis.set(nowPlayingKey, JSON.stringify(nowPlayingData))
+
+    // Trả về thông tin bài hát đang phát và hàng đợi đã cập nhật
+    return { nowPlaying: nowPlayingData, queue }
   }
 
   async getSongName(keyword: string, isKaraoke: boolean = false): Promise<string[]> {

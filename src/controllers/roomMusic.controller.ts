@@ -344,3 +344,85 @@ export const getSongName = async (req: Request, res: Response, next: NextFunctio
     next(error)
   }
 }
+
+/**
+ * @description Play chosen song at specific index in queue
+ * @path /room-music/:roomId/play-chosen-song
+ * @method POST
+ * @body {videoIndex: number}
+ * @author [Your Name]
+ */
+export const playChosenSong = async (req: Request, res: Response, next: NextFunction) => {
+  const { roomId } = req.params
+  const { videoIndex } = req.body
+
+  if (videoIndex === undefined || videoIndex === null) {
+    return res.status(HTTP_STATUS_CODE.BAD_REQUEST).json({
+      message: 'Video index is required'
+    })
+  }
+
+  try {
+    // Kiểm tra trạng thái hiện tại trước khi thực hiện thay đổi
+    const currentNowPlaying = await roomMusicServices.getNowPlaying(roomId)
+
+    // Phát bài hát được chọn từ hàng đợi
+    const { nowPlaying, queue } = await roomMusicServices.playChosenSong(roomId, parseInt(videoIndex))
+
+    if (!nowPlaying) {
+      return res.status(HTTP_STATUS_CODE.NOT_FOUND).json({
+        message: SONG_QUEUE_MESSAGES.NO_SONG_IN_QUEUE,
+        result: {
+          previousSong: currentNowPlaying,
+          queue
+        }
+      })
+    }
+
+    // Reset các trạng thái liên quan đến playback
+    await Promise.all([
+      redis.set(`room_${roomId}_playback`, 'play'),
+      redis.set(`room_${roomId}_current_time`, '0'),
+      redis.set(
+        `room_${roomId}_now_playing`,
+        JSON.stringify({
+          ...nowPlaying,
+          currentTime: 0,
+          timestamp: Date.now()
+        })
+      )
+    ])
+
+    // Emit các sự kiện theo thứ tự
+    serverService.io.to(roomId).emit('queue_updated', queue)
+
+    // Reset và load video mới
+    serverService.io.to(roomId).emit('video_event', {
+      event: 'play',
+      videoId: nowPlaying?.video_id,
+      currentTime: 0
+    })
+
+    // Cập nhật thông tin now playing
+    serverService.io.to(roomId).emit('play_song', {
+      ...nowPlaying,
+      isPlaying: true,
+      currentTime: 0,
+      timestamp: Date.now()
+    })
+
+    res.status(HTTP_STATUS_CODE.OK).json({
+      message: SONG_QUEUE_MESSAGES.SONG_IS_NOW_PLAYING,
+      result: {
+        nowPlaying: {
+          ...nowPlaying,
+          currentTime: 0,
+          timestamp: Date.now()
+        },
+        queue
+      }
+    })
+  } catch (error) {
+    next(error)
+  }
+}
