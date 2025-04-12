@@ -125,3 +125,13 @@ export const FNB_MESSAGES = {
   FNB_ORDER_NOT_FOUND: 'FNB order not found',
   UPSERT_FNB_ORDER_SUCCESS: 'Upsert FNB order success'
 }
+
+export const FNB_MENU_MESSAGES = {
+  CREATE_FNB_MENU_SUCCESS: 'Create FNB menu success',
+  GET_FNB_MENU_BY_ID_SUCCESS: 'Get FNB menu by id success',
+  UPDATE_FNB_MENU_SUCCESS: 'Update FNB menu success',
+  DELETE_FNB_MENU_SUCCESS: 'Delete FNB menu success',
+  GET_FNB_MENUS_SUCCESS: 'Get FNB menus success',
+  FNB_MENU_NOT_FOUND: 'FNB menu not found',
+  FNB_MENU_EXISTS: 'FNB menu already exists'
+}
