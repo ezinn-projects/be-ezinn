@@ -1,7 +1,6 @@
 import { Router } from 'express'
 import { UserRole } from '~/constants/enum'
 import {
-  createFnbOrder,
   deleteFnbOrder,
   getFnbOrderById,
   getFnbOrdersByRoomSchedule,

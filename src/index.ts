@@ -16,6 +16,7 @@ import timezone from 'dayjs/plugin/timezone'
 import { finishSchedulerInADay, startBookingScheduler } from '~/jobs/bookingScheduler'
 import fnbOrderRouter from '~/routes/fnbOrder.route'
 import billRouter from '~/routes/bill.routes'
+import fnbMenuRouter from './routes/fnbMenu.routes'
 // Khởi tạo plugin
 dayjs.extend(utc)
 dayjs.extend(timezone)
@@ -48,6 +49,8 @@ app.use('/room-schedule', roomScheduleRouter)
 app.use('/fnb-order', fnbOrderRouter)
 
 app.use('/bill', billRouter)
+
+app.use('/fnb-menu', fnbMenuRouter)
 
 app.use(defaultErrorHandler)
 
