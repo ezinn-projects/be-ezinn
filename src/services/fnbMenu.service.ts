@@ -16,7 +16,7 @@ class FnbMenuService {
 
   async getAllFnbMenu(): Promise<FnbMenuModel[]> {
     const menus = await databaseService.fnbMenu.find({}).toArray()
-    return menus.map((menu) => new FnbMenuModel(menu.name, menu.price, menu.description, menu.image, menu.category))
+    return menus
   }
 
   async deleteFnbMenu(id: string): Promise<FnbMenu | null> {
@@ -31,9 +31,13 @@ class FnbMenuService {
     const menuToUpdate = await this.getFnbMenuById(id)
     if (!menuToUpdate) return null
 
-    const updatedMenu = { ...menuToUpdate, ...menu }
-    await databaseService.fnbMenu.updateOne({ _id: new ObjectId(id) }, { $set: updatedMenu })
-    return updatedMenu
+    // Create update object without _id to avoid modifying immutable field
+    const { _id, ...updateData } = { ...menuToUpdate, ...menu }
+
+    await databaseService.fnbMenu.updateOne({ _id: new ObjectId(id) }, { $set: updateData })
+
+    // Return the complete updated menu with _id
+    return { _id: new ObjectId(id), ...updateData }
   }
 }
 

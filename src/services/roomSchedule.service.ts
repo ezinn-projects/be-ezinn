@@ -144,11 +144,17 @@ class RoomScheduleService {
     console.log('overlap', overlap)
 
     if (overlap) {
-      // Nếu tìm thấy event giao nhau, ném lỗi để thông báo không được tạo event mới
-      throw new ErrorWithStatus({
-        message: 'An overlapping event exists for the room.',
-        status: HTTP_STATUS_CODE.CONFLICT
-      })
+      // Kiểm tra nếu event trùng lặp có status là Finished hoặc finish, thì vẫn cho phép tạo mới
+      if (overlap.status === RoomScheduleStatus.Finished) {
+        // Cho phép tạo event mới nếu event trùng lặp đã kết thúc
+        console.log('Allowing new event creation because overlapping event is finished')
+      } else {
+        // Nếu tìm thấy event giao nhau và không phải trạng thái Finished, ném lỗi
+        throw new ErrorWithStatus({
+          message: 'An overlapping event exists for the room.',
+          status: HTTP_STATUS_CODE.CONFLICT
+        })
+      }
     }
 
     // Nếu không có overlap, tiến hành tạo event mới

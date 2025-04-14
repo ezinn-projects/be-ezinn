@@ -102,6 +102,7 @@ export class BillService {
     const schedule = await databaseService.roomSchedule.findOne({ _id: id })
     const orders = await databaseService.fnbOrder.find({ roomScheduleId: id }).toArray()
     const room = await databaseService.rooms.findOne({ _id: schedule?.roomId })
+    const menu = await databaseService.fnbMenu.find({}).toArray()
     if (!schedule) {
       throw new ErrorWithStatus({
         message: 'Không tìm thấy lịch đặt phòng',
@@ -109,11 +110,7 @@ export class BillService {
       })
     }
     const dayType = this.determineDayType(new Date(schedule.startTime))
-    const serviceFeeUnitPrice = await this.getServiceUnitPrice(
-      new Date(schedule.startTime),
-      dayType,
-      room?.roomType || ''
-    )
+    const serviceFeeUnitPrice = 0
     const endTime = actualEndTime ? new Date(actualEndTime) : new Date(schedule.endTime as Date)
     if (!dayjs(endTime).isValid()) {
       throw new ErrorWithStatus({
@@ -122,40 +119,87 @@ export class BillService {
       })
     }
     const hoursUsed = this.calculateHours(new Date(schedule.startTime), endTime)
-    const serviceFeeTotal = hoursUsed * serviceFeeUnitPrice
+
+    // Làm tròn xuống phí dịch vụ thu âm (chia cho 1000 rồi nhân lại)
+    const roundedServiceFeeTotal = Math.floor((hoursUsed * serviceFeeUnitPrice) / 1000) * 1000
 
     const items: { description: string; quantity: number; unitPrice: number; totalPrice: number }[] = []
-    orders.forEach((order) => {
-      for (const drink in order.order.drinks) {
-        const quantity = order.order.drinks[drink]
-        const unitPrice = this.prices.drinks[drink as keyof typeof this.prices.drinks]
-        const totalPrice = quantity * unitPrice
-        items.push({
-          description: drink === 'water' ? 'N�?c su?i' : drink === 'soda' ? 'N�?c ng?t' : 'Tr�',
-          quantity,
-          unitPrice,
-          totalPrice
-        })
+
+    const order = orders[0]
+
+    // Xử lý các đơn hàng F&B từ menu động
+    if (order && order.order) {
+      // Xử lý snacks từ đơn hàng
+      if (order.order.snacks) {
+        const snackIds = Object.keys(order.order.snacks)
+
+        for (const snackId of snackIds) {
+          const quantity = order.order.snacks[snackId]
+          const menuItem = menu.find((item) => item._id.toString() === snackId)
+
+          if (menuItem) {
+            // Chuyển đổi giá từ chuỗi sang số nếu cần
+            const price =
+              typeof menuItem.price === 'string'
+                ? parseFloat((menuItem.price as string).replace(/\./g, ''))
+                : typeof menuItem.price === 'number'
+                  ? menuItem.price
+                  : 0
+
+            // Làm tròn xuống tổng giá (chia cho 1000 rồi nhân lại)
+            const roundedTotalPrice = Math.floor((price * quantity) / 1000) * 1000
+
+            items.push({
+              description: menuItem.name,
+              quantity: quantity,
+              unitPrice: price,
+              totalPrice: roundedTotalPrice
+            })
+          }
+        }
       }
-      for (const snack in order.order.snacks) {
-        const quantity = order.order.snacks[snack]
-        const unitPrice = this.prices.snacks[snack as keyof typeof this.prices.snacks]
-        const totalPrice = quantity * unitPrice
-        items.push({
-          description: snack === 'regular' ? 'Snack th�?ng' : snack === 'potato' ? 'Snack khoai t�y' : 'Snack ngon',
-          quantity,
-          unitPrice,
-          totalPrice
-        })
+
+      // Xử lý drinks từ đơn hàng (tương tự như snacks)
+      if (order.order.drinks) {
+        const drinkIds = Object.keys(order.order.drinks)
+
+        for (const drinkId of drinkIds) {
+          const quantity = order.order.drinks[drinkId]
+          const menuItem = menu.find((item) => item._id.toString() === drinkId)
+
+          if (menuItem) {
+            const price =
+              typeof menuItem.price === 'string'
+                ? parseFloat((menuItem.price as string).replace(/\./g, ''))
+                : typeof menuItem.price === 'number'
+                  ? menuItem.price
+                  : 0
+
+            // Làm tròn xuống tổng giá (chia cho 1000 rồi nhân lại)
+            const roundedTotalPrice = Math.floor((price * quantity) / 1000) * 1000
+
+            items.push({
+              description: menuItem.name,
+              quantity: quantity,
+              unitPrice: price,
+              totalPrice: roundedTotalPrice
+            })
+          }
+        }
       }
-    })
+    }
+
+    // Thêm phí dịch vụ thu âm vào đầu danh sách
     items.unshift({
       description: 'Phi dich vu thu am',
       quantity: hoursUsed,
       unitPrice: serviceFeeUnitPrice,
-      totalPrice: serviceFeeTotal
+      totalPrice: roundedServiceFeeTotal
     })
+
+    // Tính tổng tiền từ các mục đã được làm tròn
     const totalAmount = items.reduce((acc, item) => acc + item.totalPrice, 0)
+
     const bill: IBill = {
       scheduleId: schedule._id,
       roomId: schedule.roomId,
@@ -268,61 +312,60 @@ export class BillService {
             .text('HOA DON THANH TOAN')
             .style('normal')
             .size(0, 0)
-            .align('ct')
             .text('------------------------------')
-            .align('lt')
             .text(`Ma HD: ${invoiceCode}`)
-            .text(`ID: ${bill._id}`)
-            .text('╭─────────────────────────╮')
-            .text(`│ ${room?.roomName || 'Khong xac dinh'} │`)
-            .text('╰─────────────────────────╯')
+            .text(`${room?.roomName || 'Khong xac dinh'}`)
             .text(`Ngay: ${formatDate(new Date(bill.createdAt))}`)
             .text(`Gio bat dau: ${dayjs(bill.startTime).format('HH:mm')}`)
             .text(`Gio ket thuc: ${dayjs(bill.endTime).format('HH:mm')}`)
             .text(`Phuong thuc thanh toan: ${paymentMethodText}`)
-            .align('ct')
             .text('------------------------------')
+            .style('b')
             .text('CHI TIET DICH VU')
-            .text('------------------------------')
-            .align('lt')
-
-          // In tiêu đề cột
-          printer
-            .tableCustom([
-              { text: 'Dich vu', width: 0.4, align: 'left' },
-              { text: 'SL', width: 0.15, align: 'center' },
-              { text: 'Don gia', width: 0.2, align: 'right' },
-              { text: 'Thanh tien', width: 0.25, align: 'right' }
-            ])
-            .align('ct')
+            .style('normal')
             .text('------------------------------')
 
-          // In chi tiết từng mục
+          // Tạo header cho bảng với khoảng cách đều hơn
+          const tableHeader = [
+            { text: 'Dich vu', width: 0.45, align: 'left' },
+            { text: 'SL', width: 0.15, align: 'center' },
+            { text: 'Don gia', width: 0.2, align: 'right' },
+            { text: 'T.Tien', width: 0.2, align: 'right' }
+          ]
+
+          printer.tableCustom(tableHeader)
+          printer.text('------------------------------')
+
+          // In chi tiết từng mục với định dạng cải thiện
           bill.items.forEach((item) => {
             let description = item.description
             let quantity = item.quantity
 
             // Xử lý hiển thị cho phí dịch vụ thu âm
             if (description === 'Phí dịch vụ thu âm') {
-              // Làm tròn đến 1 chữ số thập phân
               quantity = Math.round(quantity * 10) / 10
               description = 'Phi dich vu thu am'
-            } else {
-              // Đơn giản hóa tên các loại đồ ăn, nước uống
-              description = description
-                .replace('Nước suối', 'Nuoc suoi')
-                .replace('Nước ngọt', 'Nuoc ngot')
-                .replace('Trà', 'Tra')
-                .replace('Snack thường', 'Snack thuong')
-                .replace('Snack khoai tây', 'Snack khoai tay')
-                .replace('Snack ngon', 'Snack ngon')
             }
 
+            // Giới hạn độ dài của description để tránh bị tràn
+            if (description.length > 20) {
+              description = description.substring(0, 17) + '...'
+            }
+
+            // Định dạng số tiền để hiển thị gọn hơn
+            const formattedPrice = item.price >= 1000 ? `${Math.floor(item.price / 1000)}K` : item.price.toString()
+
+            const formattedTotal =
+              item.quantity * item.price >= 1000
+                ? `${Math.floor((item.quantity * item.price) / 1000)}K`
+                : (item.quantity * item.price).toString()
+
+            // Cân đối lại các cột
             printer.tableCustom([
-              { text: description, width: 0.4, align: 'left' },
+              { text: description, width: 0.45, align: 'left' },
               { text: quantity.toString(), width: 0.15, align: 'center' },
-              { text: item.price.toLocaleString('vi-VN'), width: 0.2, align: 'right' },
-              { text: (item.quantity * item.price).toLocaleString('vi-VN'), width: 0.25, align: 'right' }
+              { text: formattedPrice, width: 0.2, align: 'right' },
+              { text: formattedTotal, width: 0.2, align: 'right' }
             ])
           })
 
@@ -331,15 +374,15 @@ export class BillService {
             .align('rt')
             .style('b')
             .text(`TONG CONG: ${bill.totalAmount.toLocaleString('vi-VN')} VND`)
-            .style('normal')
             .align('ct')
+            .style('normal')
             .text('------------------------------')
             .text('Cam on quy khach da su dung dich vu')
             .text('Hen gap lai quy khach!')
             .text('------------------------------')
-            .text('Dia chi: 123 Duong ABC, Quan XYZ, TP.HCM')
-            .text('Hotline: 0123 456 789')
-            .text('Website: www.jozo.vn')
+            .text('Dia chi: 247/5 Phan Trung, Bien Hoa')
+            .text('Hotline: 0357888723')
+            .text('Website: jozo.com.vn')
             .style('i')
             .text('Powered by Jozo')
             .style('normal')

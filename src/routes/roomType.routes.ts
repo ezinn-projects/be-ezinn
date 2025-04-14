@@ -13,10 +13,9 @@ import multer from 'multer'
 import { protect } from '~/middlewares/auth.middleware'
 import { checkRoomTypeExists, checkRoomTypeIsNotExists, validateRoomTypeIds } from '~/middlewares/roomType.middleware'
 import { wrapRequestHandler } from '~/utils/handlers'
+import { upload } from '~/utils/common'
 
 const roomTypeRouter = Router()
-
-const upload = multer({ storage: multer.memoryStorage() })
 
 /**
  * @description Get room types

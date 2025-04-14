@@ -1,3 +1,4 @@
+import multer from 'multer'
 import { HTTP_STATUS_CODE } from '~/constants/httpStatus'
 import { ErrorWithStatus } from '~/models/Error'
 
@@ -18,3 +19,9 @@ export function parseDate(dateStr: string): Date {
   }
   return date
 }
+
+/**
+ * Multer middleware configuration for handling file uploads.
+ * Uses memory storage to store files in memory as Buffer objects.
+ */
+export const upload = multer({ storage: multer.memoryStorage() })
