@@ -1,4 +1,5 @@
 import { Router } from 'express'
+import ytSearch from 'yt-search'
 import { HTTP_STATUS_CODE } from '~/constants/httpStatus'
 import {
   addSong,
@@ -6,17 +7,16 @@ import {
   getSongName,
   getSongsInQueue,
   getVideoInfo,
-  playNextSong,
   playChosenSong,
+  playNextSong,
   removeAllSongsInQueue,
   removeSong,
+  sendNotification,
   updateQueue
 } from '~/controllers/roomMusic.controller'
-import { addSongValidator } from '~/middlewares/roomMusic.middleware'
 import { VideoSchema } from '~/models/schemas/Video.schema'
 import { roomMusicServices } from '~/services/roomMusic.service'
 import { wrapRequestHandler } from '~/utils/handlers'
-import ytSearch from 'yt-search'
 
 const roomMusicRouter = Router()
 
@@ -259,5 +259,13 @@ roomMusicRouter.get('/:roomId/:videoId', wrapRequestHandler(getVideoInfo))
  * @author QuangDoo
  */
 roomMusicRouter.put('/:roomId/queue', wrapRequestHandler(updateQueue))
+
+/**
+ * @description send notification to admin by room index
+ * @path /song-queue/rooms/:roomId/send-notification
+ * @method POST
+ * @author QuangDoo
+ */
+roomMusicRouter.post('/:roomId/send-notification', wrapRequestHandler(sendNotification))
 
 export default roomMusicRouter

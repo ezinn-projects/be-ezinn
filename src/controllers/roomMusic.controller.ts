@@ -426,3 +426,29 @@ export const playChosenSong = async (req: Request, res: Response, next: NextFunc
     next(error)
   }
 }
+
+/**
+ * @description send notification to admin by room index
+ * @path /song-queue/rooms/:roomId/send-notification
+ * @method POST
+ * @author QuangDoo
+ */
+export const sendNotification = async (req: Request, res: Response, next: NextFunction) => {
+  const { roomId } = req.params
+  const { message } = req.body
+
+  try {
+    await roomMusicServices.sendNotificationToAdmin(roomId, message)
+    // Send success response
+    res.status(HTTP_STATUS_CODE.OK).json({
+      message: 'Notification sent successfully',
+      result: {
+        roomId,
+        message,
+        timestamp: Date.now()
+      }
+    })
+  } catch (error) {
+    next(error)
+  }
+}

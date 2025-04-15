@@ -3,6 +3,7 @@ import redis from '~/services/redis.service'
 import { historyService } from '~/services/songHistory.service'
 import youtubeDl, { Payload } from 'youtube-dl-exec'
 import ytSearch from 'yt-search'
+import serverService from './server.service'
 
 class RoomMusicServices {
   async addSongToQueue(roomId: string, song: AddSongRequestBody, position: 'top' | 'end') {
@@ -182,7 +183,7 @@ class RoomMusicServices {
     const queueKey = `room_${roomId}_queue`
     await redis.del(queueKey)
     await redis.rpush(queueKey, ...queue.map((song) => JSON.stringify(song)))
-    console.log('queue', queue)
+
     return queue
   }
 
@@ -352,6 +353,51 @@ class RoomMusicServices {
       console.error('Error getting song suggestions:', error)
       return []
     }
+  }
+
+  /**
+   * @description Send notification from client to admin with roomId and message
+   * @param roomId - Room ID
+   * @param message - Notification message
+   * @returns Promise<void>
+   * @author QuangDoo
+   */
+  async sendNotificationToAdmin(roomId: string, message: string): Promise<{ message: string; timestamp: number }> {
+    const notification = {
+      message,
+      timestamp: Date.now()
+    }
+
+    try {
+      // Set Redis key with expiration (24 hours)
+      const redisKey = `room_${roomId}_notification`
+      await redis.setex(redisKey, 24 * 60 * 60, JSON.stringify(notification))
+
+      // Emit socket event to admin namespace/room
+      serverService.io.to('admin').emit('notification', { roomId, ...notification })
+
+      return notification
+    } catch (error) {
+      console.error(`Error sending notification to room ${roomId}:`, error)
+      throw new Error('Failed to send notification')
+    }
+  }
+
+  /**
+   * @description Solve request from client to admin with roomId and request
+   * @param roomId - Room ID
+   * @param request - Request message
+   * @returns Promise<void>
+   * @author QuangDoo
+   */
+  async solveRequest(roomId: string, request: string) {
+    const notificationKey = `room_${roomId}_notification`
+    const notification = await redis.get(notificationKey)
+    if (!notification) {
+      throw new Error('Notification not found')
+    }
+    // delete notification
+    await redis.del(notificationKey)
   }
 }
 

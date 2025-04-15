@@ -28,7 +28,16 @@ export const RoomSocket = (io: Server) => {
   io.on('connection', (socket: Socket) => {
     console.log('Client connected:', socket.id)
 
-    // Lấy thông tin roomId từ query
+    // Get isAdmin from query params
+    const isAdmin = socket.handshake.query.isAdmin === 'true'
+
+    // If client is admin, join admin room
+    if (isAdmin) {
+      socket.join('admin')
+      console.log(`Admin socket ${socket.id} joined admin room`)
+    }
+
+    // Get roomId from query
     const roomId = socket.handshake.query.roomId as string
     console.log('roomId:', roomId)
     if (roomId) {
@@ -281,6 +290,17 @@ export const RoomSocket = (io: Server) => {
       } catch (error) {
         console.error(`Lỗi khi xóa bài hát hiện tại của room ${roomId}:`, error)
         socket.emit('error', { message: 'Không thể xóa bài hát hiện tại', error })
+      }
+    })
+
+    // adding notification
+    // example: if client tap a ring icon, then send notification to room by index.
+    // In rooms screen will diplay a bell icon.
+    socket.on('send_notification', async (payload: { roomId: string; message: string }) => {
+      try {
+        await roomMusicServices.sendNotificationToAdmin(payload.roomId, payload.message)
+      } catch (error) {
+        console.error('Error sending notification:', error)
       }
     })
 

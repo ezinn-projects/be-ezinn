@@ -10,12 +10,10 @@ import path from 'path'
 import { ErrorWithStatus } from '~/models/Error'
 import { HTTP_STATUS_CODE } from '~/constants/httpStatus'
 
-// H�m m? h�a text �?ng
 function encodeVietnameseText(text: string, encoding = 'windows-1258') {
   return iconv.encode(text, encoding)
 }
 
-// V� d? s? d?ng v?i text �?ng
 const dynamicText = 'Xin chào, đây là hóa đơn của bạn!'
 const encodedText = encodeVietnameseText(dynamicText)
 
@@ -37,11 +35,6 @@ export class BillService {
       })
     }
     return Math.floor(hours * 100) / 100
-  }
-
-  private readonly prices = {
-    drinks: { water: 10000, soda: 15000, tea: 12000 },
-    snacks: { regular: 10000, potato: 16000, medium: 10000 }
   }
 
   private async getServiceUnitPrice(startTime: Date, dayType: DayType, roomType: string): Promise<number> {
@@ -72,14 +65,12 @@ export class BillService {
 
   constructor() {
     try {
-      // Patch �?i t�?ng usb to�n c?c n?u c?n (�? tr�nh l?i usb.on is not function)
       const usb = require('usb')
       if (typeof usb.on !== 'function') {
         const { EventEmitter } = require('events')
         Object.setPrototypeOf(usb, EventEmitter.prototype)
         usb.on = EventEmitter.prototype.on
       }
-      // Kh?i t?o k?t n?i ban �?u �? ki?m tra m�y in
       const USB = require('escpos-usb')
       const devices = USB.findPrinter()
       console.log('Found devices:', devices)
@@ -89,9 +80,7 @@ export class BillService {
           status: HTTP_STATUS_CODE.NOT_FOUND
         })
       }
-      // L�u l?i th�ng tin c?a device �?u ti�n
       this.deviceData = devices[0]
-      console.log('Printer device được lưu lại:', this.deviceData)
     } catch (error) {
       console.error('Lỗi khởi tạo máy in (constructor):', error)
     }
@@ -110,7 +99,11 @@ export class BillService {
       })
     }
     const dayType = this.determineDayType(new Date(schedule.startTime))
-    const serviceFeeUnitPrice = 0
+    const serviceFeeUnitPrice = await this.getServiceUnitPrice(
+      new Date(schedule.startTime),
+      dayType,
+      room?.roomType || ''
+    )
     const endTime = actualEndTime ? new Date(actualEndTime) : new Date(schedule.endTime as Date)
     if (!dayjs(endTime).isValid()) {
       throw new ErrorWithStatus({
@@ -272,7 +265,6 @@ export class BillService {
         const USB = require('escpos-usb')
         const escpos = require('escpos')
         const devices = USB.findPrinter()
-        console.log('Found devices:', devices)
 
         if (devices.length === 0) {
           throw new Error('Khong tim thay may in USB')
@@ -280,7 +272,6 @@ export class BillService {
 
         // Lưu lại thông tin thiết bị tìm thấy để debug
         const printerDevice = devices[0]
-        console.log('Printer device được lưu lại:', printerDevice)
 
         // Sử dụng thông tin từ thiết bị tìm thấy
         const device = new USB(printerDevice.deviceDescriptor.idVendor, printerDevice.deviceDescriptor.idProduct)
@@ -308,22 +299,23 @@ export class BillService {
             .align('ct')
             .style('b')
             .size(1, 1)
-            .text('Jozo Studio')
+            .text('Jozo Music Box')
             .text('HOA DON THANH TOAN')
             .style('normal')
             .size(0, 0)
-            .text('------------------------------')
+            .text('--------------------------------------------')
             .text(`Ma HD: ${invoiceCode}`)
             .text(`${room?.roomName || 'Khong xac dinh'}`)
+            .align('lt')
             .text(`Ngay: ${formatDate(new Date(bill.createdAt))}`)
             .text(`Gio bat dau: ${dayjs(bill.startTime).format('HH:mm')}`)
             .text(`Gio ket thuc: ${dayjs(bill.endTime).format('HH:mm')}`)
-            .text(`Phuong thuc thanh toan: ${paymentMethodText}`)
-            .text('------------------------------')
+            .align('ct')
+            .text('--------------------------------------------')
             .style('b')
             .text('CHI TIET DICH VU')
             .style('normal')
-            .text('------------------------------')
+            .text('--------------------------------------------')
 
           // Tạo header cho bảng với khoảng cách đều hơn
           const tableHeader = [
@@ -334,7 +326,7 @@ export class BillService {
           ]
 
           printer.tableCustom(tableHeader)
-          printer.text('------------------------------')
+          printer.text('--------------------------------------')
 
           // In chi tiết từng mục với định dạng cải thiện
           bill.items.forEach((item) => {
@@ -370,18 +362,19 @@ export class BillService {
           })
 
           printer
-            .text('------------------------------')
+            .text('--------------------------------------------')
             .align('rt')
             .style('b')
             .text(`TONG CONG: ${bill.totalAmount.toLocaleString('vi-VN')} VND`)
-            .align('ct')
+            .align('lt')
             .style('normal')
-            .text('------------------------------')
-            .text('Cam on quy khach da su dung dich vu')
+            .text('--------------------------------------------')
+            .text(`Phuong thuc thanh toan: ${paymentMethodText}`)
+            .text('--------------------------------------------')
+            .text('Cam on quy khach da su dung dich vu cua Jozo')
             .text('Hen gap lai quy khach!')
-            .text('------------------------------')
-            .text('Dia chi: 247/5 Phan Trung, Bien Hoa')
-            .text('Hotline: 0357888723')
+            .text('--------------------------------------------')
+            .text('Dia chi: 247/5 Phan Trung, Tan Mai, Bien Hoa')
             .text('Website: jozo.com.vn')
             .style('i')
             .text('Powered by Jozo')

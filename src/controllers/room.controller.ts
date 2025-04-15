@@ -1,4 +1,4 @@
-import { NextFunction, Request, Response } from 'express'
+import { NextFunction, request, Request, Response } from 'express'
 import { type ParamsDictionary } from 'express-serve-static-core'
 import { IAddRoomRequestBody } from '~/models/requests/Room.request'
 import { roomServices } from '~/services/room.service'
@@ -149,6 +149,23 @@ export const deleteRoomController = async (req: Request, res: Response, next: Ne
       message: ROOM_MESSAGES.DELETE_ROOM_SUCCESS,
       result
     })
+  } catch (error) {
+    next(error)
+  }
+}
+
+/**
+ * @description socket event for notification
+ * @path /song-queue/rooms/:roomId/notification
+ * @method GET
+ * @author QuangDoo
+ */
+export const solveRequest = async (req: Request, res: Response, next: NextFunction) => {
+  const { roomId } = req.params
+
+  try {
+    await roomServices.solveRequest(roomId)
+    res.status(HTTP_STATUS_CODE.OK).json({ message: 'Request solved successfully' })
   } catch (error) {
     next(error)
   }

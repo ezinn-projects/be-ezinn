@@ -3,6 +3,7 @@ import databaseService from './database.service'
 import { IRoom, Room } from '~/models/schemas/Room.schema'
 import { ObjectId } from 'mongodb'
 import { ROOM_MESSAGES } from '~/constants/messages'
+import redis from './redis.service'
 
 class RoomServices {
   async addRoom(payload: IAddRoomRequestBody) {
@@ -70,6 +71,13 @@ class RoomServices {
 
   async deleteRoom(id: string) {
     return await databaseService.rooms.deleteOne({ _id: new ObjectId(id) })
+  }
+
+  async solveRequest(roomId: string) {
+    // delete notification in redis
+    const notificationKey = `room_${roomId}_notification`
+    await redis.del(notificationKey)
+    return true
   }
 }
 

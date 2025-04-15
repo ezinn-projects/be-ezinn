@@ -6,6 +6,7 @@ import {
   deleteRoomController,
   getRoomController,
   getRoomsController,
+  solveRequest,
   updateRoomController
 } from '~/controllers/room.controller'
 import { protect } from '~/middlewares/auth.middleware'
@@ -48,7 +49,7 @@ roomRouter.get('/', protect([UserRole.Admin]), wrapRequestHandler(getRoomsContro
  * @method GET
  * @author QuangDoo
  */
-roomRouter.get('/:id', wrapRequestHandler(getRoomController))
+roomRouter.get('/:id', protect([UserRole.Admin]), wrapRequestHandler(getRoomController))
 
 /**
  * @description Cập nhật phòng
@@ -56,7 +57,7 @@ roomRouter.get('/:id', wrapRequestHandler(getRoomController))
  * @method PUT
  * @author QuangDoo
  */
-roomRouter.put('/:id', wrapRequestHandler(updateRoomController))
+roomRouter.put('/:id', protect([UserRole.Admin]), wrapRequestHandler(updateRoomController))
 
 /**
  * @description Xóa phòng
@@ -64,6 +65,14 @@ roomRouter.put('/:id', wrapRequestHandler(updateRoomController))
  * @method DELETE
  * @author QuangDoo
  */
-roomRouter.delete('/:id', wrapRequestHandler(deleteRoomController))
+roomRouter.delete('/:id', protect([UserRole.Admin]), wrapRequestHandler(deleteRoomController))
+
+/**
+ * @description solve request from client to admin with roomId and request
+ * @path /rooms/:id/resolve-request
+ * @method POST
+ * @author QuangDoo
+ */
+roomRouter.post('/:id/resolve-request', protect([UserRole.Admin, UserRole.Staff]), wrapRequestHandler(solveRequest))
 
 export default roomRouter
