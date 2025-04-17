@@ -17,6 +17,7 @@ import { finishSchedulerInADay, startBookingScheduler } from '~/jobs/bookingSche
 import fnbOrderRouter from '~/routes/fnbOrder.route'
 import billRouter from '~/routes/bill.routes'
 import fnbMenuRouter from './routes/fnbMenu.routes'
+import promotionRouter from './routes/promotion.routes'
 // Khởi tạo plugin
 dayjs.extend(utc)
 dayjs.extend(timezone)
@@ -51,6 +52,8 @@ app.use('/fnb-order', fnbOrderRouter)
 app.use('/bill', billRouter)
 
 app.use('/fnb-menu', fnbMenuRouter)
+
+app.use('/promotions', promotionRouter)
 
 app.use(defaultErrorHandler)
 

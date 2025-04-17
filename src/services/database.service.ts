@@ -9,6 +9,7 @@ import { RoomCategory } from '~/models/schemas/RoomCategory.schema'
 import { RoomSchedule } from '~/models/schemas/RoomSchdedule.schema'
 import { RoomScheduleFNBOrder } from '~/models/schemas/FNB.schema'
 import { FnbMenu } from '~/models/schemas/FnBMenu.schema'
+import { IPromotion } from '~/models/schemas/Promotion.schema'
 dotenv.config()
 
 const DB_USERNAME = process.env.DB_USERNAME
@@ -74,6 +75,10 @@ class DatabaseService {
 
   get fnbMenu(): Collection<FnbMenu> {
     return this.db.collection('fnb_menu')
+  }
+
+  get promotions(): Collection<IPromotion> {
+    return this.db.collection('promotions')
   }
 }
 

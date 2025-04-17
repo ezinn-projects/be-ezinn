@@ -108,12 +108,12 @@ class RoomScheduleService {
     const { startTime, endTime } = this.validateScheduleTimes(schedule)
 
     const now = new Date()
-    const nowMinutesOfDay = now.getHours() * 60 + now.getMinutes()
-    const scheduleMinutesOfDay = startTime.getHours() * 60 + startTime.getMinutes()
 
-    if (scheduleMinutesOfDay < nowMinutesOfDay) {
+    // Cho phép tạo lịch trong khoảng 5 phút trước thời điểm hiện tại
+    const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000)
+    if (startTime.getTime() < fiveMinutesAgo.getTime()) {
       throw new ErrorWithStatus({
-        message: 'Cannot create a schedule in the past.',
+        message: 'Cannot create a schedule more than 5 minutes in the past.',
         status: HTTP_STATUS_CODE.BAD_REQUEST
       })
     }

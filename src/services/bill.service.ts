@@ -9,32 +9,88 @@ import PDFDocument from 'pdfkit'
 import path from 'path'
 import { ErrorWithStatus } from '~/models/Error'
 import { HTTP_STATUS_CODE } from '~/constants/httpStatus'
+import promotionService from './promotion.service'
+
+// Khai báo biến toàn cục để lưu USB adapter
+let usbAdapter: any = null
+
+// Extend the escpos Printer type to include custom methods
+declare module 'escpos' {
+  interface Printer {
+    tableCustom(data: Array<{ text: string; width: number; align: string }>): Printer
+    feed(n: number): Printer
+    style(type: 'b' | 'i' | 'u' | 'normal'): Printer
+  }
+}
+
+// Fix USB.findPrinter overloads
+declare module 'escpos-usb' {
+  function findPrinter(deviceId?: any): any[]
+  function findPrinter(deviceId: any, callback: (err: any, device: any) => void): void
+}
 
 function encodeVietnameseText(text: string, encoding = 'windows-1258') {
   return iconv.encode(text, encoding)
+}
+
+// Hàm format ngày tháng
+function formatDate(date: Date): string {
+  return dayjs(date).format('DD/MM/YYYY HH:mm')
 }
 
 const dynamicText = 'Xin chào, đây là hóa đơn của bạn!'
 const encodedText = encodeVietnameseText(dynamicText)
 
 export class BillService {
-  private deviceData: any // L�u th�ng tin thi?t b? USB ��?c t?m th?y
-  private transactionHistory: IBill[] = []
+  private deviceData: any // Lưu thông tin thiết bị USB được tìm thấy
+  private transactionHistory: Array<IBill> = [] // Lưu lịch sử giao dịch
+  private printer: any
 
-  private determineDayType(date: Date): DayType {
-    const day = dayjs(date).day() // 0 = Ch? Nh?t, 6 = Th? B?y
-    return day === 0 || day === 6 ? DayType.Weekend : DayType.Weekday
+  constructor() {
+    this.initEscPos()
   }
 
-  private calculateHours(startTime: Date, endTime: Date): number {
-    const hours = dayjs(endTime).diff(startTime, 'hour', true)
-    if (isNaN(hours) || hours < 0) {
-      throw new ErrorWithStatus({
-        message: 'Kho?ng th?i gian kh�ng h?p l?: endTime ph?i sau startTime',
-        status: HTTP_STATUS_CODE.BAD_REQUEST
-      })
+  private async initEscPos() {
+    try {
+      // Lazy load escpos-usb để tránh lỗi khi khởi tạo
+      usbAdapter = require('escpos-usb')
+
+      // Tìm kiếm các thiết bị máy in
+      const devices = usbAdapter.findPrinter()
+      if (devices && devices.length > 0) {
+        this.deviceData = devices[0]
+        console.log('Tìm thấy máy in:', this.deviceData)
+      } else {
+        console.log('Không tìm thấy máy in USB nào')
+      }
+    } catch (error) {
+      console.error('Không thể khởi tạo escpos:', error)
     }
-    return Math.floor(hours * 100) / 100
+  }
+
+  private determineDayType(date: Date): DayType {
+    const day = date.getDay()
+    if (day === 0 || day === 6) {
+      return DayType.Weekend
+    } else {
+      return DayType.Weekday
+    }
+  }
+
+  private calculateHours(start: Date, end: Date): number {
+    const diffInMs = end.getTime() - start.getTime()
+    const diffInHours = diffInMs / (1000 * 60 * 60)
+
+    // Tính toán số giờ và phút
+    const hours = Math.floor(diffInHours)
+    const minutes = Math.floor((diffInHours - hours) * 60)
+
+    // Tính giờ theo tỷ lệ phút sử dụng thực tế
+    // Nếu phút > 0, tính theo tỷ lệ phút/60 thay vì làm tròn lên 1 giờ
+    if (minutes > 0) {
+      return parseFloat((hours + minutes / 60).toFixed(2))
+    }
+    return hours
   }
 
   private async getServiceUnitPrice(startTime: Date, dayType: DayType, roomType: string): Promise<number> {
@@ -45,45 +101,36 @@ export class BillService {
         status: HTTP_STATUS_CODE.NOT_FOUND
       })
     }
+
+    // Lấy thời gian hiện tại dưới dạng HH:mm để so sánh với khung giờ
     const time = dayjs(startTime).format('HH:mm')
-    const timeSlot = priceDoc.time_slots.find((slot: any) => time >= slot.start && time <= slot.end)
+
+    // Tìm khung giờ phù hợp với thời gian bắt đầu
+    const timeSlot = priceDoc.time_slots.find((slot: any) => {
+      // Xử lý trường hợp khung giờ bắt đầu > khung giờ kết thúc (qua ngày)
+      if (slot.start > slot.end) {
+        return time >= slot.start || time <= slot.end
+      }
+      // Trường hợp bình thường
+      return time >= slot.start && time <= slot.end
+    })
+
     if (!timeSlot) {
       throw new ErrorWithStatus({
-        message: 'Không tìm thấy khung giá phù hợp',
+        message: 'Không tìm thấy khung giá phù hợp cho thời gian ' + time,
         status: HTTP_STATUS_CODE.NOT_FOUND
       })
     }
+
     const priceEntry = timeSlot.prices.find((p: any) => p.room_type === roomType)
     if (!priceEntry) {
       throw new ErrorWithStatus({
-        message: 'Không tìm thấy giá cho loại phòng',
+        message: 'Không tìm thấy giá cho loại phòng ' + roomType,
         status: HTTP_STATUS_CODE.NOT_FOUND
       })
     }
-    return priceEntry.price
-  }
 
-  constructor() {
-    try {
-      const usb = require('usb')
-      if (typeof usb.on !== 'function') {
-        const { EventEmitter } = require('events')
-        Object.setPrototypeOf(usb, EventEmitter.prototype)
-        usb.on = EventEmitter.prototype.on
-      }
-      const USB = require('escpos-usb')
-      const devices = USB.findPrinter()
-      console.log('Found devices:', devices)
-      if (devices.length === 0) {
-        throw new ErrorWithStatus({
-          message: 'Không tìm thấy máy in USB',
-          status: HTTP_STATUS_CODE.NOT_FOUND
-        })
-      }
-      this.deviceData = devices[0]
-    } catch (error) {
-      console.error('Lỗi khởi tạo máy in (constructor):', error)
-    }
+    return priceEntry.price
   }
 
   async getBill(scheduleId: string, actualEndTime?: string, paymentMethod?: string): Promise<IBill> {
@@ -116,7 +163,15 @@ export class BillService {
     // Làm tròn xuống phí dịch vụ thu âm (chia cho 1000 rồi nhân lại)
     const roundedServiceFeeTotal = Math.floor((hoursUsed * serviceFeeUnitPrice) / 1000) * 1000
 
-    const items: { description: string; quantity: number; unitPrice: number; totalPrice: number }[] = []
+    const items: {
+      description: string
+      quantity: number
+      unitPrice: number
+      totalPrice: number
+      originalPrice?: number
+      discountPercentage?: number
+      discountName?: string
+    }[] = []
 
     const order = orders[0]
 
@@ -190,7 +245,24 @@ export class BillService {
       totalPrice: roundedServiceFeeTotal
     })
 
-    // Tính tổng tiền từ các mục đã được làm tròn
+    // Áp dụng khuyến mãi nếu có
+    const activePromotion = await promotionService.getActivePromotion()
+    if (activePromotion) {
+      // Áp dụng khuyến mãi cho từng mục
+      for (let i = 0; i < items.length; i++) {
+        if ((activePromotion.appliesTo === 'sing' && i === 0) || activePromotion.appliesTo === 'all') {
+          const originalPrice = items[i].totalPrice
+          const discountAmount = Math.floor((originalPrice * activePromotion.discountPercentage) / 100)
+
+          items[i].originalPrice = originalPrice
+          items[i].totalPrice = originalPrice - discountAmount
+          items[i].discountPercentage = activePromotion.discountPercentage
+          items[i].discountName = activePromotion.name
+        }
+      }
+    }
+
+    // Tính tổng tiền từ các mục đã được làm tròn và có thể đã áp dụng khuyến mãi
     const totalAmount = items.reduce((acc, item) => acc + item.totalPrice, 0)
 
     const bill: IBill = {
@@ -203,10 +275,20 @@ export class BillService {
       items: items.map((item) => ({
         description: item.description,
         price: item.unitPrice,
-        quantity: item.quantity
+        quantity: item.quantity,
+        originalPrice: item.originalPrice,
+        discountPercentage: item.discountPercentage,
+        discountName: item.discountName
       })),
       totalAmount,
-      paymentMethod
+      paymentMethod,
+      activePromotion: activePromotion
+        ? {
+            name: activePromotion.name,
+            discountPercentage: activePromotion.discountPercentage,
+            appliesTo: activePromotion.appliesTo
+          }
+        : undefined
     }
     return bill
   }
@@ -222,7 +304,8 @@ export class BillService {
       endTime: billData.endTime,
       createdAt: new Date(),
       paymentMethod: billData.paymentMethod,
-      note: billData.note
+      note: billData.note,
+      activePromotion: billData.activePromotion
     }
     const room = await databaseService.rooms.findOne({ _id: bill.roomId })
 
@@ -290,7 +373,7 @@ export class BillService {
 
         device.open((error: any) => {
           if (error) {
-            return reject(new Error('Loi mo may in: ' + error.message))
+            return reject(new Error('Lỗi mở máy in: ' + error.message))
           }
 
           // In hóa đơn
@@ -301,7 +384,7 @@ export class BillService {
             .size(1, 1)
             .text('Jozo Music Box')
             .text('HOA DON THANH TOAN')
-            .style('normal')
+            .style('b')
             .size(0, 0)
             .text('--------------------------------------------')
             .text(`Ma HD: ${invoiceCode}`)
@@ -314,7 +397,7 @@ export class BillService {
             .text('--------------------------------------------')
             .style('b')
             .text('CHI TIET DICH VU')
-            .style('normal')
+            .style('b')
             .text('--------------------------------------------')
 
           // Tạo header cho bảng với khoảng cách đều hơn
@@ -334,7 +417,7 @@ export class BillService {
             let quantity = item.quantity
 
             // Xử lý hiển thị cho phí dịch vụ thu âm
-            if (description === 'Phí dịch vụ thu âm') {
+            if (description === 'Phi dich vu thu am') {
               quantity = Math.round(quantity * 10) / 10
               description = 'Phi dich vu thu am'
             }
@@ -347,18 +430,59 @@ export class BillService {
             // Định dạng số tiền để hiển thị gọn hơn
             const formattedPrice = item.price >= 1000 ? `${Math.floor(item.price / 1000)}K` : item.price.toString()
 
-            const formattedTotal =
-              item.quantity * item.price >= 1000
-                ? `${Math.floor((item.quantity * item.price) / 1000)}K`
-                : (item.quantity * item.price).toString()
+            // Hiển thị giá gốc và giá sau khuyến mãi nếu có
+            let formattedTotal = ''
+            if (item.originalPrice && item.discountPercentage) {
+              // Giá đã giảm
+              const discountedPrice =
+                item.quantity * item.price - Math.floor((item.quantity * item.price * item.discountPercentage) / 100)
+              formattedTotal =
+                discountedPrice >= 1000 ? `${Math.floor(discountedPrice / 1000)}K` : discountedPrice.toString()
 
-            // Cân đối lại các cột
-            printer.tableCustom([
-              { text: description, width: 0.45, align: 'left' },
-              { text: quantity.toString(), width: 0.15, align: 'center' },
-              { text: formattedPrice, width: 0.2, align: 'right' },
-              { text: formattedTotal, width: 0.2, align: 'right' }
-            ])
+              // In mục chính với giá gốc
+              printer.tableCustom([
+                { text: description, width: 0.45, align: 'left' },
+                { text: quantity.toString(), width: 0.15, align: 'center' },
+                { text: formattedPrice, width: 0.2, align: 'right' },
+                {
+                  text:
+                    item.originalPrice >= 1000
+                      ? `${Math.floor(item.originalPrice / 1000)}K`
+                      : item.originalPrice.toString(),
+                  width: 0.2,
+                  align: 'right'
+                }
+              ])
+
+              // Tính số tiền giảm giá
+              const discountAmount = Math.floor((item.quantity * item.price * item.discountPercentage) / 100)
+              const formattedDiscount =
+                discountAmount >= 1000 ? `-${Math.floor(discountAmount / 1000)}K` : `-${discountAmount}`
+
+              // In thông tin khuyến mãi với dấu "-" ở cả tên và số tiền
+              printer.tableCustom([
+                {
+                  text: `  - ${item.discountName || ''} (${item.discountPercentage}%)`,
+                  width: 0.8,
+                  align: 'left'
+                },
+                { text: formattedDiscount, width: 0.2, align: 'right' }
+              ])
+            } else {
+              // Không có khuyến mãi, hiển thị bình thường
+              formattedTotal =
+                item.quantity * item.price >= 1000
+                  ? `${Math.floor((item.quantity * item.price) / 1000)}K`
+                  : (item.quantity * item.price).toString()
+
+              // Cân đối lại các cột
+              printer.tableCustom([
+                { text: description, width: 0.45, align: 'left' },
+                { text: quantity.toString(), width: 0.15, align: 'center' },
+                { text: formattedPrice, width: 0.2, align: 'right' },
+                { text: formattedTotal, width: 0.2, align: 'right' }
+              ])
+            }
           })
 
           printer
@@ -370,10 +494,12 @@ export class BillService {
             .style('normal')
             .text('--------------------------------------------')
             .text(`Phuong thuc thanh toan: ${paymentMethodText}`)
+            .align('ct')
             .text('--------------------------------------------')
             .text('Cam on quy khach da su dung dich vu cua Jozo')
             .text('Hen gap lai quy khach!')
             .text('--------------------------------------------')
+            .align('ct')
             .text('Dia chi: 247/5 Phan Trung, Tan Mai, Bien Hoa')
             .text('Website: jozo.com.vn')
             .style('i')
@@ -387,27 +513,37 @@ export class BillService {
               resolve(bill)
             })
         })
-      } catch (err: any) {
-        reject(new Error('Loi khi in hoa don: ' + err.message))
+      } catch (error) {
+        reject(error)
       }
     })
   }
+
+  // Hàm tạo mã hóa đơn ngẫu nhiên
+  private generateInvoiceCode(): string {
+    const timestamp = new Date().getTime().toString().slice(-6)
+    const random = Math.floor(Math.random() * 1000)
+      .toString()
+      .padStart(3, '0')
+    return `JZ${timestamp}${random}`
+  }
+
   public async generateBillPDF(bill: IBill, actualEndTime?: string): Promise<Buffer> {
     return new Promise<Buffer>(async (resolve, reject) => {
       try {
-        // 1. T�nh to�n chi?u cao c�c ph?n c? �?nh
-        const headerHeight = 50 // ph?n header (logo, slogan)
-        const invoiceInfoHeight = 50 // ph?n th�ng tin h�a ��n
-        const tableHeaderHeight = 12 // ti�u �? b?ng
-        const footerHeight = 40 // ph?n footer (�?a ch?, c?m �n)
+        // 1. Tính toán chiều cao các phần cố định
+        const headerHeight = 50 // phần header (logo, slogan)
+        const invoiceInfoHeight = 50 // phần thông tin hóa đơn
+        const tableHeaderHeight = 12 // tiêu đề bảng
+        const footerHeight = 40 // phần footer (địa chỉ, cảm ơn)
         let tableItemsHeight = 0
 
-        // Duy?t qua t?ng item �? t�nh t?ng chi?u cao c?a c�c h�ng b?ng
+        // Duyệt qua từng item để tính tổng chiều cao của các hàng bảng
         bill.items.forEach((item) => {
           let description = item.description
-          // N?u c?n �p xu?ng d?ng v� d? v?i "Ph� d?ch v? thu �m"
-          if (description === 'Ph� d?ch v? thu �m') {
-            description = 'Ph� d?ch v?\nthu �m'
+          // Nếu cần xuống dòng và dị với "Phí dịch vụ thu âm"
+          if (description === 'Phí dịch vụ thu âm') {
+            description = 'Phí dịch vụ thu âm'
           }
           const values = [
             description,
@@ -415,34 +551,34 @@ export class BillService {
             item.quantity.toString(),
             (item.price * item.quantity).toFixed(2)
           ]
-          // T�nh s? d?ng c?a m?i cell (d?a tr�n k? t? "\n") v� l?y s? d?ng l?n nh?t
+          // Tính số dùng của mỗi cell (dựa trên kí tự "\n") và lấy số dùng lớn nhất
           const maxLines = Math.max(...values.map((value) => value.split('\n').length))
-          // Gi? s? m?i d?ng chi?m 12 �i?m
+          // Giả sử mỗi dòng chiếm 12 điểm
           const rowHeight = maxLines * 12
           tableItemsHeight += rowHeight
         })
 
-        // C?ng d?n c�c ph?n v� th�m kho?ng padding
+        // Cộng dồn các phần và thêm khoảng padding
         let dynamicPageHeight =
           headerHeight + invoiceInfoHeight + tableHeaderHeight + tableItemsHeight + footerHeight + 40
 
-        // V� d?: "c?t ��i t? A4" ngh?a l� chi?u cao kh�ng v�?t qu� 421 �i?m (n?a A4)
+        // Ví dụ: "cắt ở điểm A4" nghĩa là chiều cao không vượt quá 421 điểm (nửa A4)
         const halfA4Height = 421
         if (dynamicPageHeight > halfA4Height) {
           dynamicPageHeight = halfA4Height
         }
-        // N?u n?i dung qu� �t, c� th? �?t gi� tr? t?i thi?u (v� d? 300 �i?m)
+        // Nếu nội dung quá ít, có thể đặt giá trị tối thiểu (ví dụ 300 điểm)
         if (dynamicPageHeight < 300) {
           dynamicPageHeight = 300
         }
 
-        // 2. T?o file PDF v?i k�ch th�?c ��?c t�nh: width gi? nguy�n A4 (595 �i?m) v� height = dynamicPageHeight
+        // 2. Tạo file PDF với kích thước được tính: width giữ nguyên A4 (595 điểm) và height = dynamicPageHeight
         const doc = new PDFDocument({
           autoFirstPage: false,
           size: [595, 842], // A4 portrait (595 x 842 points)
-          margin: 20 // T�ng margin �? tr�nh c?t n?i dung
+          margin: 20 // Tăng margin để tránh cắt nội dung
         })
-        // ��ng k? font h? tr? ti?ng Vi?t
+        // Đăng kí font hỗ trợ tiếng Việt
         doc.registerFont('DejaVuSans', path.join(__dirname, '..', 'fonts', 'DejaVuSans.ttf'))
         doc.font('DejaVuSans')
 
@@ -453,35 +589,35 @@ export class BillService {
           resolve(pdfData)
         })
 
-        // 3. V? n?i dung PDF
+        // 3. Vẽ nội dung PDF
         doc.addPage()
 
-        // Header: C�n gi?a
+        // Header: Căn giữa
         doc.fontSize(16).text('Jozo', { align: 'center' })
-        doc.fontSize(12).text('Th�?ng th?c kh�ng gian c?a ch�ng t�i', { align: 'center' })
+        doc.fontSize(12).text('Thông thức không gian của chúng tôi', { align: 'center' })
         doc.moveDown(1)
 
-        // Th�ng tin h�a ��n: Gi?, nh�n vi�n, ph?ng (c�n gi?a)
+        // Thông tin hóa đơn: Giờ, nhân viên, phòng (căn giữa)
         doc
           .fontSize(10)
-          .text(`Gi? b?t �?u: ${bill.startTime.toLocaleString()}`, { align: 'center' })
-          .text(`Gi? k?t th�c: ${bill.endTime.toLocaleString()}`, { align: 'center' })
-          .text(`Nh�n vi�n: John Doe`, { align: 'center' })
-          .text(`Ph?ng: ${bill.roomId.toString()}`, { align: 'center' })
+          .text(`Giờ bắt đầu: ${bill.startTime.toLocaleString()}`, { align: 'center' })
+          .text(`Giờ kết thúc: ${bill.endTime.toLocaleString()}`, { align: 'center' })
+          .text(`Nhân viên: John Doe`, { align: 'center' })
+          .text(`Phòng: ${bill.roomId.toString()}`, { align: 'center' })
         doc.moveDown(1)
 
-        // Ti�u �? b?ng danh s�ch m?t h�ng (c�n gi?a)
-        doc.fontSize(12).text('Danh s�ch m?t h�ng:', { underline: true, align: 'center' })
+        // Tiêu đề bảng danh sách một hàng (căn giữa)
+        doc.fontSize(12).text('Danh sách một hàng:', { underline: true, align: 'center' })
         doc.moveDown(0.5)
 
-        // T�nh to�n chi?u r?ng c�c c?t: s? d?ng to�n b? chi?u r?ng trang (tr? margin)
+        // Tính toán chiều rộng các cột: sử dụng toàn bộ chiều rộng trang (trừ margin)
         const pageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right
-        const colWidths = [pageWidth * 0.4, pageWidth * 0.2, pageWidth * 0.2, pageWidth * 0.2] // �i?u ch?nh t? l? c�c c?t
+        const colWidths = [pageWidth * 0.4, pageWidth * 0.2, pageWidth * 0.2, pageWidth * 0.2] // Điều chỉnh tỉ lệ các cột
         const startX = doc.page.margins.left
         let currentY = doc.y
 
-        // V? ti�u �? c?t (c�n gi?a v� in �?m)
-        const headers = ['M� t?', 'Gi�', 'SL', 'Th�nh ti?n']
+        // Vẽ tiêu đề cột (căn giữa và in đầm)
+        const headers = ['Mục', 'Giá', 'SL', 'Thành tiền']
         headers.forEach((header, i) => {
           const x = startX + colWidths.slice(0, i).reduce((a, b) => a + b, 0)
           doc.font('DejaVuSans').text(header, x, currentY, { width: colWidths[i], align: 'center' })
@@ -491,24 +627,24 @@ export class BillService {
         doc.y = currentY
         doc.moveDown(0.5)
 
-        // V? c�c h�ng c?a b?ng
+        // Vẽ các hàng của bảng
         bill.items.forEach((item) => {
           let description = item.description
-          if (description === 'Ph� d?ch v? thu �m') {
-            description = 'Ph� d?ch v?\nthu �m'
+          if (description === 'Phí dịch vụ thu âm') {
+            description = 'Phí dịch vụ thu âm'
           }
           const values = [
             description,
-            item.price.toLocaleString('vi-VN') + '�',
+            item.price.toLocaleString('vi-VN') + 'đ',
             item.quantity.toString(),
-            (item.price * item.quantity).toLocaleString('vi-VN') + '�'
+            (item.price * item.quantity).toLocaleString('vi-VN') + 'đ'
           ]
 
-          // T�nh s? d?ng c?a m?i cell v� l?y s? d?ng l?n nh?t l�m chi?u cao h�ng
+          // Tính số dùng của mỗi cell và lấy số dùng lớn nhất làm chiều cao hàng
           const maxLines = Math.max(...values.map((value) => value.split('\n').length))
-          const rowHeight = maxLines * 15 // T�ng chi?u cao m?i d?ng
+          const rowHeight = maxLines * 15 // Tăng chiều cao mỗi dòng
 
-          // V? c�c cell c?a h�ng
+          // Vẽ các cell của hàng
           values.forEach((value, i) => {
             const x = startX + colWidths.slice(0, i).reduce((a, b) => a + b, 0)
             doc.text(value, x, currentY, { width: colWidths[i], align: 'center' })
@@ -517,30 +653,40 @@ export class BillService {
           doc.y = currentY
         })
 
-        // T?ng ti?n thanh to�n (c�n gi?a v� in �?m)
+        // Tổng tiền thanh toán (căn giữa và in đầm)
         doc.moveDown(1)
         doc
           .font('DejaVuSans')
           .fontSize(12)
-          .text(`T?ng ti?n: ${bill.totalAmount.toLocaleString('vi-VN')}�`, { align: 'center' })
+          .text(`Tổng tiền: ${bill.totalAmount.toLocaleString('vi-VN')}đ`, { align: 'center' })
         doc.font('DejaVuSans')
         doc.moveDown(1)
 
-        // Footer: �?a ch? v� l?i c?m �n
+        // Footer: Địa chỉ và lời cảm ơn
         const availableWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right
         doc
           .fontSize(10)
-          .text('�?a ch?: S? 123, ��?ng ABC, Qu?n 1, TP. H? Ch� Minh', doc.page.margins.left, doc.y, {
+          .text('Địa chỉ: Số 123, Đường ABC, Quận 1, TP. Hồ Chí Minh', doc.page.margins.left, doc.y, {
             width: availableWidth,
             align: 'center'
           })
           .moveDown(0.5)
-          .text('C?m �n qu? kh�ch �? s? d?ng d?ch v?!', doc.page.margins.left, doc.y, {
+          .text('Cảm ơn quý khách đã sử dụng dịch vụ của Jozo', doc.page.margins.left, doc.y, {
             width: availableWidth,
             align: 'center'
           })
 
-        // K?t th�c file PDF
+        // Add promotion info to the PDF bill
+        if (bill.activePromotion) {
+          doc.text(
+            `Applied promotion: ${bill.activePromotion.name} - ${bill.activePromotion.discountPercentage}% off`,
+            {
+              align: 'center'
+            }
+          )
+        }
+
+        // Kết thúc file PDF
         doc.end()
       } catch (error: any) {
         reject(error)

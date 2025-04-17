@@ -5,13 +5,25 @@ export interface IBill {
   _id?: ObjectId
   scheduleId: ObjectId
   roomId: ObjectId
-  items: Array<{ description: string; price: number; quantity: number }>
+  items: Array<{
+    description: string
+    price: number
+    quantity: number
+    originalPrice?: number
+    discountPercentage?: number
+    discountName?: string
+  }>
   totalAmount: number
   startTime: Date
   endTime: Date
   createdAt: Date
   paymentMethod?: string
   note?: string
+  activePromotion?: {
+    name: string
+    discountPercentage: number
+    appliesTo: 'sing' | 'all'
+  }
 }
 
 /**
@@ -21,11 +33,23 @@ export class Bill {
   _id?: ObjectId
   scheduleId: ObjectId
   roomId: ObjectId
-  items: Array<{ description: string; price: number; quantity: number }>
+  items: Array<{
+    description: string
+    price: number
+    quantity: number
+    originalPrice?: number
+    discountPercentage?: number
+    discountName?: string
+  }>
   totalAmount: number
   createdAt: Date
   paymentMethod?: string
   note?: string
+  activePromotion?: {
+    name: string
+    discountPercentage: number
+    appliesTo: 'karaoke' | 'all'
+  }
 
   /**
    * Tạo mới một Bill
@@ -36,14 +60,27 @@ export class Bill {
    * @param {number} totalAmount - Tổng số tiền cần thanh toán
    * @param {string} paymentMethod - Phương thức thanh toán (vd: "cash", "bank_transfer")
    * @param {string} [note] - Ghi chú (nếu có)
+   * @param {Object} [activePromotion] - Thông tin khuyến mãi đang áp dụng (nếu có)
    */
   constructor(
     scheduleId: string,
     roomId: string,
-    items: Array<{ description: string; price: number; quantity: number }>,
+    items: Array<{
+      description: string
+      price: number
+      quantity: number
+      originalPrice?: number
+      discountPercentage?: number
+      discountName?: string
+    }>,
     totalAmount: number,
     paymentMethod?: string,
-    note?: string
+    note?: string,
+    activePromotion?: {
+      name: string
+      discountPercentage: number
+      appliesTo: 'karaoke' | 'all'
+    }
   ) {
     this.scheduleId = new ObjectId(scheduleId)
     this.roomId = new ObjectId(roomId)
@@ -52,5 +89,6 @@ export class Bill {
     this.paymentMethod = paymentMethod
     this.createdAt = new Date()
     this.note = note
+    this.activePromotion = activePromotion
   }
 }
