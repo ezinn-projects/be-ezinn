@@ -123,7 +123,9 @@ export const FNB_MESSAGES = {
   DELETE_FNB_ORDER_SUCCESS: 'DELETE_FNB_ORDER_SUCCESS',
   GET_FNB_ORDERS_BY_ROOM_SCHEDULE_SUCCESS: 'Get FNB orders by room schedule success',
   FNB_ORDER_NOT_FOUND: 'FNB order not found',
-  UPSERT_FNB_ORDER_SUCCESS: 'Upsert FNB order success'
+  UPSERT_FNB_ORDER_SUCCESS: 'Upsert FNB order success',
+  SET_FNB_ORDER_STATUS_SUCCESS: 'Set FNB order status success',
+  GET_FNB_MENUS_SUCCESS: 'Get FNB menus success'
 }
 
 export const FNB_MENU_MESSAGES = {
