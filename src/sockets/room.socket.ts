@@ -1,6 +1,7 @@
 import { Server, Socket } from 'socket.io'
 import redis from '~/services/redis.service'
-import { roomMusicServices } from '~/services/roomMusic.service'
+import { roomMusicServices, roomMusicEventEmitter } from '~/services/roomMusic.service'
+import { roomEventEmitter } from '~/services/room.service'
 
 interface CommandPayload {
   action: string
@@ -25,6 +26,20 @@ interface NowPlayingData {
 }
 
 export const RoomSocket = (io: Server) => {
+  // Listen for room events
+  roomEventEmitter.on('queue_updated', ({ roomId, queue }) => {
+    io.to(roomId).emit('queue_updated', queue)
+  })
+
+  roomEventEmitter.on('videos_turned_off', ({ roomId }) => {
+    io.to(roomId).emit('videos_turned_off', { status: 'off' })
+  })
+
+  // Listen for roomMusic events
+  roomMusicEventEmitter.on('admin_notification', (notification) => {
+    io.to('admin').emit('notification', notification)
+  })
+
   io.on('connection', (socket: Socket) => {
     console.log('Client connected:', socket.id)
 

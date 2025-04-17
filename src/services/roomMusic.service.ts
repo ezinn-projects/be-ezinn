@@ -4,6 +4,9 @@ import { historyService } from '~/services/songHistory.service'
 import youtubeDl, { Payload } from 'youtube-dl-exec'
 import ytSearch from 'yt-search'
 import serverService from './server.service'
+import { EventEmitter } from 'events'
+
+export const roomMusicEventEmitter = new EventEmitter()
 
 class RoomMusicServices {
   async addSongToQueue(roomId: string, song: AddSongRequestBody, position: 'top' | 'end') {
@@ -78,8 +81,6 @@ class RoomMusicServices {
       timestamp,
       duration
     }
-
-    console.log('nowPlayingData', nowPlayingData)
 
     // Lưu vào Redis
     await redis.set(nowPlayingKey, JSON.stringify(nowPlayingData))
@@ -192,7 +193,7 @@ class RoomMusicServices {
    * @param roomId - Room ID
    * @param index - Index of song in queue to play
    * @returns The now playing song and updated queue
-   * @author [Your Name]
+   * @author QuangDoo
    */
   async playChosenSong(
     roomId: string,
@@ -373,8 +374,8 @@ class RoomMusicServices {
       const redisKey = `room_${roomId}_notification`
       await redis.setex(redisKey, 24 * 60 * 60, JSON.stringify(notification))
 
-      // Emit socket event to admin namespace/room
-      serverService.io.to('admin').emit('notification', { roomId, ...notification })
+      // Emit event instead of using socket directly
+      roomMusicEventEmitter.emit('admin_notification', { roomId, ...notification })
 
       return notification
     } catch (error) {

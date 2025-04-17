@@ -1,12 +1,9 @@
-import { NextFunction, request, Request, Response } from 'express'
+import { NextFunction, Request, Response } from 'express'
 import { type ParamsDictionary } from 'express-serve-static-core'
-import { IAddRoomRequestBody } from '~/models/requests/Room.request'
-import { roomServices } from '~/services/room.service'
-
 import { HTTP_STATUS_CODE } from '~/constants/httpStatus'
 import { ROOM_MESSAGES } from '~/constants/messages'
-import multer from 'multer'
-import { uploadImageToCloudinary, deleteImageFromCloudinary } from '~/services/cloudinary.service'
+import { IAddRoomRequestBody } from '~/models/requests/Room.request'
+import { roomServices } from '~/services/room.service'
 
 /**
  * @description Controller xử lý tạo phòng mới
@@ -17,13 +14,6 @@ import { uploadImageToCloudinary, deleteImageFromCloudinary } from '~/services/c
  * @throws {Error} Chuyển tiếp lỗi đến middleware xử lý lỗi thông qua next(error)
  * @author QuangDo
  */
-const storage = multer.memoryStorage()
-const upload = multer({ storage })
-
-interface CloudinaryResponse {
-  url: string
-  publicId: string
-}
 
 export const addRoomController = async (
   req: Request<ParamsDictionary, any, IAddRoomRequestBody>,
@@ -32,22 +22,6 @@ export const addRoomController = async (
 ) => {
   try {
     const { roomName, roomType, maxCapacity, status, description } = req.body
-    const files = req.files as Express.Multer.File[] | undefined
-
-    const uploadedImages: CloudinaryResponse[] = []
-
-    // if (files?.length) {
-    //   for (const file of files) {
-    //     try {
-    //       const result = await uploadImageToCloudinary(file.buffer, 'rooms')
-    //       uploadedImages.push(result as CloudinaryResponse)
-    //     } catch (error) {
-    //       // Cleanup already uploaded images if any upload fails
-    //       await Promise.all(uploadedImages.map((img) => deleteImageFromCloudinary(img.publicId)))
-    //       throw new Error(`Failed to upload images: ${(error as Error).message}`)
-    //     }
-    //   }
-    // }
 
     const result = await roomServices.addRoom({
       roomName,
@@ -160,12 +134,27 @@ export const deleteRoomController = async (req: Request, res: Response, next: Ne
  * @method GET
  * @author QuangDoo
  */
-export const solveRequest = async (req: Request, res: Response, next: NextFunction) => {
+export const solveRequestController = async (req: Request, res: Response, next: NextFunction) => {
   const { roomId } = req.params
 
   try {
     await roomServices.solveRequest(roomId)
     res.status(HTTP_STATUS_CODE.OK).json({ message: 'Request solved successfully' })
+  } catch (error) {
+    next(error)
+  }
+}
+
+/**
+ * @description turn off all videos in room
+ * @path /rooms/turn-off-videos
+ * @method POST
+ * @author QuangDoo
+ */
+export const turnOffVideosController = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    await roomServices.turnOffVideos()
+    res.status(HTTP_STATUS_CODE.OK).json({ message: 'Videos turned off successfully' })
   } catch (error) {
     next(error)
   }

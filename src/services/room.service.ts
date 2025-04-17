@@ -4,6 +4,9 @@ import { IRoom, Room } from '~/models/schemas/Room.schema'
 import { ObjectId } from 'mongodb'
 import { ROOM_MESSAGES } from '~/constants/messages'
 import redis from './redis.service'
+import { EventEmitter } from 'events'
+
+export const roomEventEmitter = new EventEmitter()
 
 class RoomServices {
   async addRoom(payload: IAddRoomRequestBody) {
@@ -78,6 +81,35 @@ class RoomServices {
     const notificationKey = `room_${roomId}_notification`
     await redis.del(notificationKey)
     return true
+  }
+
+  async turnOffVideos() {
+    // Clean up all rooms
+    for (let i = 1; i <= 7; i++) {
+      const roomId = `${i}`
+      // Clean up Redis data
+      await Promise.all([
+        redis.del(`room_${roomId}_queue`),
+        redis.del(`room_${roomId}_now_playing`),
+        redis.del(`room_${roomId}_playback`),
+        redis.del(`room_${roomId}_current_time`),
+        redis.set(`room_${roomId}_off_status`, 'true')
+      ])
+
+      // Emit events for socket service to handle
+      roomEventEmitter.emit('queue_updated', { roomId, queue: [] })
+      roomEventEmitter.emit('videos_turned_off', { roomId })
+    }
+
+    return true
+  }
+  async getRoomStatus(roomId: string) {
+    const roomStatus = await redis.get(`room_${roomId}_off_status`)
+    return roomStatus
+  }
+
+  async setRoomStatus(roomId: string, status: string) {
+    await redis.set(`room_${roomId}_off_status`, status)
   }
 }
 

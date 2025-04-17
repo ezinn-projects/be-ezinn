@@ -6,7 +6,8 @@ import {
   deleteRoomController,
   getRoomController,
   getRoomsController,
-  solveRequest,
+  solveRequestController,
+  turnOffVideosController,
   updateRoomController
 } from '~/controllers/room.controller'
 import { protect } from '~/middlewares/auth.middleware'
@@ -52,6 +53,18 @@ roomRouter.get('/', protect([UserRole.Admin]), wrapRequestHandler(getRoomsContro
 roomRouter.get('/:id', protect([UserRole.Admin]), wrapRequestHandler(getRoomController))
 
 /**
+ * @description turn off all videos in room
+ * @path /rooms/:id/turn-off-videos
+ * @method POST
+ * @author QuangDoo
+ */
+roomRouter.post(
+  '/:id/turn-off-videos',
+  protect([UserRole.Admin, UserRole.Staff]),
+  wrapRequestHandler(turnOffVideosController)
+)
+
+/**
  * @description Cập nhật phòng
  * @path /rooms/:id
  * @method PUT
@@ -73,6 +86,10 @@ roomRouter.delete('/:id', protect([UserRole.Admin]), wrapRequestHandler(deleteRo
  * @method POST
  * @author QuangDoo
  */
-roomRouter.post('/:id/resolve-request', protect([UserRole.Admin, UserRole.Staff]), wrapRequestHandler(solveRequest))
+roomRouter.post(
+  '/:id/resolve-request',
+  protect([UserRole.Admin, UserRole.Staff]),
+  wrapRequestHandler(solveRequestController)
+)
 
 export default roomRouter
