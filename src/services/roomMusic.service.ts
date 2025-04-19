@@ -150,79 +150,35 @@ class RoomMusicServices {
     try {
       const videoUrl = `https://www.youtube.com/watch?v=${videoId}`
 
-      // Configure youtube-dl with basic options and improve error handling
+      // Configure youtube-dl with basic options
       const info = (await youtubeDl(videoUrl, {
         dumpSingleJson: true,
         format: 'b', // Using 'b' instead of 'best' as recommended
         addHeader: [
           'referer: youtube.com',
-          'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 googlebot youtube.com',
           'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
           'Accept-Language: en-US,en;q=0.5',
-          'Referer: https://www.youtube.com/'
+          'Referer: https://www.youtube.com/',
+          'youtube-dl-options: --no-check-certificate --no-warnings --skip-download',
+          'user-agent:googlebot'
         ],
         // Basic options to improve reliability
         noCheckCertificates: true,
         noWarnings: true,
-        skipDownload: true,
-        preferFreeFormats: true,
-        geoBypass: true, // Bypass geographic restrictions
-        extractAudio: true, // Extract audio when possible
-        audioFormat: 'mp3', // Prefer MP3 format for audio
-        audioQuality: 0, // Best audio quality
-        retries: 10, // Retry up to 10 times
-        recodeVideo: 'mp4', // Always try to recode to mp4
-        socketTimeout: 30 // Increase socket timeout to 30 seconds
-      })) as Payload & { url: string; formats?: Array<{ url: string }> }
-
-      // Check if direct URL is available, if not try to extract from formats
-      let url = info.url
-      if (!url && info.formats && info.formats.length > 0) {
-        // Try to find a valid format with URL
-        const validFormat = info.formats.find((format) => format.url)
-        if (validFormat) {
-          url = validFormat.url
-        }
-      }
-
-      // If still no URL, throw an error
-      if (!url) {
-        throw new Error('Could not extract playable URL from video')
-      }
-
-      console.log(`Extracted video information for ${videoId}, URL: ${url.substring(0, 50)}...`)
-
-      // Ensure proper type conversion for all fields
-      const parsedDuration =
-        typeof info.duration === 'string'
-          ? parseInt(info.duration, 10)
-          : typeof info.duration === 'number'
-            ? info.duration
-            : 0
+        skipDownload: true
+      })) as Payload & { url: string }
 
       return {
         video_id: videoId,
         title: info.title || '',
-        duration: parsedDuration,
-        url: url,
-        thumbnail: info.thumbnail || info.thumbnails?.[0]?.url || '',
+        duration: info.duration,
+        url: info.url,
+        thumbnail: info.thumbnail || info.thumbnails?.[0]?.url,
         author: info.uploader || 'Jozo music - recording'
       }
     } catch (error: unknown) {
-      console.error('Error fetching video info:', error)
-
-      // Fallback to simple URL generation if youtube-dl-exec fails
-      const fallbackUrl = `https://www.youtube.com/watch?v=${videoId}`
-      console.log(`Falling back to direct YouTube URL: ${fallbackUrl}`)
-
-      return {
-        video_id: videoId,
-        title: `YouTube Video (${videoId})`,
-        duration: 0, // Unknown duration
-        url: fallbackUrl,
-        thumbnail: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
-        author: 'YouTube'
-      }
+      throw new Error(`Failed to fetch video data: ${(error as Error).message}`)
     }
   }
 

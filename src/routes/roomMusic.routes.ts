@@ -105,7 +105,7 @@ roomMusicRouter.get('/:roomId/now-playing', async (req, res, next) => {
  * @author QuangDoo
  */
 roomMusicRouter.get('/:roomId/search-songs', async (req, res) => {
-  const { q, limit = '50' } = req.query
+  const { q, limit = '70' } = req.query
   const parsedLimit = parseInt(limit as string, 10)
 
   // Validate search query
