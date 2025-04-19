@@ -100,24 +100,63 @@ export class BillService {
       })
     }
 
-    // Lấy thời gian hiện tại dưới dạng HH:mm để so sánh với khung giờ
-    const time = dayjs(startTime).format('HH:mm')
+    // Log thời gian server để debug
+    console.log('Server time:', new Date())
+    console.log('Input startTime:', startTime)
+
+    // Sử dụng timezone Vietnam/Asia
+    if (!dayjs.tz) {
+      console.log('Configuring dayjs timezone...')
+      dayjs.extend(require('dayjs/plugin/utc'))
+      dayjs.extend(require('dayjs/plugin/timezone'))
+    }
+
+    // Lấy thời gian bắt đầu dưới dạng HH:mm để so sánh với khung giờ, sử dụng múi giờ Việt Nam
+    const time = dayjs(startTime).tz('Asia/Ho_Chi_Minh').format('HH:mm')
+    console.log('Thời gian bắt đầu (Asia/Ho_Chi_Minh):', time, 'Loại ngày:', dayType, 'Loại phòng:', roomType)
+
+    // Log tất cả các khung giờ để debug
+    console.log('Các khung giờ có sẵn:', JSON.stringify(priceDoc.time_slots))
 
     // Tìm khung giờ phù hợp với thời gian bắt đầu
     const timeSlot = priceDoc.time_slots.find((slot: any) => {
+      const slotStart = slot.start
+      const slotEnd = slot.end
+      console.log(`Đang kiểm tra khung giờ: ${slotStart} - ${slotEnd}`)
+
       // Xử lý trường hợp khung giờ bắt đầu > khung giờ kết thúc (qua ngày)
-      if (slot.start > slot.end) {
-        return time >= slot.start || time <= slot.end
+      if (slotStart > slotEnd) {
+        const isInRange = time >= slotStart || time <= slotEnd
+        console.log(`Khung giờ qua ngày, kết quả: ${isInRange}`)
+        return isInRange
       }
       // Trường hợp bình thường
-      return time >= slot.start && time <= slot.end
+      const isInRange = time >= slotStart && time <= slotEnd
+      console.log(`Khung giờ thường, kết quả: ${isInRange}`)
+      return isInRange
     })
 
     if (!timeSlot) {
-      throw new ErrorWithStatus({
-        message: 'Không tìm thấy khung giá phù hợp cho thời gian ' + time,
-        status: HTTP_STATUS_CODE.NOT_FOUND
-      })
+      // Nếu không tìm thấy khung giờ, lấy khung giờ mặc định hoặc khung giờ đầu tiên
+      console.log('Không tìm thấy khung giờ phù hợp, sử dụng khung giờ mặc định')
+      const defaultTimeSlot = priceDoc.time_slots[0] // Lấy khung giờ đầu tiên làm mặc định
+
+      if (!defaultTimeSlot) {
+        throw new ErrorWithStatus({
+          message: 'Không tìm thấy khung giá phù hợp cho thời gian ' + time,
+          status: HTTP_STATUS_CODE.NOT_FOUND
+        })
+      }
+
+      const priceEntry = defaultTimeSlot.prices.find((p: any) => p.room_type === roomType)
+      if (!priceEntry) {
+        throw new ErrorWithStatus({
+          message: 'Không tìm thấy giá cho loại phòng ' + roomType,
+          status: HTTP_STATUS_CODE.NOT_FOUND
+        })
+      }
+
+      return priceEntry.price
     }
 
     const priceEntry = timeSlot.prices.find((p: any) => p.room_type === roomType)
@@ -247,15 +286,15 @@ export class BillService {
     // Lấy active promotion
     const activePromotion = await promotionService.getActivePromotion()
 
-    // Áp dụng khuyến mãi cho từng item nếu có
+    // Áp dụng khuyến mãi nếu có
     if (activePromotion) {
       console.log('Áp dụng khuyến mãi:', activePromotion.name)
 
-      // Áp dụng khuyến mãi cho từng mục trong hóa đơn
+      // Duyệt qua từng item để áp dụng promotion
       for (let i = 0; i < items.length; i++) {
         const item = items[i]
 
-        // Áp dụng promotion cho item
+        // Gọi hàm applyPromotionToItem và truyền thông tin phòng
         const itemWithPromotion = promotionService.applyPromotionToItem(
           {
             description: item.description,
@@ -263,10 +302,11 @@ export class BillService {
             unitPrice: item.unitPrice,
             totalPrice: item.totalPrice
           },
-          activePromotion
+          activePromotion,
+          room?._id
         )
 
-        // Cập nhật lại item với thông tin giảm giá (nếu có)
+        // Cập nhật lại item nếu có áp dụng giảm giá
         if ('originalPrice' in itemWithPromotion) {
           items[i].originalPrice = itemWithPromotion.originalPrice
           items[i].totalPrice = itemWithPromotion.totalPrice
@@ -304,6 +344,7 @@ export class BillService {
           }
         : undefined
     }
+
     return bill
   }
 

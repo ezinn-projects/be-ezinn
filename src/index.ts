@@ -18,9 +18,12 @@ import fnbOrderRouter from '~/routes/fnbOrder.route'
 import billRouter from '~/routes/bill.routes'
 import fnbMenuRouter from './routes/fnbMenu.routes'
 import promotionRouter from './routes/promotion.routes'
-// Khởi tạo plugin
+// Khởi tạo các plugins cho dayjs
 dayjs.extend(utc)
 dayjs.extend(timezone)
+// Thiết lập múi giờ mặc định cho Việt Nam
+dayjs.tz.setDefault('Asia/Ho_Chi_Minh')
+console.log('Dayjs configured with timezone:', dayjs().tz().format())
 
 databaseService.connect()
 serverService.start()
