@@ -1,14 +1,12 @@
-import { ObjectId } from 'mongodb'
-import databaseService from './database.service'
-import { DayType, RoomScheduleStatus } from '~/constants/enum'
-import { Bill, IBill } from '~/models/schemas/Bill.schema'
 import dayjs from 'dayjs'
 import * as escpos from 'escpos'
 import iconv from 'iconv-lite'
-import PDFDocument from 'pdfkit'
-import path from 'path'
-import { ErrorWithStatus } from '~/models/Error'
+import { ObjectId } from 'mongodb'
+import { DayType } from '~/constants/enum'
 import { HTTP_STATUS_CODE } from '~/constants/httpStatus'
+import { ErrorWithStatus } from '~/models/Error'
+import { IBill } from '~/models/schemas/Bill.schema'
+import databaseService from './database.service'
 import promotionService from './promotion.service'
 
 // Khai báo biến toàn cục để lưu USB adapter
@@ -139,6 +137,7 @@ export class BillService {
     const orders = await databaseService.fnbOrder.find({ roomScheduleId: id }).toArray()
     const room = await databaseService.rooms.findOne({ _id: schedule?.roomId })
     const menu = await databaseService.fnbMenu.find({}).toArray()
+
     if (!schedule) {
       throw new ErrorWithStatus({
         message: 'Không tìm thấy lịch đặt phòng',
@@ -245,19 +244,34 @@ export class BillService {
       totalPrice: roundedServiceFeeTotal
     })
 
-    // Áp dụng khuyến mãi nếu có
+    // Lấy active promotion
     const activePromotion = await promotionService.getActivePromotion()
-    if (activePromotion) {
-      // Áp dụng khuyến mãi cho từng mục
-      for (let i = 0; i < items.length; i++) {
-        if ((activePromotion.appliesTo === 'sing' && i === 0) || activePromotion.appliesTo === 'all') {
-          const originalPrice = items[i].totalPrice
-          const discountAmount = Math.floor((originalPrice * activePromotion.discountPercentage) / 100)
 
-          items[i].originalPrice = originalPrice
-          items[i].totalPrice = originalPrice - discountAmount
-          items[i].discountPercentage = activePromotion.discountPercentage
-          items[i].discountName = activePromotion.name
+    // Áp dụng khuyến mãi cho từng item nếu có
+    if (activePromotion) {
+      console.log('Áp dụng khuyến mãi:', activePromotion.name)
+
+      // Áp dụng khuyến mãi cho từng mục trong hóa đơn
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i]
+
+        // Áp dụng promotion cho item
+        const itemWithPromotion = promotionService.applyPromotionToItem(
+          {
+            description: item.description,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            totalPrice: item.totalPrice
+          },
+          activePromotion
+        )
+
+        // Cập nhật lại item với thông tin giảm giá (nếu có)
+        if ('originalPrice' in itemWithPromotion) {
+          items[i].originalPrice = itemWithPromotion.originalPrice
+          items[i].totalPrice = itemWithPromotion.totalPrice
+          items[i].discountPercentage = itemWithPromotion.discountPercentage
+          items[i].discountName = itemWithPromotion.discountName
         }
       }
     }
@@ -514,181 +528,6 @@ export class BillService {
             })
         })
       } catch (error) {
-        reject(error)
-      }
-    })
-  }
-
-  // Hàm tạo mã hóa đơn ngẫu nhiên
-  private generateInvoiceCode(): string {
-    const timestamp = new Date().getTime().toString().slice(-6)
-    const random = Math.floor(Math.random() * 1000)
-      .toString()
-      .padStart(3, '0')
-    return `JZ${timestamp}${random}`
-  }
-
-  public async generateBillPDF(bill: IBill, actualEndTime?: string): Promise<Buffer> {
-    return new Promise<Buffer>(async (resolve, reject) => {
-      try {
-        // 1. Tính toán chiều cao các phần cố định
-        const headerHeight = 50 // phần header (logo, slogan)
-        const invoiceInfoHeight = 50 // phần thông tin hóa đơn
-        const tableHeaderHeight = 12 // tiêu đề bảng
-        const footerHeight = 40 // phần footer (địa chỉ, cảm ơn)
-        let tableItemsHeight = 0
-
-        // Duyệt qua từng item để tính tổng chiều cao của các hàng bảng
-        bill.items.forEach((item) => {
-          let description = item.description
-          // Nếu cần xuống dòng và dị với "Phí dịch vụ thu âm"
-          if (description === 'Phí dịch vụ thu âm') {
-            description = 'Phí dịch vụ thu âm'
-          }
-          const values = [
-            description,
-            item.price.toFixed(2),
-            item.quantity.toString(),
-            (item.price * item.quantity).toFixed(2)
-          ]
-          // Tính số dùng của mỗi cell (dựa trên kí tự "\n") và lấy số dùng lớn nhất
-          const maxLines = Math.max(...values.map((value) => value.split('\n').length))
-          // Giả sử mỗi dòng chiếm 12 điểm
-          const rowHeight = maxLines * 12
-          tableItemsHeight += rowHeight
-        })
-
-        // Cộng dồn các phần và thêm khoảng padding
-        let dynamicPageHeight =
-          headerHeight + invoiceInfoHeight + tableHeaderHeight + tableItemsHeight + footerHeight + 40
-
-        // Ví dụ: "cắt ở điểm A4" nghĩa là chiều cao không vượt quá 421 điểm (nửa A4)
-        const halfA4Height = 421
-        if (dynamicPageHeight > halfA4Height) {
-          dynamicPageHeight = halfA4Height
-        }
-        // Nếu nội dung quá ít, có thể đặt giá trị tối thiểu (ví dụ 300 điểm)
-        if (dynamicPageHeight < 300) {
-          dynamicPageHeight = 300
-        }
-
-        // 2. Tạo file PDF với kích thước được tính: width giữ nguyên A4 (595 điểm) và height = dynamicPageHeight
-        const doc = new PDFDocument({
-          autoFirstPage: false,
-          size: [595, 842], // A4 portrait (595 x 842 points)
-          margin: 20 // Tăng margin để tránh cắt nội dung
-        })
-        // Đăng kí font hỗ trợ tiếng Việt
-        doc.registerFont('DejaVuSans', path.join(__dirname, '..', 'fonts', 'DejaVuSans.ttf'))
-        doc.font('DejaVuSans')
-
-        const buffers: Uint8Array[] = []
-        doc.on('data', buffers.push.bind(buffers))
-        doc.on('end', () => {
-          const pdfData = Buffer.concat(buffers)
-          resolve(pdfData)
-        })
-
-        // 3. Vẽ nội dung PDF
-        doc.addPage()
-
-        // Header: Căn giữa
-        doc.fontSize(16).text('Jozo', { align: 'center' })
-        doc.fontSize(12).text('Thông thức không gian của chúng tôi', { align: 'center' })
-        doc.moveDown(1)
-
-        // Thông tin hóa đơn: Giờ, nhân viên, phòng (căn giữa)
-        doc
-          .fontSize(10)
-          .text(`Giờ bắt đầu: ${bill.startTime.toLocaleString()}`, { align: 'center' })
-          .text(`Giờ kết thúc: ${bill.endTime.toLocaleString()}`, { align: 'center' })
-          .text(`Nhân viên: John Doe`, { align: 'center' })
-          .text(`Phòng: ${bill.roomId.toString()}`, { align: 'center' })
-        doc.moveDown(1)
-
-        // Tiêu đề bảng danh sách một hàng (căn giữa)
-        doc.fontSize(12).text('Danh sách một hàng:', { underline: true, align: 'center' })
-        doc.moveDown(0.5)
-
-        // Tính toán chiều rộng các cột: sử dụng toàn bộ chiều rộng trang (trừ margin)
-        const pageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right
-        const colWidths = [pageWidth * 0.4, pageWidth * 0.2, pageWidth * 0.2, pageWidth * 0.2] // Điều chỉnh tỉ lệ các cột
-        const startX = doc.page.margins.left
-        let currentY = doc.y
-
-        // Vẽ tiêu đề cột (căn giữa và in đầm)
-        const headers = ['Mục', 'Giá', 'SL', 'Thành tiền']
-        headers.forEach((header, i) => {
-          const x = startX + colWidths.slice(0, i).reduce((a, b) => a + b, 0)
-          doc.font('DejaVuSans').text(header, x, currentY, { width: colWidths[i], align: 'center' })
-        })
-        doc.font('DejaVuSans') // Reset font
-        currentY += 15
-        doc.y = currentY
-        doc.moveDown(0.5)
-
-        // Vẽ các hàng của bảng
-        bill.items.forEach((item) => {
-          let description = item.description
-          if (description === 'Phí dịch vụ thu âm') {
-            description = 'Phí dịch vụ thu âm'
-          }
-          const values = [
-            description,
-            item.price.toLocaleString('vi-VN') + 'đ',
-            item.quantity.toString(),
-            (item.price * item.quantity).toLocaleString('vi-VN') + 'đ'
-          ]
-
-          // Tính số dùng của mỗi cell và lấy số dùng lớn nhất làm chiều cao hàng
-          const maxLines = Math.max(...values.map((value) => value.split('\n').length))
-          const rowHeight = maxLines * 15 // Tăng chiều cao mỗi dòng
-
-          // Vẽ các cell của hàng
-          values.forEach((value, i) => {
-            const x = startX + colWidths.slice(0, i).reduce((a, b) => a + b, 0)
-            doc.text(value, x, currentY, { width: colWidths[i], align: 'center' })
-          })
-          currentY += rowHeight
-          doc.y = currentY
-        })
-
-        // Tổng tiền thanh toán (căn giữa và in đầm)
-        doc.moveDown(1)
-        doc
-          .font('DejaVuSans')
-          .fontSize(12)
-          .text(`Tổng tiền: ${bill.totalAmount.toLocaleString('vi-VN')}đ`, { align: 'center' })
-        doc.font('DejaVuSans')
-        doc.moveDown(1)
-
-        // Footer: Địa chỉ và lời cảm ơn
-        const availableWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right
-        doc
-          .fontSize(10)
-          .text('Địa chỉ: Số 123, Đường ABC, Quận 1, TP. Hồ Chí Minh', doc.page.margins.left, doc.y, {
-            width: availableWidth,
-            align: 'center'
-          })
-          .moveDown(0.5)
-          .text('Cảm ơn quý khách đã sử dụng dịch vụ của Jozo', doc.page.margins.left, doc.y, {
-            width: availableWidth,
-            align: 'center'
-          })
-
-        // Add promotion info to the PDF bill
-        if (bill.activePromotion) {
-          doc.text(
-            `Applied promotion: ${bill.activePromotion.name} - ${bill.activePromotion.discountPercentage}% off`,
-            {
-              align: 'center'
-            }
-          )
-        }
-
-        // Kết thúc file PDF
-        doc.end()
-      } catch (error: any) {
         reject(error)
       }
     })

@@ -17,11 +17,12 @@ class PromotionService {
    */
   async getActivePromotion(): Promise<IPromotion | null> {
     const currentDate = new Date()
-    return await databaseService.promotions.findOne({
-      isActive: true,
-      startDate: { $lte: currentDate },
-      endDate: { $gte: currentDate }
+    const promotion = await databaseService.promotions.findOne({
+      isActive: true
     })
+
+    console.log('promotion', promotion)
+    return promotion
   }
 
   /**
@@ -120,30 +121,70 @@ class PromotionService {
    * Apply promotion to bill item
    * @param item Bill item
    * @param activePromotion Active promotion
+   * @param roomId Optional room ID to check if promotion applies to this room
+   * @param roomTypeId Optional room type ID to check if promotion applies to this room type
    * @returns Modified bill item with applied discount
    */
   applyPromotionToItem(
     item: { description: string; quantity: number; unitPrice: number; totalPrice: number },
-    activePromotion: IPromotion
+    activePromotion: IPromotion,
+    roomId?: ObjectId,
+    roomTypeId?: ObjectId
   ) {
-    // Check if the promotion applies to this item
-    // For karaoke service only
-    if (activePromotion.appliesTo === 'sing' && item.description.toLowerCase().includes('phi dich vu thu am')) {
-      const originalPrice = item.totalPrice
-      const discountAmount = Math.floor((originalPrice * activePromotion.discountPercentage) / 100)
+    console.log('Áp dụng promotion cho item:', item.description)
+    console.log('Promotion:', activePromotion)
 
-      return {
-        ...item,
-        originalPrice: item.totalPrice, // Keep track of the original price
-        totalPrice: originalPrice - discountAmount,
-        discountName: activePromotion.name,
-        discountPercentage: activePromotion.discountPercentage
-      }
+    if (roomId) console.log('Room ID:', roomId)
+    if (roomTypeId) console.log('Room Type ID:', roomTypeId)
+
+    // Chuẩn hóa appliesTo (có thể là string hoặc array)
+    const appliesTo = Array.isArray(activePromotion.appliesTo)
+      ? activePromotion.appliesTo[0]?.toLowerCase()
+      : activePromotion.appliesTo?.toLowerCase()
+
+    console.log('appliesTo đã chuẩn hóa:', appliesTo)
+
+    // Check if the promotion applies to this item
+    let shouldApply = false
+
+    // For karaoke service only
+    if (appliesTo === 'sing' && item.description.toLowerCase().includes('phi dich vu thu am')) {
+      console.log('Áp dụng promotion cho dịch vụ hát')
+      shouldApply = true
+    }
+    // For specific room type
+    else if (appliesTo === 'room_type' && roomTypeId) {
+      // Check if promotion applies to this room type
+      // Handling both string and array
+      const appliesToRoomTypes = Array.isArray(activePromotion.appliesTo)
+        ? activePromotion.appliesTo
+        : [activePromotion.appliesTo]
+
+      const roomTypeIdStr = roomTypeId.toString()
+      shouldApply = appliesToRoomTypes.some((type) => type === roomTypeIdStr)
+      console.log('Áp dụng promotion cho loại phòng:', shouldApply)
+    }
+    // For specific room
+    else if (appliesTo === 'room' && roomId) {
+      // Check if promotion applies to this specific room
+      const appliesToRooms = Array.isArray(activePromotion.appliesTo)
+        ? activePromotion.appliesTo
+        : [activePromotion.appliesTo]
+
+      const roomIdStr = roomId.toString()
+      shouldApply = appliesToRooms.some((room) => room === roomIdStr)
+      console.log('Áp dụng promotion cho phòng cụ thể:', shouldApply)
     }
     // For all items
-    else if (activePromotion.appliesTo === 'all') {
+    else if (appliesTo === 'all') {
+      console.log('Áp dụng promotion cho tất cả items')
+      shouldApply = true
+    }
+
+    if (shouldApply) {
       const originalPrice = item.totalPrice
       const discountAmount = Math.floor((originalPrice * activePromotion.discountPercentage) / 100)
+      console.log(`Giá gốc: ${originalPrice}, Giảm: ${discountAmount}`)
 
       return {
         ...item,
@@ -154,6 +195,7 @@ class PromotionService {
       }
     }
 
+    console.log('Promotion không áp dụng cho item này')
     // If promotion doesn't apply to this item, return it unchanged
     return item
   }

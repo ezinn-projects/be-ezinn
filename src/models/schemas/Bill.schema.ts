@@ -22,7 +22,7 @@ export interface IBill {
   activePromotion?: {
     name: string
     discountPercentage: number
-    appliesTo: 'sing' | 'all'
+    appliesTo: 'sing' | 'all' | string[]
   }
 }
 

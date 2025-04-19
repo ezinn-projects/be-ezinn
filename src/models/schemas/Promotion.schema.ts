@@ -8,7 +8,7 @@ export interface IPromotion {
   startDate: Date // when the promotion starts
   endDate: Date // when the promotion ends
   isActive: boolean // whether the promotion is currently active
-  appliesTo: 'sing' | 'all' // what the promotion applies to
+  appliesTo: 'sing' | 'all' | string[] // what the promotion applies to
   createdAt: Date
   updatedAt?: Date
 }
@@ -24,7 +24,7 @@ export class Promotion {
   startDate: Date
   endDate: Date
   isActive: boolean
-  appliesTo: 'sing' | 'all'
+  appliesTo: 'sing' | 'all' | string[]
   createdAt: Date
   updatedAt?: Date
 
@@ -36,7 +36,7 @@ export class Promotion {
    * @param {Date} startDate - When the promotion starts
    * @param {Date} endDate - When the promotion ends
    * @param {boolean} isActive - Whether the promotion is active
-   * @param {'karaoke' | 'all'} appliesTo - What the promotion applies to (karaoke service or all items)
+   * @param {'sing' | 'all' | string[]} appliesTo - What the promotion applies to (karaoke service or all items)
    * @param {string} [description] - Optional description of the promotion
    */
   constructor(
@@ -45,7 +45,7 @@ export class Promotion {
     startDate: Date,
     endDate: Date,
     isActive: boolean,
-    appliesTo: 'sing' | 'all',
+    appliesTo: 'sing' | 'all' | string[],
     description?: string
   ) {
     this.name = name

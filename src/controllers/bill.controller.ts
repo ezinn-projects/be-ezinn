@@ -26,14 +26,3 @@ export const printBill = async (req: Request, res: Response) => {
     result: bill
   })
 }
-
-export const generateBill = async (req: Request, res: Response) => {
-  const { scheduleId } = req.params
-  const { actualEndTime, paymentMethod } = req.body
-
-  const billData = await billService.getBill(scheduleId, actualEndTime as string, paymentMethod)
-
-  const bill = await billService.generateBillPDF(billData, actualEndTime as string)
-
-  return res.status(HTTP_STATUS_CODE.OK).contentType('application/pdf').send(bill)
-}
