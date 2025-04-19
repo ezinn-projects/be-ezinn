@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import { generateBill, getBill, printBill } from '~/controllers/bill.controller'
+import { getBill, printBill } from '~/controllers/bill.controller'
 import { protect } from '~/middlewares/auth.middleware'
 import { UserRole } from '~/constants/enum'
 import { wrapRequestHandler } from '~/utils/handlers'
@@ -22,12 +22,12 @@ billRouter.get('/:scheduleId', protect([UserRole.Admin, UserRole.Staff]), wrapRe
  */
 billRouter.post('/:scheduleId', protect([UserRole.Admin, UserRole.Staff]), wrapRequestHandler(printBill))
 
-/**
- * @route POST /bill/:scheduleId/generate
- * @description Generate bill by scheduleId
- * @access Private
- * @author: QuangDoo
- */
-billRouter.post('/:scheduleId/generate', protect([UserRole.Admin, UserRole.Staff]), wrapRequestHandler(generateBill))
+// /**
+//  * @route POST /bill/:scheduleId/generate
+//  * @description Generate bill by scheduleId
+//  * @access Private
+//  * @author: QuangDoo
+//  */
+// billRouter.post('/:scheduleId/generate', protect([UserRole.Admin, UserRole.Staff]), wrapRequestHandler(generateBill))
 
 export default billRouter
