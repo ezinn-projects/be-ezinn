@@ -319,6 +319,31 @@ export const RoomSocket = (io: Server) => {
       }
     })
 
+    // Xử lý sự kiện check_now_playing
+    socket.on('check_now_playing', async (data: { roomId: string }) => {
+      try {
+        const roomId = data.roomId || socket.handshake.query.roomId
+        console.log(`Checking now playing for room ${roomId}`)
+
+        // Lấy thông tin bài hát đang phát
+        const nowPlaying = await roomMusicServices.getNowPlaying(roomId as string)
+
+        // Trả về thông tin bài hát đang phát cho client (chỉ client đã gửi request)
+        socket.emit('now_playing_status', {
+          isPlaying: !!nowPlaying,
+          data: nowPlaying || null
+        })
+
+        console.log(`Now playing status for room ${roomId}:`, !!nowPlaying)
+      } catch (error) {
+        console.error(`Error checking now playing for room ${data.roomId}:`, error)
+        socket.emit('error', {
+          message: 'Failed to check now playing status',
+          error: (error as Error).message
+        })
+      }
+    })
+
     // Khi client ngắt kết nối
     socket.on('disconnect', () => {
       console.log(`Client disconnected: ${socket.id}`)
