@@ -155,11 +155,13 @@ class RoomMusicServices {
         dumpSingleJson: true,
         format: 'b', // Using 'b' instead of 'best' as recommended
         addHeader: [
+          'referer: youtube.com',
           'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 googlebot youtube.com',
           'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
           'Accept-Language: en-US,en;q=0.5',
           'Referer: https://www.youtube.com/',
-          'youtube-dl-options: --no-check-certificate --no-warnings --skip-download'
+          'youtube-dl-options: --no-check-certificate --no-warnings --skip-download',
+          'user-agent:googlebot'
         ],
         // Basic options to improve reliability
         noCheckCertificates: true,
