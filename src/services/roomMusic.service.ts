@@ -146,6 +146,7 @@ class RoomMusicServices {
    * @returns AddSongRequestBody
    * @author QuangDoo
    */
+  // chạy trong cùng container proxy (IP khớp với request ra ngoài)
   async getVideoInfo(videoId: string): Promise<AddSongRequestBody> {
     try {
       const videoUrl = `https://www.youtube.com/watch?v=${videoId}`
@@ -153,7 +154,10 @@ class RoomMusicServices {
       // Configure youtube-dl with basic options
       const info = (await youtubeDl(videoUrl, {
         dumpSingleJson: true,
-        format: 'b', // Using 'b' instead of 'best' as recommended
+        format: 'hls-*/best',
+        forceIpv4: true,
+        geoBypassCountry: 'VN',
+        // format: 'b', // Using 'b' instead of 'best' as recommended
         addHeader: [
           'referer: youtube.com',
           'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 googlebot youtube.com',
