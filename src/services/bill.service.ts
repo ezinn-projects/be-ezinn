@@ -8,6 +8,13 @@ import { ErrorWithStatus } from '~/models/Error'
 import { IBill } from '~/models/schemas/Bill.schema'
 import databaseService from './database.service'
 import promotionService from './promotion.service'
+import utc from 'dayjs/plugin/utc'
+import timezone from 'dayjs/plugin/timezone'
+
+// Cấu hình timezone cho dayjs
+dayjs.extend(utc)
+dayjs.extend(timezone)
+dayjs.tz.setDefault('Asia/Ho_Chi_Minh')
 
 // Khai báo biến toàn cục để lưu USB adapter
 let usbAdapter: any = null
@@ -362,6 +369,10 @@ export class BillService {
       note: billData.note,
       activePromotion: billData.activePromotion
     }
+
+    // Save bill to the database
+    await databaseService.bills.insertOne(bill)
+
     const room = await databaseService.rooms.findOne({ _id: bill.roomId })
 
     let paymentMethodText = ''
@@ -572,6 +583,215 @@ export class BillService {
         reject(error)
       }
     })
+  }
+
+  /**
+   * Get total revenue for a specific date
+   * @param date Date to get revenue for (format: ISO date string)
+   * @returns Object containing total revenue and bill details
+   */
+  async getDailyRevenue(date: string): Promise<{ totalRevenue: number; bills: IBill[] }> {
+    // Parse the input date and adjust for Vietnam timezone
+    const inputDate = dayjs(date).tz('Asia/Ho_Chi_Minh')
+    const targetDate = inputDate.startOf('day')
+    const nextDay = targetDate.add(1, 'day')
+
+    // Convert to Date objects for MongoDB query
+    const startDate = targetDate.toDate()
+    const endDate = nextDay.toDate()
+
+    console.log(`Tìm hóa đơn từ [${startDate.toISOString()}] đến [${endDate.toISOString()}]`)
+    console.log(`Ngày được chỉ định: ${inputDate.format('YYYY-MM-DD')}`)
+
+    // Find all bills created on the target date, using createdAt
+    const bills = await databaseService.bills
+      .find({
+        createdAt: {
+          $gte: startDate,
+          $lt: endDate
+        }
+      })
+      .toArray()
+
+    // Log số lượng hóa đơn tìm được
+    console.log(`Tìm thấy ${bills.length} hóa đơn theo createdAt`)
+
+    // Nếu không tìm thấy hóa đơn, thử kiểm tra tất cả hóa đơn để debug
+    if (bills.length === 0) {
+      const allBills = await databaseService.bills.find({}).limit(20).toArray()
+      console.log(`Danh sách ${allBills.length} hóa đơn gần nhất:`)
+      allBills.forEach((bill) => {
+        const createdAtDate = dayjs(bill.createdAt).tz('Asia/Ho_Chi_Minh').format('YYYY-MM-DD HH:mm:ss')
+        console.log(`- Hóa đơn ${bill._id}: createdAt=${createdAtDate}, totalAmount=${bill.totalAmount}`)
+      })
+
+      // Thử tìm kiếm bằng cách so sánh ngày tháng dưới dạng chuỗi
+      const dateString = inputDate.format('YYYY-MM-DD')
+      console.log(`Thử tìm hóa đơn cho ngày: ${dateString}`)
+
+      const manualFilteredBills = allBills.filter((bill) => {
+        const billDate = dayjs(bill.createdAt).tz('Asia/Ho_Chi_Minh').format('YYYY-MM-DD')
+        const matches = billDate === dateString
+        if (matches) {
+          console.log(`- Tìm thấy hóa đơn phù hợp: ${bill._id}, ngày ${billDate}`)
+        }
+        return matches
+      })
+
+      if (manualFilteredBills.length > 0) {
+        console.log(`Tìm thấy ${manualFilteredBills.length} hóa đơn bằng lọc thủ công theo ngày`)
+        return {
+          totalRevenue: manualFilteredBills.reduce((total, bill) => total + bill.totalAmount, 0),
+          bills: manualFilteredBills
+        }
+      }
+    }
+
+    // Calculate the total revenue
+    const totalRevenue = bills.reduce((total, bill) => total + bill.totalAmount, 0)
+
+    return {
+      totalRevenue,
+      bills
+    }
+  }
+
+  /**
+   * Get total revenue for a specific week
+   * @param date Any date within the week to get revenue for (format: ISO date string)
+   * @returns Object containing total revenue, bill details, and date range
+   */
+  async getWeeklyRevenue(
+    date: string
+  ): Promise<{ totalRevenue: number; bills: IBill[]; startDate: Date; endDate: Date }> {
+    // Parse the input date and get the start/end of the week (Vietnam timezone)
+    const targetDate = dayjs(date).tz('Asia/Ho_Chi_Minh')
+    const startOfWeek = targetDate.startOf('week')
+    const endOfWeek = targetDate.endOf('week')
+
+    // Convert to Date objects for MongoDB query
+    const startDate = startOfWeek.toDate()
+    const endDate = endOfWeek.toDate()
+
+    console.log(`Tìm hóa đơn từ [${startDate.toISOString()}] đến [${endDate.toISOString()}]`)
+    console.log(`Tuần chứa ngày: ${targetDate.format('YYYY-MM-DD')}`)
+
+    // Find all bills created within the week
+    const bills = await databaseService.bills
+      .find({
+        createdAt: {
+          $gte: startDate,
+          $lte: endDate
+        }
+      })
+      .toArray()
+
+    console.log(`Tìm thấy ${bills.length} hóa đơn trong tuần`)
+
+    // Calculate the total revenue
+    const totalRevenue = bills.reduce((total, bill) => total + bill.totalAmount, 0)
+
+    return {
+      totalRevenue,
+      bills,
+      startDate,
+      endDate
+    }
+  }
+
+  /**
+   * Get total revenue for a specific month
+   * @param date Any date within the month to get revenue for (format: ISO date string)
+   * @returns Object containing total revenue, bill details, and date range
+   */
+  async getMonthlyRevenue(
+    date: string
+  ): Promise<{ totalRevenue: number; bills: IBill[]; startDate: Date; endDate: Date }> {
+    // Parse the input date and get the start/end of the month (Vietnam timezone)
+    const targetDate = dayjs(date).tz('Asia/Ho_Chi_Minh')
+    const startOfMonth = targetDate.startOf('month')
+    const endOfMonth = targetDate.endOf('month')
+
+    // Convert to Date objects for MongoDB query
+    const startDate = startOfMonth.toDate()
+    const endDate = endOfMonth.toDate()
+
+    console.log(`Tìm hóa đơn từ [${startDate.toISOString()}] đến [${endDate.toISOString()}]`)
+    console.log(`Tháng: ${targetDate.format('MM/YYYY')}`)
+
+    // Find all bills created within the month
+    const bills = await databaseService.bills
+      .find({
+        createdAt: {
+          $gte: startDate,
+          $lte: endDate
+        }
+      })
+      .toArray()
+
+    console.log(`Tìm thấy ${bills.length} hóa đơn trong tháng`)
+
+    // Calculate the total revenue
+    const totalRevenue = bills.reduce((total, bill) => total + bill.totalAmount, 0)
+
+    return {
+      totalRevenue,
+      bills,
+      startDate,
+      endDate
+    }
+  }
+
+  /**
+   * Get total revenue for a custom date range
+   * @param startDate Start date (format: ISO date string)
+   * @param endDate End date (format: ISO date string)
+   * @returns Object containing total revenue, bill details, and date range
+   */
+  async getRevenueByCustomRange(
+    startDate: string,
+    endDate: string
+  ): Promise<{ totalRevenue: number; bills: IBill[]; startDate: Date; endDate: Date }> {
+    // Parse the input dates (Vietnam timezone)
+    const start = dayjs(startDate).tz('Asia/Ho_Chi_Minh').startOf('day')
+    const end = dayjs(endDate).tz('Asia/Ho_Chi_Minh').endOf('day')
+
+    // Convert to Date objects for MongoDB query
+    const startDateObj = start.toDate()
+    const endDateObj = end.toDate()
+
+    console.log(`Tìm hóa đơn từ [${startDateObj.toISOString()}] đến [${endDateObj.toISOString()}]`)
+    console.log(`Khoảng thời gian: ${start.format('DD/MM/YYYY')} - ${end.format('DD/MM/YYYY')}`)
+
+    // Validate date range
+    if (start.isAfter(end)) {
+      throw new ErrorWithStatus({
+        message: 'Ngày bắt đầu phải trước ngày kết thúc',
+        status: HTTP_STATUS_CODE.BAD_REQUEST
+      })
+    }
+
+    // Find all bills created within the date range
+    const bills = await databaseService.bills
+      .find({
+        createdAt: {
+          $gte: startDateObj,
+          $lte: endDateObj
+        }
+      })
+      .toArray()
+
+    console.log(`Tìm thấy ${bills.length} hóa đơn trong khoảng thời gian chỉ định`)
+
+    // Calculate the total revenue
+    const totalRevenue = bills.reduce((total, bill) => total + bill.totalAmount, 0)
+
+    return {
+      totalRevenue,
+      bills,
+      startDate: startDateObj,
+      endDate: endDateObj
+    }
   }
 }
 

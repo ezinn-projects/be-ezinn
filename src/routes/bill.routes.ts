@@ -1,10 +1,49 @@
 import { Router } from 'express'
-import { getBill, printBill } from '~/controllers/bill.controller'
+import {
+  getBill,
+  printBill,
+  getDailyRevenue,
+  getWeeklyRevenue,
+  getMonthlyRevenue,
+  getCustomRangeRevenue
+} from '~/controllers/bill.controller'
 import { protect } from '~/middlewares/auth.middleware'
 import { UserRole } from '~/constants/enum'
 import { wrapRequestHandler } from '~/utils/handlers'
 
 const billRouter = Router()
+
+/**
+ * @route GET /bill/revenue/daily
+ * @description Get total revenue for a specific date
+ * @access Private
+ * @author: AI Assistant
+ */
+billRouter.get('/revenue/daily', protect([UserRole.Admin]), wrapRequestHandler(getDailyRevenue))
+
+/**
+ * @route GET /bill/revenue/weekly
+ * @description Get total revenue for a specific week
+ * @access Private
+ * @author: AI Assistant
+ */
+billRouter.get('/revenue/weekly', protect([UserRole.Admin]), wrapRequestHandler(getWeeklyRevenue))
+
+/**
+ * @route GET /bill/revenue/monthly
+ * @description Get total revenue for a specific month
+ * @access Private
+ * @author: AI Assistant
+ */
+billRouter.get('/revenue/monthly', protect([UserRole.Admin]), wrapRequestHandler(getMonthlyRevenue))
+
+/**
+ * @route GET /bill/revenue/custom
+ * @description Get total revenue for a custom date range
+ * @access Private
+ * @author: AI Assistant
+ */
+billRouter.get('/revenue/custom', protect([UserRole.Admin]), wrapRequestHandler(getCustomRangeRevenue))
 
 /**
  * @route GET /bill/:scheduleId

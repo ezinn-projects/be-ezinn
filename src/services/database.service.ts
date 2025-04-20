@@ -10,6 +10,7 @@ import { RoomSchedule } from '~/models/schemas/RoomSchdedule.schema'
 import { RoomScheduleFNBOrder } from '~/models/schemas/FNB.schema'
 import { FnbMenu } from '~/models/schemas/FnBMenu.schema'
 import { IPromotion } from '~/models/schemas/Promotion.schema'
+import { IBill } from '~/models/schemas/Bill.schema'
 dotenv.config()
 
 const DB_USERNAME = process.env.DB_USERNAME
@@ -79,6 +80,10 @@ class DatabaseService {
 
   get promotions(): Collection<IPromotion> {
     return this.db.collection('promotions')
+  }
+
+  get bills(): Collection<IBill> {
+    return this.db.collection('bills')
   }
 }
 
