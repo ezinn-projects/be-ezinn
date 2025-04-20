@@ -85,7 +85,7 @@ class RoomServices {
 
   async turnOffVideos() {
     // Clean up all rooms
-    for (let i = 1; i <= 7; i++) {
+    for (let i = 1; i <= 8; i++) {
       const roomId = `${i}`
       // Clean up Redis data
       await Promise.all([
@@ -99,6 +99,13 @@ class RoomServices {
       // Emit events for socket service to handle
       roomEventEmitter.emit('queue_updated', { roomId, queue: [] })
       roomEventEmitter.emit('videos_turned_off', { roomId })
+      roomEventEmitter.emit('now_playing', { roomId, nowPlaying: null })
+      roomEventEmitter.emit('playback_status', { roomId, playbackStatus: 'stopped' })
+      roomEventEmitter.emit('current_time', { roomId, currentTime: 0 })
+      roomEventEmitter.emit('off_status', { roomId, offStatus: 'false' })
+
+      // set status in redis
+      await redis.set(`room_${roomId}_off_status`, 'false')
     }
 
     return true

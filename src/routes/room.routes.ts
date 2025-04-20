@@ -59,7 +59,7 @@ roomRouter.get('/:id', protect([UserRole.Admin]), wrapRequestHandler(getRoomCont
  * @author QuangDoo
  */
 roomRouter.post(
-  '/:id/turn-off-videos',
+  '/turn-off-videos',
   protect([UserRole.Admin, UserRole.Staff]),
   wrapRequestHandler(turnOffVideosController)
 )
