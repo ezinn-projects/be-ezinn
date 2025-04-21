@@ -4,24 +4,22 @@ import { Server as SocketIOServer } from 'socket.io'
 import { RoomSocket } from '~/sockets/room.socket'
 import roomRoutes from '~/routes/room.routes'
 import songQueueRouter from '~/routes/roomMusic.routes'
+import cors from 'cors'
 
 class Server {
   private app: Express
   private httpServer: HttpServer
   public io: SocketIOServer
   private readonly PORT = process.env.SOCKET_SERVER_PORT || 8080
+  private allowedOrigins = ['https://control.jozo.com.vn', 'https://video.jozo.com.vn', 'https://admin.jozo.com.vn']
 
   constructor() {
     this.app = express()
     this.httpServer = createServer(this.app)
     this.io = new SocketIOServer(this.httpServer, {
       cors: {
-        origin: (origin, callback) => {
-          // origin === undefined (Postman/server)
-          // callback(null, true) cho phép tất cả
-          callback(null, true)
-        },
-        credentials: true, // bật Access-Control-Allow-Credentials
+        origin: this.allowedOrigins,
+        credentials: true,
         methods: ['GET', 'POST', 'OPTIONS']
       },
       allowEIO3: true,
@@ -35,6 +33,13 @@ class Server {
 
   // Khởi tạo middleware
   private initializeMiddleware() {
+    this.app.use(
+      cors({
+        origin: this.allowedOrigins,
+        credentials: true,
+        methods: ['GET', 'POST', 'OPTIONS']
+      })
+    )
     this.app.use(express.json())
   }
 
