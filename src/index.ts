@@ -35,10 +35,10 @@ const port = 4000
 // Cấu hình CORS để chấp nhận mọi origin và các header cần thiết
 app.use(
   cors({
-    origin: true, // cho phép tất cả domain
-    credentials: true,
-    allowedHeaders: ['Content-Type', 'Authorization'], // đảm bảo header Authorization được chấp nhận
-    exposedHeaders: ['Authorization'], // expose header Authorization để client có thể đọc
+    origin: '*', // cho phép tất cả domain, sử dụng * thay vì true
+    credentials: false, // thay đổi thành false để phù hợp với server.service.ts
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    exposedHeaders: ['Authorization'],
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
   })
 )
@@ -46,8 +46,8 @@ app.use(
 app.options(
   '*',
   cors({
-    origin: true,
-    credentials: true,
+    origin: '*', // cập nhật tương tự
+    credentials: false, // cập nhật thành false
     allowedHeaders: ['Content-Type', 'Authorization'],
     exposedHeaders: ['Authorization']
   })

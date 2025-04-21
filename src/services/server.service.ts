@@ -1,26 +1,25 @@
+import cors from 'cors'
 import express, { Express } from 'express'
 import { createServer, Server as HttpServer } from 'http'
 import { Server as SocketIOServer } from 'socket.io'
-import { RoomSocket } from '~/sockets/room.socket'
 import roomRoutes from '~/routes/room.routes'
-import songQueueRouter from '~/routes/roomMusic.routes'
-import cors from 'cors'
+import { RoomSocket } from '~/sockets/room.socket'
 
 class Server {
   private app: Express
   private httpServer: HttpServer
   public io: SocketIOServer
   private readonly PORT = process.env.SOCKET_SERVER_PORT || 8080
-  private allowedOrigins = ['https://control.jozo.com.vn', 'https://video.jozo.com.vn', 'https://admin.jozo.com.vn']
 
   constructor() {
     this.app = express()
     this.httpServer = createServer(this.app)
     this.io = new SocketIOServer(this.httpServer, {
       cors: {
-        origin: this.allowedOrigins,
-        credentials: true,
-        methods: ['GET', 'POST', 'OPTIONS']
+        origin: '*', // Cho phép tất cả các origin
+        credentials: false,
+        methods: ['GET', 'POST', 'OPTIONS'],
+        allowedHeaders: ['Authorization', 'Content-Type'] // <-- thêm dòng này // Không yêu cầu credentials
       },
       allowEIO3: true,
       transports: ['websocket', 'polling']
@@ -35,9 +34,10 @@ class Server {
   private initializeMiddleware() {
     this.app.use(
       cors({
-        origin: this.allowedOrigins,
-        credentials: true,
-        methods: ['GET', 'POST', 'OPTIONS']
+        origin: '*', // Cho phép tất cả các origin
+        credentials: false, // Không yêu cầu credentials
+        methods: ['GET', 'POST', 'OPTIONS'],
+        allowedHeaders: ['Authorization', 'Content-Type'] // <-- thêm dòng này // Không yêu cầu credentials
       })
     )
     this.app.use(express.json())

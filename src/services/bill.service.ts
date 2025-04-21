@@ -191,11 +191,6 @@ export class BillService {
       })
     }
     const dayType = this.determineDayType(new Date(schedule.startTime))
-    const serviceFeeUnitPrice = await this.getServiceUnitPrice(
-      new Date(schedule.startTime),
-      dayType,
-      room?.roomType || ''
-    )
     const endTime = actualEndTime ? new Date(actualEndTime) : new Date(schedule.endTime as Date)
     if (!dayjs(endTime).isValid()) {
       throw new ErrorWithStatus({
@@ -203,10 +198,105 @@ export class BillService {
         status: HTTP_STATUS_CODE.BAD_REQUEST
       })
     }
-    const hoursUsed = this.calculateHours(new Date(schedule.startTime), endTime)
 
-    // Làm tròn xuống phí dịch vụ thu âm (chia cho 1000 rồi nhân lại)
-    const roundedServiceFeeTotal = Math.floor((hoursUsed * serviceFeeUnitPrice) / 1000) * 1000
+    // Lấy thông tin bảng giá cho loại ngày (weekday/weekend)
+    const priceDoc = await databaseService.price.findOne({ day_type: dayType })
+    if (!priceDoc || !priceDoc.time_slots) {
+      throw new ErrorWithStatus({
+        message: 'Không tìm thấy cấu hình giá',
+        status: HTTP_STATUS_CODE.NOT_FOUND
+      })
+    }
+
+    // Thời gian bắt đầu và kết thúc
+    const startTime = new Date(schedule.startTime)
+
+    // Tính toán phí dịch vụ với việc xét nhiều khung giờ
+    let totalServiceFee = 0
+    let totalHoursUsed = 0
+    const timeSlotItems = []
+
+    // Sắp xếp các khung giờ theo thời gian bắt đầu
+    const sortedTimeSlots = [...priceDoc.time_slots].sort((a, b) => {
+      return a.start.localeCompare(b.start)
+    })
+
+    // Tạo ranh giới thời gian cho các khung giờ trong ngày
+    const timeSlotBoundaries = []
+
+    for (const slot of sortedTimeSlots) {
+      const slotStartTime = dayjs(startTime).format('YYYY-MM-DD') + ' ' + slot.start
+      let slotEndTime
+
+      // Xử lý khung giờ qua ngày
+      if (slot.start > slot.end) {
+        slotEndTime = dayjs(startTime).add(1, 'day').format('YYYY-MM-DD') + ' ' + slot.end
+      } else {
+        slotEndTime = dayjs(startTime).format('YYYY-MM-DD') + ' ' + slot.end
+      }
+
+      timeSlotBoundaries.push({
+        start: new Date(slotStartTime),
+        end: new Date(slotEndTime),
+        prices: slot.prices
+      })
+    }
+
+    // Kiểm tra và tính toán giờ sử dụng trong từng khung giờ
+    for (let i = 0; i < timeSlotBoundaries.length; i++) {
+      const slot = timeSlotBoundaries[i]
+
+      // Tìm đơn giá cho loại phòng trong khung giờ này
+      const priceEntry = slot.prices.find((p: any) => p.room_type === room?.roomType)
+      if (!priceEntry) {
+        continue // Bỏ qua nếu không tìm thấy giá cho loại phòng
+      }
+
+      // Kiểm tra thời gian phiên có nằm trong khung giờ này không
+      const sessionStart = dayjs(startTime).isAfter(dayjs(slot.start)) ? startTime : slot.start
+      const sessionEnd = dayjs(endTime).isBefore(dayjs(slot.end)) ? endTime : slot.end
+
+      // Nếu có thời gian sử dụng trong khung giờ này
+      if (dayjs(sessionStart).isBefore(dayjs(sessionEnd))) {
+        const hoursInSlot = this.calculateHours(sessionStart, sessionEnd)
+
+        if (hoursInSlot > 0) {
+          // Làm tròn xuống phí dịch vụ (chia cho 1000 rồi nhân lại)
+          const slotServiceFee = Math.floor((hoursInSlot * priceEntry.price) / 1000) * 1000
+
+          totalServiceFee += slotServiceFee
+          totalHoursUsed += hoursInSlot
+
+          // Thêm vào danh sách chi tiết theo khung giờ
+          timeSlotItems.push({
+            description: `Phi dich vu thu am (${dayjs(sessionStart).format('HH:mm')}-${dayjs(sessionEnd).format('HH:mm')})`,
+            quantity: hoursInSlot,
+            unitPrice: priceEntry.price,
+            totalPrice: slotServiceFee
+          })
+        }
+      }
+    }
+
+    // Nếu không có khung giờ nào phù hợp, sử dụng phương pháp cũ
+    if (timeSlotItems.length === 0) {
+      console.log('Không tìm thấy khung giờ phù hợp, sử dụng giá theo thời gian bắt đầu')
+      const serviceFeeUnitPrice = await this.getServiceUnitPrice(startTime, dayType, room?.roomType || '')
+      const hoursUsed = this.calculateHours(startTime, endTime)
+
+      // Làm tròn xuống phí dịch vụ (chia cho 1000 rồi nhân lại)
+      const roundedServiceFeeTotal = Math.floor((hoursUsed * serviceFeeUnitPrice) / 1000) * 1000
+
+      timeSlotItems.push({
+        description: `Phi dich vu thu am`,
+        quantity: hoursUsed,
+        unitPrice: serviceFeeUnitPrice,
+        totalPrice: roundedServiceFeeTotal
+      })
+
+      totalServiceFee = roundedServiceFeeTotal
+      totalHoursUsed = hoursUsed
+    }
 
     const items: {
       description: string
@@ -216,7 +306,7 @@ export class BillService {
       originalPrice?: number
       discountPercentage?: number
       discountName?: string
-    }[] = []
+    }[] = [...timeSlotItems]
 
     const order = orders[0]
 
@@ -282,14 +372,6 @@ export class BillService {
       }
     }
 
-    // Thêm phí dịch vụ thu âm vào đầu danh sách
-    items.unshift({
-      description: 'Phi dich vu thu am',
-      quantity: hoursUsed,
-      unitPrice: serviceFeeUnitPrice,
-      totalPrice: roundedServiceFeeTotal
-    })
-
     // Lấy active promotion
     const activePromotion = await promotionService.getActivePromotion()
 
@@ -319,6 +401,10 @@ export class BillService {
           items[i].totalPrice = itemWithPromotion.totalPrice
           items[i].discountPercentage = itemWithPromotion.discountPercentage
           items[i].discountName = itemWithPromotion.discountName
+
+          // Cập nhật mô tả để bao gồm thông tin khuyến mãi
+          items[i].description =
+            `${item.description} (Giam ${itemWithPromotion.discountPercentage}% - ${itemWithPromotion.discountName || 'KM'})`
         }
       }
     }
@@ -492,11 +578,18 @@ export class BillService {
               // Xử lý hiển thị cho phí dịch vụ thu âm
               if (description === 'Phi dich vu thu am') {
                 quantity = Math.round(quantity * 10) / 10
-                description = 'Phi dich vu thu am'
+              }
+
+              // Tách mô tả và thông tin khuyến mãi nếu mô tả có chứa thông tin khuyến mãi
+              const promotionMatch = description.match(/ \(Giam (\d+)% - (.*)\)$/)
+              if (promotionMatch) {
+                // Tách phần mô tả gốc và phần khuyến mãi
+                description = description.replace(/ \(Giam (\d+)% - (.*)\)$/, '')
               }
 
               // Giới hạn độ dài của description để tránh bị tràn
-              if (description.length > 20) {
+              // Không cắt ngắn các mô tả về phí dịch vụ thu âm
+              if (description.length > 20 && !description.includes('Phi dich vu thu am')) {
                 description = description.substring(0, 17) + '...'
               }
 
