@@ -10,12 +10,9 @@ import {
   turnOffVideosController,
   updateRoomController
 } from '~/controllers/room.controller'
-import { streamVideo } from '~/controllers/roomMusic.controller'
 import { protect } from '~/middlewares/auth.middleware'
 import { checkRoomExists, validateFiles } from '~/middlewares/room.middleware'
 import { wrapRequestHandler } from '~/utils/handlers'
-import { fetchVideoInfo } from '~/utils/common'
-import { HTTP_STATUS_CODE } from '~/constants/httpStatus'
 
 const roomRouter = Router()
 
@@ -93,37 +90,6 @@ roomRouter.post(
   '/:id/resolve-request',
   protect([UserRole.Admin, UserRole.Staff]),
   wrapRequestHandler(solveRequestController)
-)
-/**
- * @description Stream video
- * @path /rooms/:roomId/:videoId/stream
- * @method GET
- * @author QuangDoo
- */
-roomRouter.get('/:roomId/:videoId/stream', wrapRequestHandler(streamVideo))
-
-/**
- * @description Test HLS streaming
- * @path /rooms/:roomId/:videoId/test-hls
- * @method GET
- * @author QuangDoo
- */
-roomRouter.get(
-  '/:roomId/:videoId/test-hls',
-  wrapRequestHandler(async (req, res, next) => {
-    try {
-      const data = await fetchVideoInfo(req.params.videoId)
-      res.status(HTTP_STATUS_CODE.OK).json({
-        message: 'Video format info',
-        result: {
-          ...data,
-          isHLS: data.format_type === 'hls'
-        }
-      })
-    } catch (err) {
-      next(err)
-    }
-  })
 )
 
 export default roomRouter
