@@ -356,233 +356,244 @@ export class BillService {
   }
 
   async printBill(billData: IBill): Promise<IBill> {
-    const bill: IBill = {
-      _id: new ObjectId(),
-      scheduleId: new ObjectId(billData.scheduleId),
-      roomId: new ObjectId(billData.roomId),
-      items: billData.items,
-      totalAmount: billData.totalAmount,
-      startTime: billData.startTime,
-      endTime: billData.endTime,
-      createdAt: new Date(),
-      paymentMethod: billData.paymentMethod,
-      note: billData.note,
-      activePromotion: billData.activePromotion
-    }
+    try {
+      const bill: IBill = {
+        _id: new ObjectId(),
+        scheduleId: new ObjectId(billData.scheduleId),
+        roomId: new ObjectId(billData.roomId),
+        items: billData.items,
+        totalAmount: billData.totalAmount,
+        startTime: billData.startTime,
+        endTime: billData.endTime,
+        createdAt: new Date(), // Sử dụng thời gian hiện tại
+        paymentMethod: billData.paymentMethod,
+        note: billData.note,
+        activePromotion: billData.activePromotion
+      }
 
-    // Save bill to the database
-    await databaseService.bills.insertOne(bill)
+      // Log thông tin bill trước khi lưu
+      console.log(
+        `Lưu hóa đơn mới: ${bill._id}, createdAt=${bill.createdAt.toISOString()}, totalAmount=${bill.totalAmount}`
+      )
 
-    const room = await databaseService.rooms.findOne({ _id: bill.roomId })
+      // Save bill to the database
+      const result = await databaseService.bills.insertOne(bill)
+      console.log(`Kết quả lưu hóa đơn: success=${result.acknowledged}, id=${result.insertedId}`)
 
-    let paymentMethodText = ''
-    switch (bill.paymentMethod) {
-      case 'cash':
-        paymentMethodText = 'Tien mat'
-        break
-      case 'bank_transfer':
-        paymentMethodText = 'Chuyen khoan'
-        break
-      case 'momo':
-        paymentMethodText = 'MoMo'
-        break
-      case 'zalo_pay':
-        paymentMethodText = 'Zalo Pay'
-        break
-      case 'vnpay':
-        paymentMethodText = 'VNPay'
-        break
-      case 'visa':
-        paymentMethodText = 'Visa'
-        break
-      case 'mastercard':
-        paymentMethodText = 'Mastercard'
-        break
-      default:
-        paymentMethodText = bill.paymentMethod || ''
-    }
+      const room = await databaseService.rooms.findOne({ _id: bill.roomId })
 
-    return new Promise((resolve, reject) => {
-      try {
-        const usb = require('usb')
-        if (typeof usb.on !== 'function') {
-          const { EventEmitter } = require('events')
-          Object.setPrototypeOf(usb, EventEmitter.prototype)
-          usb.on = EventEmitter.prototype.on
-        }
+      let paymentMethodText = ''
+      switch (bill.paymentMethod) {
+        case 'cash':
+          paymentMethodText = 'Tien mat'
+          break
+        case 'bank_transfer':
+          paymentMethodText = 'Chuyen khoan'
+          break
+        case 'momo':
+          paymentMethodText = 'MoMo'
+          break
+        case 'zalo_pay':
+          paymentMethodText = 'Zalo Pay'
+          break
+        case 'vnpay':
+          paymentMethodText = 'VNPay'
+          break
+        case 'visa':
+          paymentMethodText = 'Visa'
+          break
+        case 'mastercard':
+          paymentMethodText = 'Mastercard'
+          break
+        default:
+          paymentMethodText = bill.paymentMethod || ''
+      }
 
-        const USB = require('escpos-usb')
-        const escpos = require('escpos')
-        const devices = USB.findPrinter()
-
-        if (devices.length === 0) {
-          throw new Error('Khong tim thay may in USB')
-        }
-
-        // Lưu lại thông tin thiết bị tìm thấy để debug
-        const printerDevice = devices[0]
-
-        // Sử dụng thông tin từ thiết bị tìm thấy
-        const device = new USB(printerDevice.deviceDescriptor.idVendor, printerDevice.deviceDescriptor.idProduct)
-
-        // Sử dụng encoding GB18030 cho máy in Gainscha model GA-E200I
-        const printer = new escpos.Printer(device, { encoding: 'GB18030' })
-
-        // Định dạng ngày giờ
-        const formatDate = (date: Date) => {
-          return `${date.getDate()}/${date.getMonth() + 1}/${date.getFullYear()} ${date.getHours()}:${date.getMinutes()}`
-        }
-
-        // Tạo mã hóa đơn theo định dạng #DDMMHHMM (ngày, tháng, giờ, phút)
-        const now = new Date()
-        const invoiceCode = `#${now.getDate().toString().padStart(2, '0')}${(now.getMonth() + 1).toString().padStart(2, '0')}${now.getHours().toString().padStart(2, '0')}${now.getMinutes().toString().padStart(2, '0')}`
-
-        device.open((error: any) => {
-          if (error) {
-            return reject(new Error('Lỗi mở máy in: ' + error.message))
+      return new Promise((resolve, reject) => {
+        try {
+          const usb = require('usb')
+          if (typeof usb.on !== 'function') {
+            const { EventEmitter } = require('events')
+            Object.setPrototypeOf(usb, EventEmitter.prototype)
+            usb.on = EventEmitter.prototype.on
           }
 
-          // In hóa đơn
-          printer
-            .font('a')
-            .align('ct')
-            .style('b')
-            .size(1, 1)
-            .text('Jozo Music Box')
-            .text('HOA DON THANH TOAN')
-            .style('b')
-            .size(0, 0)
-            .text('--------------------------------------------')
-            .text(`Ma HD: ${invoiceCode}`)
-            .text(`${room?.roomName || 'Khong xac dinh'}`)
-            .align('lt')
-            .text(`Ngay: ${formatDate(new Date(bill.createdAt))}`)
-            .text(`Gio bat dau: ${dayjs(bill.startTime).format('HH:mm')}`)
-            .text(`Gio ket thuc: ${dayjs(bill.endTime).format('HH:mm')}`)
-            .align('ct')
-            .text('--------------------------------------------')
-            .style('b')
-            .text('CHI TIET DICH VU')
-            .style('b')
-            .text('--------------------------------------------')
+          const USB = require('escpos-usb')
+          const escpos = require('escpos')
+          const devices = USB.findPrinter()
 
-          // Tạo header cho bảng với khoảng cách đều hơn
-          const tableHeader = [
-            { text: 'Dich vu', width: 0.45, align: 'left' },
-            { text: 'SL', width: 0.15, align: 'center' },
-            { text: 'Don gia', width: 0.2, align: 'right' },
-            { text: 'T.Tien', width: 0.2, align: 'right' }
-          ]
+          if (devices.length === 0) {
+            throw new Error('Khong tim thay may in USB')
+          }
 
-          printer.tableCustom(tableHeader)
-          printer.text('--------------------------------------')
+          // Lưu lại thông tin thiết bị tìm thấy để debug
+          const printerDevice = devices[0]
 
-          // In chi tiết từng mục với định dạng cải thiện
-          bill.items.forEach((item) => {
-            let description = item.description
-            let quantity = item.quantity
+          // Sử dụng thông tin từ thiết bị tìm thấy
+          const device = new USB(printerDevice.deviceDescriptor.idVendor, printerDevice.deviceDescriptor.idProduct)
 
-            // Xử lý hiển thị cho phí dịch vụ thu âm
-            if (description === 'Phi dich vu thu am') {
-              quantity = Math.round(quantity * 10) / 10
-              description = 'Phi dich vu thu am'
+          // Sử dụng encoding GB18030 cho máy in Gainscha model GA-E200I
+          const printer = new escpos.Printer(device, { encoding: 'GB18030' })
+
+          // Định dạng ngày giờ
+          const formatDate = (date: Date) => {
+            return `${date.getDate()}/${date.getMonth() + 1}/${date.getFullYear()} ${date.getHours()}:${date.getMinutes()}`
+          }
+
+          // Tạo mã hóa đơn theo định dạng #DDMMHHMM (ngày, tháng, giờ, phút)
+          const now = new Date()
+          const invoiceCode = `#${now.getDate().toString().padStart(2, '0')}${(now.getMonth() + 1).toString().padStart(2, '0')}${now.getHours().toString().padStart(2, '0')}${now.getMinutes().toString().padStart(2, '0')}`
+
+          device.open((error: any) => {
+            if (error) {
+              return reject(new Error('Lỗi mở máy in: ' + error.message))
             }
 
-            // Giới hạn độ dài của description để tránh bị tràn
-            if (description.length > 20) {
-              description = description.substring(0, 17) + '...'
-            }
+            // In hóa đơn
+            printer
+              .font('a')
+              .align('ct')
+              .style('b')
+              .size(1, 1)
+              .text('Jozo Music Box')
+              .text('HOA DON THANH TOAN')
+              .style('b')
+              .size(0, 0)
+              .text('--------------------------------------------')
+              .text(`Ma HD: ${invoiceCode}`)
+              .text(`${room?.roomName || 'Khong xac dinh'}`)
+              .align('lt')
+              .text(`Ngay: ${formatDate(new Date(bill.createdAt))}`)
+              .text(`Gio bat dau: ${dayjs(bill.startTime).format('HH:mm')}`)
+              .text(`Gio ket thuc: ${dayjs(bill.endTime).format('HH:mm')}`)
+              .align('ct')
+              .text('--------------------------------------------')
+              .style('b')
+              .text('CHI TIET DICH VU')
+              .style('b')
+              .text('--------------------------------------------')
 
-            // Định dạng số tiền để hiển thị gọn hơn
-            const formattedPrice = item.price >= 1000 ? `${Math.floor(item.price / 1000)}K` : item.price.toString()
+            // Tạo header cho bảng với khoảng cách đều hơn
+            const tableHeader = [
+              { text: 'Dich vu', width: 0.45, align: 'left' },
+              { text: 'SL', width: 0.15, align: 'center' },
+              { text: 'Don gia', width: 0.2, align: 'right' },
+              { text: 'T.Tien', width: 0.2, align: 'right' }
+            ]
 
-            // Hiển thị giá gốc và giá sau khuyến mãi nếu có
-            let formattedTotal = ''
-            if (item.originalPrice && item.discountPercentage) {
-              // Giá đã giảm
-              const discountedPrice =
-                item.quantity * item.price - Math.floor((item.quantity * item.price * item.discountPercentage) / 100)
-              formattedTotal =
-                discountedPrice >= 1000 ? `${Math.floor(discountedPrice / 1000)}K` : discountedPrice.toString()
+            printer.tableCustom(tableHeader)
+            printer.text('--------------------------------------')
 
-              // In mục chính với giá gốc
-              printer.tableCustom([
-                { text: description, width: 0.45, align: 'left' },
-                { text: quantity.toString(), width: 0.15, align: 'center' },
-                { text: formattedPrice, width: 0.2, align: 'right' },
-                {
-                  text:
-                    item.originalPrice >= 1000
-                      ? `${Math.floor(item.originalPrice / 1000)}K`
-                      : item.originalPrice.toString(),
-                  width: 0.2,
-                  align: 'right'
-                }
-              ])
+            // In chi tiết từng mục với định dạng cải thiện
+            bill.items.forEach((item) => {
+              let description = item.description
+              let quantity = item.quantity
 
-              // Tính số tiền giảm giá
-              const discountAmount = Math.floor((item.quantity * item.price * item.discountPercentage) / 100)
-              const formattedDiscount =
-                discountAmount >= 1000 ? `-${Math.floor(discountAmount / 1000)}K` : `-${discountAmount}`
+              // Xử lý hiển thị cho phí dịch vụ thu âm
+              if (description === 'Phi dich vu thu am') {
+                quantity = Math.round(quantity * 10) / 10
+                description = 'Phi dich vu thu am'
+              }
 
-              // In thông tin khuyến mãi với dấu "-" ở cả tên và số tiền
-              printer.tableCustom([
-                {
-                  text: `  - ${item.discountName || ''} (${item.discountPercentage}%)`,
-                  width: 0.8,
-                  align: 'left'
-                },
-                { text: formattedDiscount, width: 0.2, align: 'right' }
-              ])
-            } else {
-              // Không có khuyến mãi, hiển thị bình thường
-              formattedTotal =
-                item.quantity * item.price >= 1000
-                  ? `${Math.floor((item.quantity * item.price) / 1000)}K`
-                  : (item.quantity * item.price).toString()
+              // Giới hạn độ dài của description để tránh bị tràn
+              if (description.length > 20) {
+                description = description.substring(0, 17) + '...'
+              }
 
-              // Cân đối lại các cột
-              printer.tableCustom([
-                { text: description, width: 0.45, align: 'left' },
-                { text: quantity.toString(), width: 0.15, align: 'center' },
-                { text: formattedPrice, width: 0.2, align: 'right' },
-                { text: formattedTotal, width: 0.2, align: 'right' }
-              ])
-            }
-          })
+              // Định dạng số tiền để hiển thị gọn hơn
+              const formattedPrice = item.price >= 1000 ? `${Math.floor(item.price / 1000)}K` : item.price.toString()
 
-          printer
-            .text('--------------------------------------------')
-            .align('rt')
-            .style('b')
-            .text(`TONG CONG: ${bill.totalAmount.toLocaleString('vi-VN')} VND`)
-            .align('lt')
-            .style('normal')
-            .text('--------------------------------------------')
-            .text(`Phuong thuc thanh toan: ${paymentMethodText}`)
-            .align('ct')
-            .text('--------------------------------------------')
-            .text('Cam on quy khach da su dung dich vu cua Jozo')
-            .text('Hen gap lai quy khach!')
-            .text('--------------------------------------------')
-            .align('ct')
-            .text('Dia chi: 247/5 Phan Trung, Tan Mai, Bien Hoa')
-            .text('Website: jozo.com.vn')
-            .style('i')
-            .text('Powered by Jozo')
-            .style('normal')
-            .feed(3) // Thêm 3 dòng trống ở cuối để tăng margin bottom
-            .cut()
-            .close(() => {
-              console.log('In hoa don thanh cong')
-              this.transactionHistory.push(bill)
-              resolve(bill)
+              // Hiển thị giá gốc và giá sau khuyến mãi nếu có
+              let formattedTotal = ''
+              if (item.originalPrice && item.discountPercentage) {
+                // Giá đã giảm
+                const discountedPrice =
+                  item.quantity * item.price - Math.floor((item.quantity * item.price * item.discountPercentage) / 100)
+                formattedTotal =
+                  discountedPrice >= 1000 ? `${Math.floor(discountedPrice / 1000)}K` : discountedPrice.toString()
+
+                // In mục chính với giá gốc
+                printer.tableCustom([
+                  { text: description, width: 0.45, align: 'left' },
+                  { text: quantity.toString(), width: 0.15, align: 'center' },
+                  { text: formattedPrice, width: 0.2, align: 'right' },
+                  {
+                    text:
+                      item.originalPrice >= 1000
+                        ? `${Math.floor(item.originalPrice / 1000)}K`
+                        : item.originalPrice.toString(),
+                    width: 0.2,
+                    align: 'right'
+                  }
+                ])
+
+                // Tính số tiền giảm giá
+                const discountAmount = Math.floor((item.quantity * item.price * item.discountPercentage) / 100)
+                const formattedDiscount =
+                  discountAmount >= 1000 ? `-${Math.floor(discountAmount / 1000)}K` : `-${discountAmount}`
+
+                // In thông tin khuyến mãi với dấu "-" ở cả tên và số tiền
+                printer.tableCustom([
+                  {
+                    text: `  - ${item.discountName || ''} (${item.discountPercentage}%)`,
+                    width: 0.8,
+                    align: 'left'
+                  },
+                  { text: formattedDiscount, width: 0.2, align: 'right' }
+                ])
+              } else {
+                // Không có khuyến mãi, hiển thị bình thường
+                formattedTotal =
+                  item.quantity * item.price >= 1000
+                    ? `${Math.floor((item.quantity * item.price) / 1000)}K`
+                    : (item.quantity * item.price).toString()
+
+                // Cân đối lại các cột
+                printer.tableCustom([
+                  { text: description, width: 0.45, align: 'left' },
+                  { text: quantity.toString(), width: 0.15, align: 'center' },
+                  { text: formattedPrice, width: 0.2, align: 'right' },
+                  { text: formattedTotal, width: 0.2, align: 'right' }
+                ])
+              }
             })
-        })
-      } catch (error) {
-        reject(error)
-      }
-    })
+
+            printer
+              .text('--------------------------------------------')
+              .align('rt')
+              .style('b')
+              .text(`TONG CONG: ${bill.totalAmount.toLocaleString('vi-VN')} VND`)
+              .align('lt')
+              .style('normal')
+              .text('--------------------------------------------')
+              .text(`Phuong thuc thanh toan: ${paymentMethodText}`)
+              .align('ct')
+              .text('--------------------------------------------')
+              .text('Cam on quy khach da su dung dich vu cua Jozo')
+              .text('Hen gap lai quy khach!')
+              .text('--------------------------------------------')
+              .align('ct')
+              .text('Dia chi: 247/5 Phan Trung, Tan Mai, Bien Hoa')
+              .text('Website: jozo.com.vn')
+              .style('i')
+              .text('Powered by Jozo')
+              .style('normal')
+              .feed(3) // Thêm 3 dòng trống ở cuối để tăng margin bottom
+              .cut()
+              .close(() => {
+                console.log('In hoa don thanh cong')
+                this.transactionHistory.push(bill)
+                resolve(bill)
+              })
+          })
+        } catch (error) {
+          reject(error)
+        }
+      })
+    } catch (error) {
+      console.error('Lỗi khi lưu hóa đơn:', error)
+      throw error
+    }
   }
 
   /**
@@ -591,68 +602,54 @@ export class BillService {
    * @returns Object containing total revenue and bill details
    */
   async getDailyRevenue(date: string): Promise<{ totalRevenue: number; bills: IBill[] }> {
-    // Parse the input date and adjust for Vietnam timezone
-    const inputDate = dayjs(date).tz('Asia/Ho_Chi_Minh')
-    const targetDate = inputDate.startOf('day')
-    const nextDay = targetDate.add(1, 'day')
+    try {
+      // Parse the input date in local timezone
+      const inputDate = dayjs(date)
 
-    // Convert to Date objects for MongoDB query
-    const startDate = targetDate.toDate()
-    const endDate = nextDay.toDate()
+      // Create date range for the specific day (from 00:00:00 to 23:59:59)
+      const startDate = inputDate.startOf('day').toDate()
+      const endDate = inputDate.endOf('day').toDate()
 
-    console.log(`Tìm hóa đơn từ [${startDate.toISOString()}] đến [${endDate.toISOString()}]`)
-    console.log(`Ngày được chỉ định: ${inputDate.format('YYYY-MM-DD')}`)
+      console.log(`Tìm hóa đơn từ [${startDate.toISOString()}] đến [${endDate.toISOString()}]`)
+      console.log(`Ngày được chỉ định: ${inputDate.format('YYYY-MM-DD')}`)
 
-    // Find all bills created on the target date, using createdAt
-    const bills = await databaseService.bills
-      .find({
-        createdAt: {
-          $gte: startDate,
-          $lt: endDate
-        }
-      })
-      .toArray()
+      // Tìm hóa đơn theo ngày cụ thể
+      const bills = await databaseService.bills
+        .find({
+          createdAt: {
+            $gte: startDate,
+            $lte: endDate
+          }
+        })
+        .toArray()
 
-    // Log số lượng hóa đơn tìm được
-    console.log(`Tìm thấy ${bills.length} hóa đơn theo createdAt`)
+      console.log(`Tìm thấy ${bills.length} hóa đơn cho ngày ${inputDate.format('YYYY-MM-DD')}`)
 
-    // Nếu không tìm thấy hóa đơn, thử kiểm tra tất cả hóa đơn để debug
-    if (bills.length === 0) {
-      const allBills = await databaseService.bills.find({}).limit(20).toArray()
-      console.log(`Danh sách ${allBills.length} hóa đơn gần nhất:`)
-      allBills.forEach((bill) => {
-        const createdAtDate = dayjs(bill.createdAt).tz('Asia/Ho_Chi_Minh').format('YYYY-MM-DD HH:mm:ss')
-        console.log(`- Hóa đơn ${bill._id}: createdAt=${createdAtDate}, totalAmount=${bill.totalAmount}`)
-      })
+      if (bills.length === 0) {
+        // Kiểm tra xem bills collection có dữ liệu không
+        const totalBills = await databaseService.bills.countDocuments({})
+        console.log(`Tổng số hóa đơn trong database: ${totalBills}`)
 
-      // Thử tìm kiếm bằng cách so sánh ngày tháng dưới dạng chuỗi
-      const dateString = inputDate.format('YYYY-MM-DD')
-      console.log(`Thử tìm hóa đơn cho ngày: ${dateString}`)
-
-      const manualFilteredBills = allBills.filter((bill) => {
-        const billDate = dayjs(bill.createdAt).tz('Asia/Ho_Chi_Minh').format('YYYY-MM-DD')
-        const matches = billDate === dateString
-        if (matches) {
-          console.log(`- Tìm thấy hóa đơn phù hợp: ${bill._id}, ngày ${billDate}`)
-        }
-        return matches
-      })
-
-      if (manualFilteredBills.length > 0) {
-        console.log(`Tìm thấy ${manualFilteredBills.length} hóa đơn bằng lọc thủ công theo ngày`)
-        return {
-          totalRevenue: manualFilteredBills.reduce((total, bill) => total + bill.totalAmount, 0),
-          bills: manualFilteredBills
+        // Lấy mẫu một số hóa đơn để debug
+        if (totalBills > 0) {
+          const sampleBills = await databaseService.bills.find({}).limit(5).toArray()
+          console.log('Mẫu một số hóa đơn:')
+          sampleBills.forEach((bill) => {
+            console.log(`- Bill ID: ${bill._id}, createdAt: ${bill.createdAt}, totalAmount: ${bill.totalAmount}`)
+          })
         }
       }
-    }
 
-    // Calculate the total revenue
-    const totalRevenue = bills.reduce((total, bill) => total + bill.totalAmount, 0)
+      // Tính tổng doanh thu
+      const totalRevenue = bills.reduce((total, bill) => total + bill.totalAmount, 0)
 
-    return {
-      totalRevenue,
-      bills
+      return {
+        totalRevenue,
+        bills
+      }
+    } catch (error) {
+      console.error('Lỗi khi lấy doanh thu theo ngày:', error)
+      throw error
     }
   }
 
@@ -664,38 +661,43 @@ export class BillService {
   async getWeeklyRevenue(
     date: string
   ): Promise<{ totalRevenue: number; bills: IBill[]; startDate: Date; endDate: Date }> {
-    // Parse the input date and get the start/end of the week (Vietnam timezone)
-    const targetDate = dayjs(date).tz('Asia/Ho_Chi_Minh')
-    const startOfWeek = targetDate.startOf('week')
-    const endOfWeek = targetDate.endOf('week')
+    try {
+      // Parse the input date and get the start/end of the week
+      const targetDate = dayjs(date)
+      const startOfWeek = targetDate.startOf('week')
+      const endOfWeek = targetDate.endOf('week')
 
-    // Convert to Date objects for MongoDB query
-    const startDate = startOfWeek.toDate()
-    const endDate = endOfWeek.toDate()
+      // Convert to Date objects for MongoDB query
+      const startDate = startOfWeek.toDate()
+      const endDate = endOfWeek.toDate()
 
-    console.log(`Tìm hóa đơn từ [${startDate.toISOString()}] đến [${endDate.toISOString()}]`)
-    console.log(`Tuần chứa ngày: ${targetDate.format('YYYY-MM-DD')}`)
+      console.log(`Tìm hóa đơn từ [${startDate.toISOString()}] đến [${endDate.toISOString()}]`)
+      console.log(`Tuần chứa ngày: ${targetDate.format('YYYY-MM-DD')}`)
 
-    // Find all bills created within the week
-    const bills = await databaseService.bills
-      .find({
-        createdAt: {
-          $gte: startDate,
-          $lte: endDate
-        }
-      })
-      .toArray()
+      // Find all bills created within the week
+      const bills = await databaseService.bills
+        .find({
+          createdAt: {
+            $gte: startDate,
+            $lte: endDate
+          }
+        })
+        .toArray()
 
-    console.log(`Tìm thấy ${bills.length} hóa đơn trong tuần`)
+      console.log(`Tìm thấy ${bills.length} hóa đơn trong tuần`)
 
-    // Calculate the total revenue
-    const totalRevenue = bills.reduce((total, bill) => total + bill.totalAmount, 0)
+      // Calculate the total revenue
+      const totalRevenue = bills.reduce((total, bill) => total + bill.totalAmount, 0)
 
-    return {
-      totalRevenue,
-      bills,
-      startDate,
-      endDate
+      return {
+        totalRevenue,
+        bills,
+        startDate,
+        endDate
+      }
+    } catch (error) {
+      console.error('Lỗi khi lấy doanh thu theo tuần:', error)
+      throw error
     }
   }
 
@@ -707,38 +709,43 @@ export class BillService {
   async getMonthlyRevenue(
     date: string
   ): Promise<{ totalRevenue: number; bills: IBill[]; startDate: Date; endDate: Date }> {
-    // Parse the input date and get the start/end of the month (Vietnam timezone)
-    const targetDate = dayjs(date).tz('Asia/Ho_Chi_Minh')
-    const startOfMonth = targetDate.startOf('month')
-    const endOfMonth = targetDate.endOf('month')
+    try {
+      // Parse the input date and get the start/end of the month
+      const targetDate = dayjs(date)
+      const startOfMonth = targetDate.startOf('month')
+      const endOfMonth = targetDate.endOf('month')
 
-    // Convert to Date objects for MongoDB query
-    const startDate = startOfMonth.toDate()
-    const endDate = endOfMonth.toDate()
+      // Convert to Date objects for MongoDB query
+      const startDate = startOfMonth.toDate()
+      const endDate = endOfMonth.toDate()
 
-    console.log(`Tìm hóa đơn từ [${startDate.toISOString()}] đến [${endDate.toISOString()}]`)
-    console.log(`Tháng: ${targetDate.format('MM/YYYY')}`)
+      console.log(`Tìm hóa đơn từ [${startDate.toISOString()}] đến [${endDate.toISOString()}]`)
+      console.log(`Tháng: ${targetDate.format('MM/YYYY')}`)
 
-    // Find all bills created within the month
-    const bills = await databaseService.bills
-      .find({
-        createdAt: {
-          $gte: startDate,
-          $lte: endDate
-        }
-      })
-      .toArray()
+      // Find all bills created within the month
+      const bills = await databaseService.bills
+        .find({
+          createdAt: {
+            $gte: startDate,
+            $lte: endDate
+          }
+        })
+        .toArray()
 
-    console.log(`Tìm thấy ${bills.length} hóa đơn trong tháng`)
+      console.log(`Tìm thấy ${bills.length} hóa đơn trong tháng`)
 
-    // Calculate the total revenue
-    const totalRevenue = bills.reduce((total, bill) => total + bill.totalAmount, 0)
+      // Calculate the total revenue
+      const totalRevenue = bills.reduce((total, bill) => total + bill.totalAmount, 0)
 
-    return {
-      totalRevenue,
-      bills,
-      startDate,
-      endDate
+      return {
+        totalRevenue,
+        bills,
+        startDate,
+        endDate
+      }
+    } catch (error) {
+      console.error('Lỗi khi lấy doanh thu theo tháng:', error)
+      throw error
     }
   }
 
@@ -752,45 +759,50 @@ export class BillService {
     startDate: string,
     endDate: string
   ): Promise<{ totalRevenue: number; bills: IBill[]; startDate: Date; endDate: Date }> {
-    // Parse the input dates (Vietnam timezone)
-    const start = dayjs(startDate).tz('Asia/Ho_Chi_Minh').startOf('day')
-    const end = dayjs(endDate).tz('Asia/Ho_Chi_Minh').endOf('day')
+    try {
+      // Parse the input dates
+      const start = dayjs(startDate).startOf('day')
+      const end = dayjs(endDate).endOf('day')
 
-    // Convert to Date objects for MongoDB query
-    const startDateObj = start.toDate()
-    const endDateObj = end.toDate()
+      // Convert to Date objects for MongoDB query
+      const startDateObj = start.toDate()
+      const endDateObj = end.toDate()
 
-    console.log(`Tìm hóa đơn từ [${startDateObj.toISOString()}] đến [${endDateObj.toISOString()}]`)
-    console.log(`Khoảng thời gian: ${start.format('DD/MM/YYYY')} - ${end.format('DD/MM/YYYY')}`)
+      console.log(`Tìm hóa đơn từ [${startDateObj.toISOString()}] đến [${endDateObj.toISOString()}]`)
+      console.log(`Khoảng thời gian: ${start.format('DD/MM/YYYY')} - ${end.format('DD/MM/YYYY')}`)
 
-    // Validate date range
-    if (start.isAfter(end)) {
-      throw new ErrorWithStatus({
-        message: 'Ngày bắt đầu phải trước ngày kết thúc',
-        status: HTTP_STATUS_CODE.BAD_REQUEST
-      })
-    }
+      // Validate date range
+      if (start.isAfter(end)) {
+        throw new ErrorWithStatus({
+          message: 'Ngày bắt đầu phải trước ngày kết thúc',
+          status: HTTP_STATUS_CODE.BAD_REQUEST
+        })
+      }
 
-    // Find all bills created within the date range
-    const bills = await databaseService.bills
-      .find({
-        createdAt: {
-          $gte: startDateObj,
-          $lte: endDateObj
-        }
-      })
-      .toArray()
+      // Find all bills created within the date range
+      const bills = await databaseService.bills
+        .find({
+          createdAt: {
+            $gte: startDateObj,
+            $lte: endDateObj
+          }
+        })
+        .toArray()
 
-    console.log(`Tìm thấy ${bills.length} hóa đơn trong khoảng thời gian chỉ định`)
+      console.log(`Tìm thấy ${bills.length} hóa đơn trong khoảng thời gian chỉ định`)
 
-    // Calculate the total revenue
-    const totalRevenue = bills.reduce((total, bill) => total + bill.totalAmount, 0)
+      // Calculate the total revenue
+      const totalRevenue = bills.reduce((total, bill) => total + bill.totalAmount, 0)
 
-    return {
-      totalRevenue,
-      bills,
-      startDate: startDateObj,
-      endDate: endDateObj
+      return {
+        totalRevenue,
+        bills,
+        startDate: startDateObj,
+        endDate: endDateObj
+      }
+    } catch (error) {
+      console.error('Lỗi khi lấy doanh thu theo khoảng thời gian:', error)
+      throw error
     }
   }
 }

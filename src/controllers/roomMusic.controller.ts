@@ -6,6 +6,7 @@ import { AddSongRequestBody } from '~/models/requests/Song.request'
 import redis from '~/services/redis.service'
 import { roomMusicServices } from '~/services/roomMusic.service'
 import serverService from '~/services/server.service'
+import { fetchVideoInfo } from '~/utils/common'
 
 /**
  * @description Add song to queue
@@ -450,5 +451,20 @@ export const sendNotification = async (req: Request, res: Response, next: NextFu
     })
   } catch (error) {
     next(error)
+  }
+}
+
+/**
+ * @description Stream video
+ * @path /song-queue/rooms/:roomId/stream-video
+ * @method GET
+ * @author QuangDoo
+ */
+export const streamVideo = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const data = await fetchVideoInfo(req.params.videoId)
+    res.status(HTTP_STATUS_CODE.OK).json({ result: data })
+  } catch (err) {
+    next(err)
   }
 }

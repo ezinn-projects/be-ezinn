@@ -1,12 +1,14 @@
 import { AddSongRequestBody } from '~/models/requests/Song.request'
 import redis from '~/services/redis.service'
 import { historyService } from '~/services/songHistory.service'
-import youtubeDl, { Payload } from 'youtube-dl-exec'
+import ytdl from 'youtube-dl-exec'
 import ytSearch from 'yt-search'
 import serverService from './server.service'
 import { EventEmitter } from 'events'
 
 export const roomMusicEventEmitter = new EventEmitter()
+
+const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36'
 
 class RoomMusicServices {
   async addSongToQueue(roomId: string, song: AddSongRequestBody, position: 'top' | 'end') {
@@ -142,47 +144,38 @@ class RoomMusicServices {
 
   /**
    * @description Lấy thông tin video từ YouTube và map thành AddSongRequestBody
-   * @param url - Đường dẫn video YouTube
+   * @param videoId - ID của video YouTube
    * @returns AddSongRequestBody
    * @author QuangDoo
    */
-  // chạy trong cùng container proxy (IP khớp với request ra ngoài)
   async getVideoInfo(videoId: string): Promise<AddSongRequestBody> {
-    try {
-      const videoUrl = `https://www.youtube.com/watch?v=${videoId}`
+    const videoUrl = `https://youtu.be/${videoId}`
 
-      // Configure youtube-dl with basic options
-      const info = (await youtubeDl(videoUrl, {
-        dumpSingleJson: true,
-        format: 'hls-*/best',
-        forceIpv4: true,
-        geoBypassCountry: 'VN',
-        // format: 'b', // Using 'b' instead of 'best' as recommended
-        addHeader: [
-          'referer: youtube.com',
-          'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 googlebot youtube.com',
-          'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-          'Accept-Language: en-US,en;q=0.5',
-          'Referer: https://www.youtube.com/',
-          'youtube-dl-options: --no-check-certificate --no-warnings --skip-download',
-          'user-agent:googlebot'
-        ],
-        // Basic options to improve reliability
-        noCheckCertificates: true,
-        noWarnings: true,
-        skipDownload: true
-      })) as Payload & { url: string }
+    /** Gọi yt‑dlp qua youtube‑dl‑exec – mất ~400 ms */
+    const info = (await ytdl(videoUrl, {
+      dumpSingleJson: true, // JSON duy nhất
+      noWarnings: true,
+      noCheckCertificates: true,
+      forceIpv4: true, // tránh IPv6 timeout
+      geoBypassCountry: 'VN', // né khoá vùng
+      // progressive ≤1080p; fallback 720p (22) → 360p (18)
+      format: 'bestvideo[height<=1080][vcodec^=avc1][ext=mp4]+bestaudio[ext=m4a]/22/18',
+      // để yt‑dlp tự thêm header vào kết quả
+      addHeader: [`User-Agent: ${UA}`, 'Referer: https://www.youtube.com/']
+    })) as any
 
-      return {
-        video_id: videoId,
-        title: info.title || '',
-        duration: info.duration,
-        url: info.url,
-        thumbnail: info.thumbnail || info.thumbnails?.[0]?.url,
-        author: info.uploader || 'Jozo music - recording'
-      }
-    } catch (error: unknown) {
-      throw new Error(`Failed to fetch video data: ${(error as Error).message}`)
+    /** tìm format đã "có sẵn audio" (progressive) */
+    const playable = info.formats.find((f: any) => f.vcodec !== 'none' && f.acodec !== 'none')
+    if (!playable) throw new Error('Không tìm thấy format MP4 phù hợp')
+
+    // Tạo và trả về đối tượng phù hợp với AddSongRequestBody
+    return {
+      video_id: videoId,
+      title: info.title ?? '',
+      duration: info.duration,
+      url: playable.url,
+      thumbnail: info.thumbnail ?? info.thumbnails?.[0]?.url,
+      author: info.uploader ?? 'Jozo music - recording'
     }
   }
 
