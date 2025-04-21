@@ -32,7 +32,22 @@ export const app = express()
 
 const port = 4000
 
-app.use(cors())
+app.use(
+  cors({
+    origin: [
+      'https://admin.jozo.com.vn',
+      'https://jozo.com.vn',
+      'https://video.jozo.com.vn',
+      'https://control.jozo.com.vn'
+    ], // hoặc mảng nếu có thêm domain khác
+    credentials: true, // bật Allow‑Credentials
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+  })
+)
+// bật pre‑flight cho tất cả
+app.options('*', cors())
+
 // parse application/json sang object
 app.use(express.json())
 
