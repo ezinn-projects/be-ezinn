@@ -2,7 +2,7 @@ import dayjs from 'dayjs'
 import * as escpos from 'escpos'
 import iconv from 'iconv-lite'
 import { ObjectId } from 'mongodb'
-import { DayType } from '~/constants/enum'
+import { DayType, RoomScheduleStatus } from '~/constants/enum'
 import { HTTP_STATUS_CODE } from '~/constants/httpStatus'
 import { ErrorWithStatus } from '~/models/Error'
 import { IBill } from '~/models/schemas/Bill.schema'
@@ -443,6 +443,30 @@ export class BillService {
 
   async printBill(billData: IBill): Promise<IBill> {
     try {
+      // Kiểm tra xem đã có hóa đơn tương tự trong khoảng thời gian gần đây không
+      // (trong vòng 5 phút gần đây)
+      const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000)
+
+      // Tìm tất cả hóa đơn trong khoảng thời gian gần đây
+      const recentBills = await databaseService.bills
+        .find({
+          createdAt: { $gte: fiveMinutesAgo }
+        })
+        .toArray()
+
+      // Tạo key cho hóa đơn hiện tại
+      const newBillKey = this.getBillUniqueKey(billData)
+
+      // Tìm hóa đơn trùng lặp dựa trên key
+      const existingBill = recentBills.find((bill) => this.getBillUniqueKey(bill) === newBillKey)
+
+      // Nếu đã có hóa đơn tương tự, trả về hóa đơn đó thay vì tạo mới
+      if (existingBill) {
+        console.log(`Tìm thấy hóa đơn tương tự đã tồn tại trong 5 phút qua.`)
+        console.log(`Sử dụng hóa đơn đã tồn tại: ${existingBill._id}`)
+        return existingBill
+      }
+
       const bill: IBill = {
         _id: new ObjectId(),
         scheduleId: new ObjectId(billData.scheduleId),
@@ -706,13 +730,34 @@ export class BillService {
       console.log(`Tìm hóa đơn từ [${startDate.toISOString()}] đến [${endDate.toISOString()}]`)
       console.log(`Ngày được chỉ định: ${inputDate.format('YYYY-MM-DD')}`)
 
-      // Tìm hóa đơn theo ngày cụ thể
+      // Tìm tất cả roomSchedules đã hoàn thành trong ngày này
+      const finishedSchedules = await databaseService.roomSchedule
+        .find({
+          // Trạng thái đã hoàn thành
+          status: RoomScheduleStatus.Finished,
+          // Thời gian kết thúc nằm trong ngày được chỉ định
+          endTime: {
+            $gte: startDate,
+            $lte: endDate
+          }
+        })
+        .toArray()
+
+      console.log(
+        `Tìm thấy ${finishedSchedules.length} lịch đặt phòng đã hoàn thành cho ngày ${inputDate.format('YYYY-MM-DD')}`
+      )
+
+      // Lấy danh sách scheduleId
+      const scheduleIds = finishedSchedules.map((schedule) => schedule._id)
+
+      // Tìm hóa đơn theo ngày cụ thể và chỉ lấy hóa đơn của các lịch đã hoàn thành
       const bills = await databaseService.bills
         .find({
           createdAt: {
             $gte: startDate,
             $lte: endDate
-          }
+          },
+          scheduleId: { $in: scheduleIds }
         })
         .toArray()
 
@@ -733,12 +778,34 @@ export class BillService {
         }
       }
 
-      // Tính tổng doanh thu
-      const totalRevenue = bills.reduce((total, bill) => total + bill.totalAmount, 0)
+      // Lọc bỏ hoá đơn trùng lặp dựa trên các thông tin quan trọng
+      const uniqueBillsMap = new Map<string, IBill>()
+
+      bills.forEach((bill) => {
+        // Tạo key duy nhất cho mỗi hóa đơn dựa trên các thông tin chính
+        const uniqueKey = this.getBillUniqueKey(bill)
+
+        // Nếu key chưa tồn tại hoặc bill hiện tại được tạo sau bill đã lưu
+        // thì sử dụng bill hiện tại (để lấy phiên bản mới nhất)
+        if (
+          !uniqueBillsMap.has(uniqueKey) ||
+          new Date(bill.createdAt) > new Date(uniqueBillsMap.get(uniqueKey)!.createdAt)
+        ) {
+          uniqueBillsMap.set(uniqueKey, bill)
+        }
+      })
+
+      // Chuyển map thành mảng
+      const uniqueBills = Array.from(uniqueBillsMap.values())
+
+      console.log(`Đã lọc từ ${bills.length} hóa đơn còn ${uniqueBills.length} hóa đơn sau khi xử lý trùng lặp`)
+
+      // Tính tổng doanh thu từ danh sách hóa đơn đã lọc
+      const totalRevenue = uniqueBills.reduce((total, bill) => total + bill.totalAmount, 0)
 
       return {
         totalRevenue,
-        bills
+        bills: uniqueBills
       }
     } catch (error) {
       console.error('Lỗi khi lấy doanh thu theo ngày:', error)
@@ -765,26 +832,67 @@ export class BillService {
       const endDate = endOfWeek.toDate()
 
       console.log(`Tìm hóa đơn từ [${startDate.toISOString()}] đến [${endDate.toISOString()}]`)
-      console.log(`Tuần chứa ngày: ${targetDate.format('YYYY-MM-DD')}`)
+      console.log(`Tuần: ${targetDate.week()} năm ${targetDate.year()}`)
 
-      // Find all bills created within the week
-      const bills = await databaseService.bills
+      // Tìm tất cả roomSchedules đã hoàn thành trong tuần này
+      const finishedSchedules = await databaseService.roomSchedule
         .find({
-          createdAt: {
+          // Trạng thái đã hoàn thành
+          status: RoomScheduleStatus.Finished,
+          // Thời gian kết thúc nằm trong tuần được chỉ định
+          endTime: {
             $gte: startDate,
             $lte: endDate
           }
         })
         .toArray()
 
+      console.log(`Tìm thấy ${finishedSchedules.length} lịch đặt phòng đã hoàn thành trong tuần`)
+
+      // Lấy danh sách scheduleId
+      const scheduleIds = finishedSchedules.map((schedule) => schedule._id)
+
+      // Find all bills created within the week and only for completed schedules
+      const bills = await databaseService.bills
+        .find({
+          createdAt: {
+            $gte: startDate,
+            $lte: endDate
+          },
+          scheduleId: { $in: scheduleIds }
+        })
+        .toArray()
+
       console.log(`Tìm thấy ${bills.length} hóa đơn trong tuần`)
 
-      // Calculate the total revenue
-      const totalRevenue = bills.reduce((total, bill) => total + bill.totalAmount, 0)
+      // Lọc bỏ hoá đơn trùng lặp dựa trên các thông tin quan trọng
+      const uniqueBillsMap = new Map<string, IBill>()
+
+      bills.forEach((bill) => {
+        // Tạo key duy nhất cho mỗi hóa đơn dựa trên các thông tin chính
+        const uniqueKey = this.getBillUniqueKey(bill)
+
+        // Nếu key chưa tồn tại hoặc bill hiện tại được tạo sau bill đã lưu
+        // thì sử dụng bill hiện tại (để lấy phiên bản mới nhất)
+        if (
+          !uniqueBillsMap.has(uniqueKey) ||
+          new Date(bill.createdAt) > new Date(uniqueBillsMap.get(uniqueKey)!.createdAt)
+        ) {
+          uniqueBillsMap.set(uniqueKey, bill)
+        }
+      })
+
+      // Chuyển map thành mảng
+      const uniqueBills = Array.from(uniqueBillsMap.values())
+
+      console.log(`Đã lọc từ ${bills.length} hóa đơn còn ${uniqueBills.length} hóa đơn sau khi xử lý trùng lặp`)
+
+      // Calculate the total revenue from filtered bills
+      const totalRevenue = uniqueBills.reduce((total, bill) => total + bill.totalAmount, 0)
 
       return {
         totalRevenue,
-        bills,
+        bills: uniqueBills,
         startDate,
         endDate
       }
@@ -815,24 +923,65 @@ export class BillService {
       console.log(`Tìm hóa đơn từ [${startDate.toISOString()}] đến [${endDate.toISOString()}]`)
       console.log(`Tháng: ${targetDate.format('MM/YYYY')}`)
 
-      // Find all bills created within the month
-      const bills = await databaseService.bills
+      // Tìm tất cả roomSchedules đã hoàn thành trong tháng này
+      const finishedSchedules = await databaseService.roomSchedule
         .find({
-          createdAt: {
+          // Trạng thái đã hoàn thành
+          status: RoomScheduleStatus.Finished,
+          // Thời gian kết thúc nằm trong tháng được chỉ định
+          endTime: {
             $gte: startDate,
             $lte: endDate
           }
         })
         .toArray()
 
+      console.log(`Tìm thấy ${finishedSchedules.length} lịch đặt phòng đã hoàn thành trong tháng`)
+
+      // Lấy danh sách scheduleId
+      const scheduleIds = finishedSchedules.map((schedule) => schedule._id)
+
+      // Find all bills created within the month and only for completed schedules
+      const bills = await databaseService.bills
+        .find({
+          createdAt: {
+            $gte: startDate,
+            $lte: endDate
+          },
+          scheduleId: { $in: scheduleIds }
+        })
+        .toArray()
+
       console.log(`Tìm thấy ${bills.length} hóa đơn trong tháng`)
 
-      // Calculate the total revenue
-      const totalRevenue = bills.reduce((total, bill) => total + bill.totalAmount, 0)
+      // Lọc bỏ hoá đơn trùng lặp dựa trên các thông tin quan trọng
+      const uniqueBillsMap = new Map<string, IBill>()
+
+      bills.forEach((bill) => {
+        // Tạo key duy nhất cho mỗi hóa đơn dựa trên các thông tin chính
+        const uniqueKey = this.getBillUniqueKey(bill)
+
+        // Nếu key chưa tồn tại hoặc bill hiện tại được tạo sau bill đã lưu
+        // thì sử dụng bill hiện tại (để lấy phiên bản mới nhất)
+        if (
+          !uniqueBillsMap.has(uniqueKey) ||
+          new Date(bill.createdAt) > new Date(uniqueBillsMap.get(uniqueKey)!.createdAt)
+        ) {
+          uniqueBillsMap.set(uniqueKey, bill)
+        }
+      })
+
+      // Chuyển map thành mảng
+      const uniqueBills = Array.from(uniqueBillsMap.values())
+
+      console.log(`Đã lọc từ ${bills.length} hóa đơn còn ${uniqueBills.length} hóa đơn sau khi xử lý trùng lặp`)
+
+      // Calculate the total revenue from filtered bills
+      const totalRevenue = uniqueBills.reduce((total, bill) => total + bill.totalAmount, 0)
 
       return {
         totalRevenue,
-        bills,
+        bills: uniqueBills,
         startDate,
         endDate
       }
@@ -872,29 +1021,248 @@ export class BillService {
         })
       }
 
-      // Find all bills created within the date range
-      const bills = await databaseService.bills
+      // Tìm tất cả roomSchedules đã hoàn thành trong khoảng thời gian này
+      const finishedSchedules = await databaseService.roomSchedule
         .find({
-          createdAt: {
+          // Trạng thái đã hoàn thành
+          status: RoomScheduleStatus.Finished,
+          // Thời gian kết thúc nằm trong khoảng thời gian được chỉ định
+          endTime: {
             $gte: startDateObj,
             $lte: endDateObj
           }
         })
         .toArray()
 
+      console.log(`Tìm thấy ${finishedSchedules.length} lịch đặt phòng đã hoàn thành trong khoảng thời gian chỉ định`)
+
+      // Lấy danh sách scheduleId
+      const scheduleIds = finishedSchedules.map((schedule) => schedule._id)
+
+      // Find all bills created within the date range and only for completed schedules
+      const bills = await databaseService.bills
+        .find({
+          createdAt: {
+            $gte: startDateObj,
+            $lte: endDateObj
+          },
+          scheduleId: { $in: scheduleIds }
+        })
+        .toArray()
+
       console.log(`Tìm thấy ${bills.length} hóa đơn trong khoảng thời gian chỉ định`)
 
-      // Calculate the total revenue
-      const totalRevenue = bills.reduce((total, bill) => total + bill.totalAmount, 0)
+      // Lọc bỏ hoá đơn trùng lặp dựa trên các thông tin quan trọng
+      const uniqueBillsMap = new Map<string, IBill>()
+
+      bills.forEach((bill) => {
+        // Tạo key duy nhất cho mỗi hóa đơn dựa trên các thông tin chính
+        const uniqueKey = this.getBillUniqueKey(bill)
+
+        // Nếu key chưa tồn tại hoặc bill hiện tại được tạo sau bill đã lưu
+        // thì sử dụng bill hiện tại (để lấy phiên bản mới nhất)
+        if (
+          !uniqueBillsMap.has(uniqueKey) ||
+          new Date(bill.createdAt) > new Date(uniqueBillsMap.get(uniqueKey)!.createdAt)
+        ) {
+          uniqueBillsMap.set(uniqueKey, bill)
+        }
+      })
+
+      // Chuyển map thành mảng
+      const uniqueBills = Array.from(uniqueBillsMap.values())
+
+      console.log(`Đã lọc từ ${bills.length} hóa đơn còn ${uniqueBills.length} hóa đơn sau khi xử lý trùng lặp`)
+
+      // Calculate the total revenue from filtered bills
+      const totalRevenue = uniqueBills.reduce((total, bill) => total + bill.totalAmount, 0)
 
       return {
         totalRevenue,
-        bills,
+        bills: uniqueBills,
         startDate: startDateObj,
         endDate: endDateObj
       }
     } catch (error) {
       console.error('Lỗi khi lấy doanh thu theo khoảng thời gian:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Tạo key duy nhất cho một hóa đơn dựa trên các thông tin chính
+   * @private
+   * @param bill - Hóa đơn cần tạo key
+   * @returns key duy nhất cho hóa đơn
+   */
+  private getBillUniqueKey(bill: IBill): string {
+    // Tạo hash string từ các mục trong hóa đơn
+    const itemsHash = bill.items
+      .map((item) => `${item.description}:${item.quantity}:${item.price}`)
+      .sort()
+      .join('|')
+
+    return `${bill.scheduleId}-${bill.roomId}-${new Date(bill.startTime).getTime()}-${new Date(bill.endTime).getTime()}-${bill.totalAmount}-${itemsHash}`
+  }
+
+  /**
+   * Dọn dẹp hóa đơn trùng lặp trong cơ sở dữ liệu
+   * @param dateString Ngày cần dọn dẹp (ISO string)
+   * @returns Số lượng hóa đơn trùng lặp đã xóa
+   */
+  async cleanDuplicateBills(dateString?: string): Promise<{
+    removedCount: number
+    beforeCount: number
+    afterCount: number
+  }> {
+    try {
+      let startDate: Date, endDate: Date
+
+      if (dateString) {
+        // Nếu có ngày cụ thể, chỉ xóa trong ngày đó
+        const date = dayjs(dateString)
+        startDate = date.startOf('day').toDate()
+        endDate = date.endOf('day').toDate()
+      } else {
+        // Mặc định, xóa tất cả hóa đơn trùng lặp (lấy ngày sớm nhất và muộn nhất)
+        const earliestBill = await databaseService.bills.findOne({}, { sort: { createdAt: 1 } })
+        const latestBill = await databaseService.bills.findOne({}, { sort: { createdAt: -1 } })
+
+        if (!earliestBill || !latestBill) {
+          return { removedCount: 0, beforeCount: 0, afterCount: 0 }
+        }
+
+        startDate = earliestBill.createdAt
+        endDate = latestBill.createdAt
+      }
+
+      // Tìm tất cả hóa đơn trong khoảng thời gian
+      const bills = await databaseService.bills
+        .find({
+          createdAt: {
+            $gte: startDate,
+            $lte: endDate
+          }
+        })
+        .toArray()
+
+      const beforeCount = bills.length
+      console.log(`Tìm thấy ${beforeCount} hóa đơn trong khoảng thời gian từ ${startDate} đến ${endDate}`)
+
+      if (bills.length === 0) {
+        return { removedCount: 0, beforeCount: 0, afterCount: 0 }
+      }
+
+      // Nhóm hóa đơn theo key duy nhất
+      const billGroups = new Map<string, IBill[]>()
+
+      bills.forEach((bill) => {
+        const key = this.getBillUniqueKey(bill)
+        if (!billGroups.has(key)) {
+          billGroups.set(key, [])
+        }
+        billGroups.get(key)!.push(bill)
+      })
+
+      // Tìm các hóa đơn trùng lặp (có hơn 1 hóa đơn với cùng key)
+      const duplicateBillIds: ObjectId[] = []
+
+      billGroups.forEach((group) => {
+        if (group.length > 1) {
+          // Sắp xếp theo createdAt để giữ lại hóa đơn mới nhất
+          group.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+
+          // Lấy tất cả IDs ngoại trừ cái đầu tiên (mới nhất)
+          const duplicateIds = group.slice(1).map((bill) => bill._id!)
+          duplicateBillIds.push(...duplicateIds)
+        }
+      })
+
+      console.log(`Tìm thấy ${duplicateBillIds.length} hóa đơn trùng lặp cần xóa`)
+
+      // Xóa các hóa đơn trùng lặp
+      if (duplicateBillIds.length > 0) {
+        const result = await databaseService.bills.deleteMany({
+          _id: { $in: duplicateBillIds }
+        })
+
+        const afterCount = beforeCount - result.deletedCount
+        console.log(`Đã xóa ${result.deletedCount} hóa đơn trùng lặp`)
+
+        return {
+          removedCount: result.deletedCount,
+          beforeCount,
+          afterCount
+        }
+      }
+
+      return {
+        removedCount: 0,
+        beforeCount,
+        afterCount: beforeCount
+      }
+    } catch (error) {
+      console.error('Lỗi khi dọn dẹp hóa đơn trùng lặp:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Dọn dẹp hóa đơn từ lịch đặt phòng chưa hoàn thành
+   * @returns Kết quả dọn dẹp
+   */
+  async cleanUpNonFinishedBills(): Promise<{
+    removedCount: number
+    beforeCount: number
+    afterCount: number
+  }> {
+    try {
+      // Lấy tất cả hóa đơn
+      const allBills = await databaseService.bills.find({}).toArray()
+      const beforeCount = allBills.length
+      console.log(`Tổng số hóa đơn hiện tại: ${beforeCount}`)
+
+      // Lấy tất cả lịch đặt phòng đã hoàn thành
+      const finishedSchedules = await databaseService.roomSchedule
+        .find({
+          status: RoomScheduleStatus.Finished
+        })
+        .toArray()
+
+      // Tạo map của các ID lịch đã hoàn thành để tra cứu nhanh
+      const finishedScheduleIds = new Set(finishedSchedules.map((schedule) => schedule._id.toString()))
+      console.log(`Số lượng lịch đặt phòng đã hoàn thành: ${finishedScheduleIds.size}`)
+
+      // Tìm các hóa đơn từ lịch chưa hoàn thành
+      const billsToRemove = allBills.filter((bill) => !finishedScheduleIds.has(bill.scheduleId.toString()))
+      console.log(`Số lượng hóa đơn thuộc về lịch chưa hoàn thành: ${billsToRemove.length}`)
+
+      if (billsToRemove.length === 0) {
+        return {
+          removedCount: 0,
+          beforeCount,
+          afterCount: beforeCount
+        }
+      }
+
+      // Lấy các ID hóa đơn cần xóa
+      const billIdsToRemove = billsToRemove.map((bill) => bill._id)
+
+      // Xóa các hóa đơn thuộc về lịch chưa hoàn thành
+      const result = await databaseService.bills.deleteMany({
+        _id: { $in: billIdsToRemove }
+      })
+
+      const afterCount = beforeCount - result.deletedCount
+      console.log(`Đã xóa ${result.deletedCount} hóa đơn thuộc về lịch chưa hoàn thành`)
+
+      return {
+        removedCount: result.deletedCount,
+        beforeCount,
+        afterCount
+      }
+    } catch (error) {
+      console.error('Lỗi khi dọn dẹp hóa đơn từ lịch chưa hoàn thành:', error)
       throw error
     }
   }

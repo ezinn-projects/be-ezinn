@@ -222,3 +222,57 @@ export const getCustomRangeRevenue = async (req: Request, res: Response) => {
     })
   }
 }
+
+/**
+ * Clean duplicate bills
+ * @param req Request object containing optional date in query params
+ * @param res Response object
+ * @returns Result of cleaning operation
+ */
+export const cleanDuplicateBills = async (req: Request, res: Response) => {
+  const { date } = req.query
+
+  try {
+    const result = await billService.cleanDuplicateBills(date as string)
+
+    return res.status(HTTP_STATUS_CODE.OK).json({
+      message: 'Dọn dẹp hóa đơn trùng lặp thành công',
+      result: {
+        beforeCount: result.beforeCount,
+        afterCount: result.afterCount,
+        removedCount: result.removedCount
+      }
+    })
+  } catch (error: any) {
+    return res.status(HTTP_STATUS_CODE.INTERNAL_SERVER_ERROR).json({
+      message: 'Lỗi khi dọn dẹp hóa đơn trùng lặp',
+      error: error.message || 'Unknown error'
+    })
+  }
+}
+
+/**
+ * Clean bills associated with non-finished room schedules
+ * @param req Request object
+ * @param res Response object
+ * @returns Result of cleaning operation
+ */
+export const cleanUpNonFinishedBills = async (req: Request, res: Response) => {
+  try {
+    const result = await billService.cleanUpNonFinishedBills()
+
+    return res.status(HTTP_STATUS_CODE.OK).json({
+      message: 'Dọn dẹp hóa đơn thuộc lịch chưa hoàn thành thành công',
+      result: {
+        beforeCount: result.beforeCount,
+        afterCount: result.afterCount,
+        removedCount: result.removedCount
+      }
+    })
+  } catch (error: any) {
+    return res.status(HTTP_STATUS_CODE.INTERNAL_SERVER_ERROR).json({
+      message: 'Lỗi khi dọn dẹp hóa đơn thuộc lịch chưa hoàn thành',
+      error: error.message || 'Unknown error'
+    })
+  }
+}

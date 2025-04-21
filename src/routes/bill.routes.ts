@@ -5,7 +5,9 @@ import {
   getDailyRevenue,
   getWeeklyRevenue,
   getMonthlyRevenue,
-  getCustomRangeRevenue
+  getCustomRangeRevenue,
+  cleanDuplicateBills,
+  cleanUpNonFinishedBills
 } from '~/controllers/bill.controller'
 import { protect } from '~/middlewares/auth.middleware'
 import { UserRole } from '~/constants/enum'
@@ -60,6 +62,20 @@ billRouter.get('/:scheduleId', protect([UserRole.Admin, UserRole.Staff]), wrapRe
  * @author: QuangDoo
  */
 billRouter.post('/:scheduleId', protect([UserRole.Admin, UserRole.Staff]), wrapRequestHandler(printBill))
+
+/**
+ * @route DELETE /bill/clean-duplicates
+ * @description Clean duplicate bills
+ * @access Private (Admin only)
+ */
+billRouter.delete('/clean-duplicates', protect([UserRole.Admin]), wrapRequestHandler(cleanDuplicateBills))
+
+/**
+ * @route DELETE /bill/clean-non-finished
+ * @description Clean bills associated with non-finished room schedules
+ * @access Private (Admin only)
+ */
+billRouter.delete('/clean-non-finished', protect([UserRole.Admin]), wrapRequestHandler(cleanUpNonFinishedBills))
 
 // /**
 //  * @route POST /bill/:scheduleId/generate

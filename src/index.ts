@@ -32,10 +32,21 @@ export const app = express()
 
 const port = 4000
 
+const allowedOrigins = [
+  'https://admin.jozo.com.vn',
+  'https://control.jozo.com.vn',
+  'https://video.jozo.com.vn',
+  'https://jozo.com.vn',
+  'http://localhost:3001',
+  'http://localhost:3002',
+  'http://localhost:5173',
+  'http://localhost:5174'
+]
+
 // Cấu hình CORS để chấp nhận mọi origin và các header cần thiết
 app.use(
   cors({
-    origin: ['https://admin.jozo.com.vn', 'https://control.jozo.com.vn', 'https://video.jozo.com.vn'],
+    origin: allowedOrigins,
     credentials: true,
     allowedHeaders: ['Content-Type', 'Authorization'],
     exposedHeaders: ['Authorization'],
@@ -46,7 +57,7 @@ app.use(
 app.options(
   '*',
   cors({
-    origin: ['https://admin.jozo.com.vn', 'https://control.jozo.com.vn', 'https://video.jozo.com.vn'],
+    origin: allowedOrigins,
     credentials: true,
     allowedHeaders: ['Content-Type', 'Authorization'],
     exposedHeaders: ['Authorization']
