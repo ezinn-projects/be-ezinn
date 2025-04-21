@@ -16,8 +16,13 @@ class Server {
     this.httpServer = createServer(this.app)
     this.io = new SocketIOServer(this.httpServer, {
       cors: {
-        origin: '*',
-        credentials: false
+        origin: (origin, callback) => {
+          // origin === undefined (Postman/server)
+          // callback(null, true) cho phép tất cả
+          callback(null, true)
+        },
+        credentials: true, // bật Access-Control-Allow-Credentials
+        methods: ['GET', 'POST', 'OPTIONS']
       },
       allowEIO3: true,
       transports: ['websocket', 'polling']
