@@ -32,21 +32,26 @@ export const app = express()
 
 const port = 4000
 
+// Cấu hình CORS để chấp nhận mọi origin và các header cần thiết
 app.use(
   cors({
-    origin: [
-      'https://admin.jozo.com.vn',
-      'https://jozo.com.vn',
-      'https://video.jozo.com.vn',
-      'https://control.jozo.com.vn'
-    ], // hoặc mảng nếu có thêm domain khác
-    credentials: true, // bật Allow‑Credentials
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization']
+    origin: true, // cho phép tất cả domain
+    credentials: true,
+    allowedHeaders: ['Content-Type', 'Authorization'], // đảm bảo header Authorization được chấp nhận
+    exposedHeaders: ['Authorization'], // expose header Authorization để client có thể đọc
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
   })
 )
-// bật pre‑flight cho tất cả
-app.options('*', cors())
+// Xử lý preflight requests
+app.options(
+  '*',
+  cors({
+    origin: true,
+    credentials: true,
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    exposedHeaders: ['Authorization']
+  })
+)
 
 // parse application/json sang object
 app.use(express.json())
