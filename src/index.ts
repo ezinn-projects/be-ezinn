@@ -35,8 +35,8 @@ const port = 4000
 // Cấu hình CORS để chấp nhận mọi origin và các header cần thiết
 app.use(
   cors({
-    origin: '*', // cho phép tất cả domain, sử dụng * thay vì true
-    credentials: false, // thay đổi thành false để phù hợp với server.service.ts
+    origin: ['https://admin.jozo.com.vn', 'https://control.jozo.com.vn', 'https://video.jozo.com.vn'],
+    credentials: true,
     allowedHeaders: ['Content-Type', 'Authorization'],
     exposedHeaders: ['Authorization'],
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
@@ -46,8 +46,8 @@ app.use(
 app.options(
   '*',
   cors({
-    origin: '*', // cập nhật tương tự
-    credentials: false, // cập nhật thành false
+    origin: ['https://admin.jozo.com.vn', 'https://control.jozo.com.vn', 'https://video.jozo.com.vn'],
+    credentials: true,
     allowedHeaders: ['Content-Type', 'Authorization'],
     exposedHeaders: ['Authorization']
   })

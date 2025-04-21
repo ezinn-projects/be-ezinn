@@ -16,10 +16,8 @@ class Server {
     this.httpServer = createServer(this.app)
     this.io = new SocketIOServer(this.httpServer, {
       cors: {
-        origin: '*', // Cho phép tất cả các origin
-        credentials: false,
-        methods: ['GET', 'POST', 'OPTIONS'],
-        allowedHeaders: ['Authorization', 'Content-Type'] // <-- thêm dòng này // Không yêu cầu credentials
+        origin: ['https://admin.jozo.com.vn', 'https://control.jozo.com.vn', 'https://video.jozo.com.vn'],
+        credentials: true
       },
       allowEIO3: true,
       transports: ['websocket', 'polling']
@@ -34,10 +32,8 @@ class Server {
   private initializeMiddleware() {
     this.app.use(
       cors({
-        origin: '*', // Cho phép tất cả các origin
-        credentials: false, // Không yêu cầu credentials
-        methods: ['GET', 'POST', 'OPTIONS'],
-        allowedHeaders: ['Authorization', 'Content-Type'] // <-- thêm dòng này // Không yêu cầu credentials
+        origin: ['https://admin.jozo.com.vn', 'https://control.jozo.com.vn', 'https://video.jozo.com.vn'],
+        credentials: true
       })
     )
     this.app.use(express.json())
