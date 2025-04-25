@@ -60,9 +60,13 @@ export const convertBookingToRoomSchedule = async (req: Request, res: Response, 
         message: 'Only pending bookings can be converted'
       })
     }
-
     // Chuyển đổi booking thành room schedules
-    const createdScheduleIds = await bookingService.convertClientBookingToRoomSchedule(booking)
+    // Chuyển đổi ObjectId sang string để phù hợp với định nghĩa IClientBooking
+    const bookingWithStringId = {
+      ...booking,
+      _id: booking._id.toString()
+    }
+    const createdScheduleIds = await bookingService.convertClientBookingToRoomSchedule(bookingWithStringId)
 
     return res.status(HTTP_STATUS_CODE.OK).json({
       message: 'Booking converted to room schedules successfully',
@@ -95,7 +99,12 @@ export const convertAllPendingBookings = async (req: Request, res: Response, nex
 
     for (const booking of pendingBookings) {
       try {
-        const scheduleIds = await bookingService.convertClientBookingToRoomSchedule(booking)
+        // Convert booking to have string _id to match IClientBooking type
+        const bookingWithStringId = {
+          ...booking,
+          _id: booking._id.toString()
+        }
+        const scheduleIds = await bookingService.convertClientBookingToRoomSchedule(bookingWithStringId)
         results.push({
           booking_id: booking._id,
           success: true,
