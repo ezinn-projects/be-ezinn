@@ -1,12 +1,7 @@
 # Sử dụng Node.js image chính thức dựa trên Debian
 FROM node:22
 
-# Cài yt-dlp và Python3 cho streaming HLS
-RUN apt-get update \
-  && apt-get install -y python3 python3-pip \
-  && pip3 install yt-dlp \
-  && rm -rf /var/lib/apt/lists/*
-
+# Không cần cài thêm build-base hay linux-headers vì image này đã có sẵn
 # Thiết lập thư mục làm việc trong container
 WORKDIR /usr/src/app
 
