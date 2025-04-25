@@ -199,6 +199,107 @@ class PromotionService {
     // If promotion doesn't apply to this item, return it unchanged
     return item
   }
+
+  /**
+   * Get all valid promotions (regardless of active status, but within date range)
+   * @param currentDate Current date to check against promotion date range
+   * @returns List of valid promotions
+   */
+  async getValidPromotions(currentDate: Date): Promise<IPromotion[]> {
+    // Find all promotions where the current date is between start and end date
+    const validPromotions = await databaseService.promotions
+      .find({
+        startDate: { $lte: currentDate },
+        endDate: { $gte: currentDate }
+      })
+      .toArray()
+
+    return validPromotions
+  }
+
+  /**
+   * Create predefined promotions for standard discounts
+   * @param useImmediateStart Whether to start promotions immediately for testing
+   * @returns Array of created promotion IDs
+   */
+  async createStandardDiscountPromotions(useImmediateStart: boolean = false): Promise<ObjectId[]> {
+    const standardDiscounts = [
+      {
+        name: 'discount 5%',
+        description: 'Grand opening - 5% discount',
+        discountPercentage: 5,
+        appliesTo: 'all' as 'all'
+      },
+      {
+        name: 'discount 10%',
+        description: 'Grand opening - 10% discount',
+        discountPercentage: 10,
+        appliesTo: 'all' as 'all'
+      },
+      {
+        name: 'discount 15%',
+        description: 'Grand opening - 15% discount',
+        discountPercentage: 15,
+        appliesTo: 'all' as 'all'
+      },
+      {
+        name: 'discount 20%',
+        description: 'Grand opening - 20% discount',
+        discountPercentage: 20,
+        appliesTo: 'all' as 'all'
+      },
+      {
+        name: 'discount 25%',
+        description: 'Grand opening - 25% discount',
+        discountPercentage: 25,
+        appliesTo: 'all' as 'all'
+      },
+      {
+        name: 'discount 30%',
+        description: 'Grand opening - 30% discount',
+        discountPercentage: 30,
+        appliesTo: 'all' as 'all'
+      }
+    ]
+
+    // Set the appropriate start date
+    const now = new Date()
+    let startDate: Date
+
+    if (useImmediateStart) {
+      // Start immediately for testing
+      startDate = now
+    } else {
+      // Set start date to the 26th of the current month
+      startDate = new Date(now.getFullYear(), now.getMonth(), 26, 0, 0, 0)
+    }
+
+    // Set end date to 1 year from the start date
+    const endDate = new Date(startDate)
+    endDate.setFullYear(endDate.getFullYear() + 1)
+
+    const createdPromotionIds: ObjectId[] = []
+
+    // Check if promotions with these names already exist
+    for (const discount of standardDiscounts) {
+      const existingPromotion = await databaseService.promotions.findOne({
+        name: discount.name,
+        discountPercentage: discount.discountPercentage
+      })
+
+      if (!existingPromotion) {
+        const id = await this.createPromotion({
+          ...discount,
+          startDate,
+          endDate,
+          isActive: false // These should not be active by default
+        })
+        createdPromotionIds.push(id)
+      }
+    }
+
+    return createdPromotionIds
+  }
 }
 
 const promotionService = new PromotionService()

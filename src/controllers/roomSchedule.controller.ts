@@ -9,6 +9,7 @@ import dayjs from 'dayjs'
 import utc from 'dayjs/plugin/utc'
 import timezone from 'dayjs/plugin/timezone'
 import { ObjectId } from 'mongodb'
+import { BookingSource } from '~/models/schemas/RoomSchdedule.schema'
 
 dayjs.extend(utc)
 dayjs.extend(timezone)
@@ -19,7 +20,7 @@ export const getSchedules = async (
     ParamsDictionary,
     any,
     any,
-    { roomId?: string; date?: string | string[]; status?: RoomScheduleStatus | string }
+    { roomId?: string; date?: string | string[]; status?: RoomScheduleStatus | string; source?: BookingSource | string }
   >,
   res: Response,
   next: NextFunction
@@ -30,7 +31,8 @@ export const getSchedules = async (
       roomId: req.query.roomId as string,
       // Nếu FE truyền date dưới dạng ISO có hậu tố Z, ví dụ "2025-03-15T17:00:00.000Z"
       date: req.query.date as string,
-      status: req.query.status as RoomScheduleStatus
+      status: req.query.status as RoomScheduleStatus,
+      source: req.query.source as BookingSource
     }
 
     const schedules = await roomScheduleService.getSchedules(filter)
@@ -73,7 +75,13 @@ export const createSchedule = async (
   next: NextFunction
 ) => {
   try {
-    const scheduleId = await roomScheduleService.createSchedule(req.body)
+    // Gán source mặc định là Staff cho các đặt phòng từ Admin/Staff
+    const scheduleData: IRoomScheduleRequestBody = {
+      ...req.body,
+      source: BookingSource.Staff // Đánh dấu nguồn là từ nhân viên
+    }
+
+    const scheduleId = await roomScheduleService.createSchedule(scheduleData)
     return res.status(HTTP_STATUS_CODE.CREATED).json({
       message: ROOM_SCHEDULE_MESSAGES.CREATE_SCHEDULE_SUCCESS,
       result: scheduleId
@@ -112,5 +120,29 @@ export const cancelSchedule = async (req: Request, res: Response, next: NextFunc
     return res.status(HTTP_STATUS_CODE.OK).json({ message: ROOM_SCHEDULE_MESSAGES.CANCEL_SCHEDULE_SUCCESS })
   } catch (err) {
     next(err)
+  }
+}
+
+/**
+ * @description Chuyển đổi booking sang room schedules
+ * @path /api/schedules/convert-booking/:id
+ * @method POST
+ */
+export const convertBookingToSchedules = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const bookingId = req.params.id
+
+    // Gọi service để tạo room schedules từ booking
+    const scheduleIds = await roomScheduleService.createSchedulesFromBooking(bookingId)
+
+    return res.status(HTTP_STATUS_CODE.OK).json({
+      message: 'Booking converted to room schedules successfully',
+      result: {
+        booking_id: bookingId,
+        schedule_ids: scheduleIds
+      }
+    })
+  } catch (error) {
+    next(error)
   }
 }

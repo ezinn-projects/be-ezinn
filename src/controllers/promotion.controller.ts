@@ -125,3 +125,50 @@ export const deletePromotion = async (req: Request, res: Response) => {
     result: { deletedCount }
   })
 }
+
+/**
+ * Get all promotions for checkout selection
+ * @param req Request
+ * @param res Response
+ */
+export const getPromotionsForCheckout = async (req: Request, res: Response) => {
+  // Get current date to filter only valid promotions (within start and end dates)
+  const currentDate = new Date()
+
+  // Get all promotions that are valid (current date is between start and end date)
+  // regardless of isActive status
+  const promotions = await promotionService.getValidPromotions(currentDate)
+
+  return res.status(HTTP_STATUS_CODE.OK).json({
+    message: 'Get promotions for checkout successfully',
+    result: promotions
+  })
+}
+
+/**
+ * Create standard discount promotions
+ * @param req Request
+ * @param res Response
+ */
+export const createStandardDiscountPromotions = async (req: Request, res: Response) => {
+  // Check if start date is provided for testing
+  const { startToday } = req.query
+  const useImmediateStart = startToday === 'true'
+
+  const promotionIds = await promotionService.createStandardDiscountPromotions(useImmediateStart)
+
+  // Get the appropriate start date for the message
+  const now = new Date()
+  const startDate = useImmediateStart ? now : new Date(now.getFullYear(), now.getMonth(), 26, 0, 0, 0)
+  const formattedDate = `${startDate.getDate()}/${startDate.getMonth() + 1}/${startDate.getFullYear()}`
+
+  return res.status(HTTP_STATUS_CODE.OK).json({
+    message: `Created standard discount promotions (5%, 10%, 15%, 20%, 25%, 30%) ${useImmediateStart ? 'starting immediately' : `scheduled to start on ${formattedDate}`}`,
+    result: {
+      count: promotionIds.length,
+      promotionIds,
+      startDate,
+      isImmediate: useImmediateStart
+    }
+  })
+}

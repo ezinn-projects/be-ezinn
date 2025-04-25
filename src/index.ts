@@ -18,6 +18,7 @@ import fnbOrderRouter from '~/routes/fnbOrder.route'
 import billRouter from '~/routes/bill.routes'
 import fnbMenuRouter from './routes/fnbMenu.routes'
 import promotionRouter from './routes/promotion.routes'
+import bookingRouter from './routes/booking.routes'
 // Khởi tạo các plugins cho dayjs
 dayjs.extend(utc)
 dayjs.extend(timezone)
@@ -88,6 +89,9 @@ app.use('/bill', billRouter)
 app.use('/fnb-menu', fnbMenuRouter)
 
 app.use('/promotions', promotionRouter)
+
+// Thêm route cho bookings API
+app.use('/bookings', bookingRouter)
 
 app.use(defaultErrorHandler)
 

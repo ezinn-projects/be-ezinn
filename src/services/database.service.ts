@@ -11,7 +11,23 @@ import { RoomScheduleFNBOrder } from '~/models/schemas/FNB.schema'
 import { FnbMenu } from '~/models/schemas/FnBMenu.schema'
 import { IPromotion } from '~/models/schemas/Promotion.schema'
 import { IBill } from '~/models/schemas/Bill.schema'
+import { ObjectId } from 'mongodb'
 dotenv.config()
+
+// Interface cho Client Booking
+interface IClientBooking {
+  _id?: string | ObjectId
+  customer_name: string
+  customer_phone: string
+  customer_email: string | null
+  room_type: string
+  booking_date: string
+  time_slots: string[]
+  status: string
+  total_price: number
+  created_at: string
+  room_schedules?: string[]
+}
 
 const DB_USERNAME = process.env.DB_USERNAME
 const DB_PASSWORD = process.env.DB_PASSWORD
@@ -84,6 +100,10 @@ class DatabaseService {
 
   get bills(): Collection<IBill> {
     return this.db.collection('bills')
+  }
+
+  get bookings(): Collection<IClientBooking> {
+    return this.db.collection('bookings')
   }
 }
 

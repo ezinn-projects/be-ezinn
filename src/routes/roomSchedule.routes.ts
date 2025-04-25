@@ -4,7 +4,8 @@ import {
   createSchedule,
   getSchedules,
   getSchedulesByRoom,
-  updateSchedule
+  updateSchedule,
+  convertBookingToSchedules
 } from '~/controllers/roomSchedule.controller'
 import { wrapRequestHandler } from '~/utils/handlers'
 import {
@@ -52,5 +53,12 @@ roomScheduleRouter.put(
   updateScheduleValidator,
   wrapRequestHandler(cancelSchedule)
 )
+
+/**
+ * @description Chuyển đổi booking sang room schedules
+ * @path /convert-booking/:id
+ * @method POST
+ */
+roomScheduleRouter.post('/convert-booking/:id', wrapRequestHandler(convertBookingToSchedules))
 
 export default roomScheduleRouter

@@ -1,9 +1,11 @@
 import { RoomScheduleStatus } from '~/constants/enum'
+import { BookingSource } from '~/models/schemas/RoomSchdedule.schema'
 
 export interface IRoomScheduleRequestQuery {
   roomId?: string
   date?: string
   status?: RoomScheduleStatus
+  source?: BookingSource
 }
 
 export interface IRoomScheduleRequestBody {
@@ -14,4 +16,5 @@ export interface IRoomScheduleRequestBody {
   createdBy?: string
   updatedBy?: string
   note?: string
+  source?: BookingSource
 }

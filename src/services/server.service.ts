@@ -16,7 +16,16 @@ class Server {
     this.httpServer = createServer(this.app)
     this.io = new SocketIOServer(this.httpServer, {
       cors: {
-        origin: ['https://admin.jozo.com.vn', 'https://control.jozo.com.vn', 'https://video.jozo.com.vn'],
+        origin: [
+          'https://admin.jozo.com.vn',
+          'https://control.jozo.com.vn',
+          'https://video.jozo.com.vn',
+          'https://jozo.com.vn',
+          'http://localhost:3001',
+          'http://localhost:3002',
+          'http://localhost:5173',
+          'http://localhost:5174'
+        ],
         credentials: true
       },
       allowEIO3: true,
@@ -32,7 +41,16 @@ class Server {
   private initializeMiddleware() {
     this.app.use(
       cors({
-        origin: ['https://admin.jozo.com.vn', 'https://control.jozo.com.vn', 'https://video.jozo.com.vn'],
+        origin: [
+          'https://admin.jozo.com.vn',
+          'https://control.jozo.com.vn',
+          'https://video.jozo.com.vn',
+          'https://jozo.com.vn',
+          'http://localhost:3001',
+          'http://localhost:3002',
+          'http://localhost:5173',
+          'http://localhost:5174'
+        ],
         credentials: true
       })
     )

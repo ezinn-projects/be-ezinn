@@ -1,11 +1,11 @@
 import { ObjectId } from 'mongodb'
 // import { IRoomScheduleRequestBody, IRoomScheduleRequestQuery } from '~/models/requests/RoomSchedule.request'
 import dayjs from 'dayjs'
-import { RoomScheduleStatus } from '~/constants/enum'
+import { RoomScheduleStatus, RoomType } from '~/constants/enum'
 import { HTTP_STATUS_CODE } from '~/constants/httpStatus'
 import { ErrorWithStatus } from '~/models/Error'
 import { IRoomScheduleRequestBody, IRoomScheduleRequestQuery } from '~/models/requests/RoomSchedule.request'
-import { RoomSchedule } from '~/models/schemas/RoomSchdedule.schema'
+import { BookingSource, RoomSchedule } from '~/models/schemas/RoomSchdedule.schema'
 import databaseService from './database.service'
 import { parseDate } from '~/utils/common'
 
@@ -25,6 +25,7 @@ class RoomScheduleService {
       roomId?: ObjectId
       startTime?: { $gte: Date; $lt: Date }
       status?: RoomSchedule['status']
+      source?: BookingSource
     } = {}
 
     if (filter.roomId) {
@@ -43,6 +44,11 @@ class RoomScheduleService {
 
     if (filter.status) {
       query.status = filter.status
+    }
+
+    // Thêm lọc theo source nếu được chỉ định
+    if (filter.source) {
+      query.source = filter.source
     }
 
     console.log('Final query:', query)
@@ -165,7 +171,8 @@ class RoomScheduleService {
       endTime,
       schedule.createdBy || 'system',
       schedule.updatedBy || 'system',
-      schedule.note
+      schedule.note,
+      schedule.source || BookingSource.Staff // Sử dụng source được cung cấp hoặc mặc định là Staff
     )
 
     const result = await databaseService.roomSchedule.insertOne(scheduleData)
@@ -293,6 +300,211 @@ class RoomScheduleService {
       // (Optional) Emit event hoặc gửi thông báo tới client nếu cần
     } catch (error) {
       console.error('Error in autoFinishAllScheduleInADay:', error)
+    }
+  }
+
+  /**
+   * Tạo room schedules từ client bookings
+   * @param bookingId - ID của booking cần chuyển đổi
+   * @returns mảng các ObjectID của room schedules đã tạo
+   */
+  async createSchedulesFromBooking(bookingId: string) {
+    try {
+      // Tìm booking với ID đã cho, sử dụng ObjectId
+      const booking = await databaseService.bookings.findOne({ _id: new ObjectId(bookingId) })
+
+      if (!booking) {
+        throw new ErrorWithStatus({
+          message: 'Booking not found',
+          status: HTTP_STATUS_CODE.NOT_FOUND
+        })
+      }
+
+      if (booking.status !== 'pending') {
+        throw new ErrorWithStatus({
+          message: 'Only pending bookings can be converted',
+          status: HTTP_STATUS_CODE.BAD_REQUEST
+        })
+      }
+
+      // Tìm room phù hợp với room_type
+      const roomType = this.mapClientRoomTypeToEnum(booking.room_type)
+      const room = await databaseService.rooms.findOne({ roomType })
+
+      if (!room) {
+        throw new ErrorWithStatus({
+          message: `No available room found for type: ${booking.room_type}`,
+          status: HTTP_STATUS_CODE.NOT_FOUND
+        })
+      }
+
+      // Mảng chứa ID của các room schedules đã tạo
+      const createdScheduleIds: ObjectId[] = []
+
+      const timeZone = 'Asia/Ho_Chi_Minh'
+
+      // Tạo room schedules cho từng time slot
+      for (const timeSlot of booking.time_slots) {
+        const [startTimeStr, endTimeStr] = timeSlot.split('-')
+
+        // Tạo đối tượng ngày-giờ cho startTime và endTime
+        const bookingDate = booking.booking_date // YYYY-MM-DD
+
+        const startTime = dayjs.tz(`${bookingDate} ${startTimeStr}`, 'YYYY-MM-DD HH:mm', timeZone).toDate()
+        const endTime = dayjs.tz(`${bookingDate} ${endTimeStr}`, 'YYYY-MM-DD HH:mm', timeZone).toDate()
+
+        // Tạo đối tượng RoomSchedule mới đánh dấu là từ khách hàng
+        const newSchedule = new RoomSchedule(
+          room._id.toString(),
+          startTime,
+          RoomScheduleStatus.Booked,
+          endTime,
+          'web_customer', // createdBy - đánh dấu người tạo là khách web
+          'web_customer', // updatedBy
+          `Booking by ${booking.customer_name} (${booking.customer_phone})`, // note
+          BookingSource.Customer // đánh dấu nguồn đặt phòng là từ khách hàng
+        )
+
+        // Lưu trực tiếp vào database không qua hàm createSchedule
+        const result = await databaseService.roomSchedule.insertOne(newSchedule)
+        createdScheduleIds.push(result.insertedId)
+      }
+
+      // Cập nhật trạng thái booking
+      await databaseService.bookings.updateOne(
+        { _id: new ObjectId(bookingId) },
+        {
+          $set: {
+            status: 'confirmed',
+            room_schedules: createdScheduleIds.map((id) => id.toString())
+          }
+        }
+      )
+
+      return createdScheduleIds
+    } catch (error) {
+      console.error('Error creating schedules from booking:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Chuyển đổi room_type của client sang RoomType enum
+   */
+  private mapClientRoomTypeToEnum(clientRoomType: string): RoomType {
+    switch (clientRoomType.toLowerCase()) {
+      case 'small':
+        return RoomType.Small
+      case 'medium':
+        return RoomType.Medium
+      case 'large':
+        return RoomType.Large
+      default:
+        throw new ErrorWithStatus({
+          message: `Invalid room type: ${clientRoomType}`,
+          status: HTTP_STATUS_CODE.BAD_REQUEST
+        })
+    }
+  }
+
+  /**
+   * Tự động chuyển đổi booking mới thành room schedules
+   * @param booking - Thông tin booking từ client
+   * @returns mảng các ObjectId của room schedules đã tạo
+   */
+  async autoCreateSchedulesFromNewBooking(booking: any) {
+    try {
+      // Kiểm tra booking phải có status là "pending"
+      if (booking.status !== 'pending') {
+        throw new ErrorWithStatus({
+          message: 'Only pending bookings can be converted',
+          status: HTTP_STATUS_CODE.BAD_REQUEST
+        })
+      }
+
+      // Tìm room phù hợp với room_type
+      const roomType = this.mapClientRoomTypeToEnum(booking.room_type)
+      const room = await databaseService.rooms.findOne({ roomType })
+
+      if (!room) {
+        throw new ErrorWithStatus({
+          message: `No available room found for type: ${booking.room_type}`,
+          status: HTTP_STATUS_CODE.NOT_FOUND
+        })
+      }
+
+      // Mảng chứa ID của các room schedules đã tạo
+      const createdScheduleIds: ObjectId[] = []
+
+      const timeZone = 'Asia/Ho_Chi_Minh'
+
+      // Tạo room schedules cho từng time slot
+      for (const timeSlot of booking.time_slots) {
+        const [startTimeStr, endTimeStr] = timeSlot.split('-')
+
+        // Tạo đối tượng ngày-giờ cho startTime và endTime
+        const bookingDate = booking.booking_date // YYYY-MM-DD
+
+        const startTime = dayjs.tz(`${bookingDate} ${startTimeStr}`, 'YYYY-MM-DD HH:mm', timeZone).toDate()
+        const endTime = dayjs.tz(`${bookingDate} ${endTimeStr}`, 'YYYY-MM-DD HH:mm', timeZone).toDate()
+
+        // Kiểm tra xem time slot đã được đặt chưa
+        const existingSchedule = await databaseService.roomSchedule.findOne({
+          roomId: room._id,
+          status: { $nin: [RoomScheduleStatus.Cancelled, RoomScheduleStatus.Finished] },
+          $or: [
+            {
+              startTime: { $lt: endTime },
+              endTime: { $gt: startTime }
+            },
+            {
+              endTime: null,
+              startTime: { $lt: endTime }
+            }
+          ]
+        })
+
+        if (existingSchedule) {
+          throw new ErrorWithStatus({
+            message: `Time slot ${timeSlot} is already booked for this room`,
+            status: HTTP_STATUS_CODE.CONFLICT
+          })
+        }
+
+        // Tạo đối tượng RoomSchedule mới đánh dấu là từ khách hàng
+        const newSchedule = new RoomSchedule(
+          room._id.toString(),
+          startTime,
+          RoomScheduleStatus.Booked,
+          endTime,
+          'web_customer', // createdBy - đánh dấu người tạo là khách web
+          'web_customer', // updatedBy
+          `Booking by ${booking.customer_name} (${booking.customer_phone})`, // note
+          BookingSource.Customer // đánh dấu nguồn đặt phòng là từ khách hàng
+        )
+
+        // Lưu trực tiếp vào database không qua hàm createSchedule
+        const result = await databaseService.roomSchedule.insertOne(newSchedule)
+        createdScheduleIds.push(result.insertedId)
+      }
+
+      // Cập nhật trạng thái booking thành confirmed ngay
+      if (booking._id) {
+        await databaseService.bookings.updateOne(
+          { _id: typeof booking._id === 'string' ? new ObjectId(booking._id) : booking._id },
+          {
+            $set: {
+              status: 'confirmed',
+              room_schedules: createdScheduleIds.map((id) => id.toString())
+            }
+          }
+        )
+      }
+
+      return createdScheduleIds
+    } catch (error) {
+      console.error('Error auto-creating schedules from new booking:', error)
+      throw error
     }
   }
 }

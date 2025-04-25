@@ -82,19 +82,38 @@ export class BillService {
     }
   }
 
-  private calculateHours(start: Date, end: Date): number {
-    const diffInMs = end.getTime() - start.getTime()
-    const diffInHours = diffInMs / (1000 * 60 * 60)
+  /**
+   * Calculate hours between two dates
+   * @param start Start date
+   * @param end End date
+   * @returns Number of hours
+   */
+  calculateHours(start: Date | string, end: Date | string): number {
+    const startDate = dayjs(start)
+    const endDate = dayjs(end)
 
-    // Tính toán số giờ và phút
-    const hours = Math.floor(diffInHours)
-    const minutes = Math.floor((diffInHours - hours) * 60)
+    // Check if end date is before start date, which would produce negative values
+    if (endDate.isBefore(startDate)) {
+      console.warn(`Warning: End date (${endDate.format()}) is before start date (${startDate.format()})`)
+      // Return a small positive value to avoid negative calculations
+      return 0.5
+    }
+
+    // Calculate difference in milliseconds
+    const diffMilliseconds = endDate.diff(startDate)
+    // Convert to hours
+    const diffHours = diffMilliseconds / (1000 * 60 * 60)
+
+    // Tính toán số giờ và phút (như logic cũ)
+    const hours = Math.floor(diffHours)
+    const minutes = Math.floor((diffHours - hours) * 60)
 
     // Tính giờ theo tỷ lệ phút sử dụng thực tế
     // Nếu phút > 0, tính theo tỷ lệ phút/60 thay vì làm tròn lên 1 giờ
     if (minutes > 0) {
       return parseFloat((hours + minutes / 60).toFixed(2))
     }
+
     return hours
   }
 
@@ -177,7 +196,12 @@ export class BillService {
     return priceEntry.price
   }
 
-  async getBill(scheduleId: string, actualEndTime?: string, paymentMethod?: string): Promise<IBill> {
+  async getBill(
+    scheduleId: string,
+    actualEndTime?: string,
+    paymentMethod?: string,
+    promotionId?: string
+  ): Promise<IBill> {
     const id = new ObjectId(scheduleId)
     const schedule = await databaseService.roomSchedule.findOne({ _id: id })
     const orders = await databaseService.fnbOrder.find({ roomScheduleId: id }).toArray()
@@ -372,8 +396,15 @@ export class BillService {
       }
     }
 
-    // Lấy active promotion
-    const activePromotion = await promotionService.getActivePromotion()
+    // Lấy khuyến mãi đang hoạt động
+    let activePromotion = null
+
+    // If a specific promotionId is provided, use that instead of the active promotion
+    if (promotionId) {
+      activePromotion = await promotionService.getPromotionById(promotionId)
+    } else {
+      activePromotion = await promotionService.getActivePromotion()
+    }
 
     // Áp dụng khuyến mãi nếu có
     if (activePromotion) {

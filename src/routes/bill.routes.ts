@@ -7,7 +7,8 @@ import {
   getMonthlyRevenue,
   getCustomRangeRevenue,
   cleanDuplicateBills,
-  cleanUpNonFinishedBills
+  cleanUpNonFinishedBills,
+  testBillWithDiscount
 } from '~/controllers/bill.controller'
 import { protect } from '~/middlewares/auth.middleware'
 import { UserRole } from '~/constants/enum'
@@ -76,6 +77,17 @@ billRouter.delete('/clean-duplicates', protect([UserRole.Admin]), wrapRequestHan
  * @access Private (Admin only)
  */
 billRouter.delete('/clean-non-finished', protect([UserRole.Admin]), wrapRequestHandler(cleanUpNonFinishedBills))
+
+/**
+ * @route POST /bill/:scheduleId/test-discount
+ * @description Test bill with different discount percentages without saving
+ * @access Private
+ */
+billRouter.post(
+  '/:scheduleId/test-discount',
+  protect([UserRole.Admin, UserRole.Staff]),
+  wrapRequestHandler(testBillWithDiscount)
+)
 
 // /**
 //  * @route POST /bill/:scheduleId/generate
