@@ -5,7 +5,7 @@ import { RoomStatus, RoomType } from '~/constants/enum'
 export interface IRoom {
   _id: ObjectId
   roomName: string
-  roomType: RoomType
+  roomType: string | RoomType // Chấp nhận cả string và enum RoomType
   status: RoomStatus // e.g., AVAILABLE, UNAVAILABLE
   description?: string
   createdAt: Date
@@ -15,7 +15,7 @@ export interface IRoom {
 export class Room {
   _id?: ObjectId
   roomName: string
-  roomType: RoomType
+  roomType: string | RoomType // Chấp nhận cả string và enum RoomType
   description?: string
   status: RoomStatus
   createdAt: Date

@@ -12,6 +12,7 @@ import {
   removeAllSongsInQueue,
   removeSong,
   sendNotification,
+  streamVideo,
   updateQueue
 } from '~/controllers/roomMusic.controller'
 import { VideoSchema } from '~/models/schemas/Video.schema'
@@ -267,5 +268,13 @@ roomMusicRouter.put('/:roomId/queue', wrapRequestHandler(updateQueue))
  * @author QuangDoo
  */
 roomMusicRouter.post('/:roomId/send-notification', wrapRequestHandler(sendNotification))
+
+/**
+ * @description Stream video
+ * @path /rooms/:roomId/:videoId/stream
+ * @method GET
+ * @author QuangDoo
+ */
+roomMusicRouter.get('/:roomId/:videoId/stream', wrapRequestHandler(streamVideo))
 
 export default roomMusicRouter

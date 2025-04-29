@@ -8,6 +8,11 @@ import { EventEmitter } from 'events'
 
 export const roomEventEmitter = new EventEmitter()
 
+// Add method to emit booking notifications
+export const emitBookingNotification = (roomId: string, bookingData: any) => {
+  roomEventEmitter.emit('new_booking', { roomId, booking: bookingData })
+}
+
 class RoomServices {
   async addRoom(payload: IAddRoomRequestBody) {
     const result = await databaseService.rooms.insertOne({

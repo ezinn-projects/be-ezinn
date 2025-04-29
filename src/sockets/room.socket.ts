@@ -35,6 +35,14 @@ export const RoomSocket = (io: Server) => {
     io.to(roomId).emit('videos_turned_off', { status: 'off' })
   })
 
+  // Listen for booking notifications
+  roomEventEmitter.on('new_booking', ({ roomId, booking }) => {
+    console.log(`New booking notification for room ${roomId}:`, booking)
+    io.to(roomId).emit('new_booking', booking)
+    // Also emit to admin room
+    io.to('admin').emit('booking_notification', { roomId, booking })
+  })
+
   // Listen for roomMusic events
   roomMusicEventEmitter.on('admin_notification', (notification) => {
     io.to('admin').emit('notification', notification)

@@ -1,24 +1,25 @@
 import cors from 'cors'
+import dayjs from 'dayjs'
+import timezone from 'dayjs/plugin/timezone'
+import utc from 'dayjs/plugin/utc'
 import express from 'express'
+import { finishSchedulerInADay, startBookingScheduler } from '~/jobs/bookingScheduler'
 import { defaultErrorHandler } from '~/middlewares/error.middleware'
+import billRouter from '~/routes/bill.routes'
+import bookingRouter from '~/routes/booking.routes'
 import fileRouter from '~/routes/file.routes'
+import fnbMenuRouter from '~/routes/fnbMenu.routes'
+import fnbOrderRouter from '~/routes/fnbOrder.route'
 import priceRouter from '~/routes/price.routes'
+import promotionRouter from '~/routes/promotion.routes'
 import roomRouter from '~/routes/room.routes'
 import roomMusicRouter from '~/routes/roomMusic.routes'
+import roomScheduleRouter from '~/routes/roomSchedule.routes'
+import roomTypeRouter from '~/routes/roomType.routes'
 import usersRouter from '~/routes/users.routes'
 import databaseService from '~/services/database.service'
 import serverService from '~/services/server.service'
-import roomTypeRouter from '~/routes/roomType.routes'
-import roomScheduleRouter from '~/routes/roomSchedule.routes'
-import dayjs from 'dayjs'
-import utc from 'dayjs/plugin/utc'
-import timezone from 'dayjs/plugin/timezone'
-import { finishSchedulerInADay, startBookingScheduler } from '~/jobs/bookingScheduler'
-import fnbOrderRouter from '~/routes/fnbOrder.route'
-import billRouter from '~/routes/bill.routes'
-import fnbMenuRouter from './routes/fnbMenu.routes'
-import promotionRouter from './routes/promotion.routes'
-import bookingRouter from './routes/booking.routes'
+import { startScheduledJobs } from './jobs'
 // Khởi tạo các plugins cho dayjs
 dayjs.extend(utc)
 dayjs.extend(timezone)
@@ -101,6 +102,10 @@ startBookingScheduler()
 // Start auto finish all schedule in a day
 finishSchedulerInADay()
 
+// Start the server
 app.listen(port, () => {
-  console.log(`App listening on port ${port}`)
+  console.log(`Server is running at http://localhost:${port}`)
+
+  // Start the scheduled jobs
+  startScheduledJobs()
 })

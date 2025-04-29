@@ -12,6 +12,7 @@ import { FnbMenu } from '~/models/schemas/FnBMenu.schema'
 import { IPromotion } from '~/models/schemas/Promotion.schema'
 import { IBill } from '~/models/schemas/Bill.schema'
 import { ObjectId } from 'mongodb'
+import { IHoliday } from '~/models/schemas/Holiday.schema'
 dotenv.config()
 
 // Interface cho Client Booking
@@ -104,6 +105,10 @@ class DatabaseService {
 
   get bookings(): Collection<IClientBooking> {
     return this.db.collection('bookings')
+  }
+
+  get holidays(): Collection<IHoliday> {
+    return this.db.collection('holidays')
   }
 }
 

@@ -8,6 +8,7 @@ import { ErrorWithStatus } from '~/models/Error'
 import { IBill } from '~/models/schemas/Bill.schema'
 import databaseService from './database.service'
 import promotionService from './promotion.service'
+import { holidayService } from './holiday.service'
 import utc from 'dayjs/plugin/utc'
 import timezone from 'dayjs/plugin/timezone'
 
@@ -73,7 +74,14 @@ export class BillService {
     }
   }
 
-  private determineDayType(date: Date): DayType {
+  private async determineDayType(date: Date): Promise<DayType> {
+    // Check if it's a holiday first
+    const isHoliday = await holidayService.isHoliday(date)
+    if (isHoliday) {
+      return DayType.Holiday
+    }
+
+    // If not a holiday, check if it's weekend
     const day = date.getDay()
     if (day === 0 || day === 6) {
       return DayType.Weekend
@@ -214,7 +222,7 @@ export class BillService {
         status: HTTP_STATUS_CODE.NOT_FOUND
       })
     }
-    const dayType = this.determineDayType(new Date(schedule.startTime))
+    const dayType = await this.determineDayType(new Date(schedule.startTime))
     const endTime = actualEndTime ? new Date(actualEndTime) : new Date(schedule.endTime as Date)
     if (!dayjs(endTime).isValid()) {
       throw new ErrorWithStatus({
@@ -651,60 +659,58 @@ export class BillService {
               // Định dạng số tiền để hiển thị gọn hơn
               const formattedPrice = item.price >= 1000 ? `${Math.floor(item.price / 1000)}K` : item.price.toString()
 
-              // Hiển thị giá gốc và giá sau khuyến mãi nếu có
-              let formattedTotal = ''
-              if (item.originalPrice && item.discountPercentage) {
-                // Giá đã giảm
-                const discountedPrice =
-                  item.quantity * item.price - Math.floor((item.quantity * item.price * item.discountPercentage) / 100)
-                formattedTotal =
-                  discountedPrice >= 1000 ? `${Math.floor(discountedPrice / 1000)}K` : discountedPrice.toString()
+              // Tính và hiển thị tổng tiền của item mà không áp dụng giảm giá
+              const itemTotalPrice = item.quantity * item.price
+              const formattedTotal =
+                itemTotalPrice >= 1000 ? `${Math.floor(itemTotalPrice / 1000)}K` : itemTotalPrice.toString()
 
-                // In mục chính với giá gốc
-                printer.tableCustom([
-                  { text: description, width: 0.45, align: 'left' },
-                  { text: quantity.toString(), width: 0.15, align: 'center' },
-                  { text: formattedPrice, width: 0.2, align: 'right' },
-                  {
-                    text:
-                      item.originalPrice >= 1000
-                        ? `${Math.floor(item.originalPrice / 1000)}K`
-                        : item.originalPrice.toString(),
-                    width: 0.2,
-                    align: 'right'
-                  }
-                ])
-
-                // Tính số tiền giảm giá
-                const discountAmount = Math.floor((item.quantity * item.price * item.discountPercentage) / 100)
-                const formattedDiscount =
-                  discountAmount >= 1000 ? `-${Math.floor(discountAmount / 1000)}K` : `-${discountAmount}`
-
-                // In thông tin khuyến mãi với dấu "-" ở cả tên và số tiền
-                printer.tableCustom([
-                  {
-                    text: `  - ${item.discountName || ''} (${item.discountPercentage}%)`,
-                    width: 0.8,
-                    align: 'left'
-                  },
-                  { text: formattedDiscount, width: 0.2, align: 'right' }
-                ])
-              } else {
-                // Không có khuyến mãi, hiển thị bình thường
-                formattedTotal =
-                  item.quantity * item.price >= 1000
-                    ? `${Math.floor((item.quantity * item.price) / 1000)}K`
-                    : (item.quantity * item.price).toString()
-
-                // Cân đối lại các cột
-                printer.tableCustom([
-                  { text: description, width: 0.45, align: 'left' },
-                  { text: quantity.toString(), width: 0.15, align: 'center' },
-                  { text: formattedPrice, width: 0.2, align: 'right' },
-                  { text: formattedTotal, width: 0.2, align: 'right' }
-                ])
-              }
+              // In thông tin item mà không hiển thị thông tin giảm giá
+              printer.tableCustom([
+                { text: description, width: 0.45, align: 'left' },
+                { text: quantity.toString(), width: 0.15, align: 'center' },
+                { text: formattedPrice, width: 0.2, align: 'right' },
+                { text: formattedTotal, width: 0.2, align: 'right' }
+              ])
             })
+
+            // Hiển thị tổng giá trước khi giảm
+            let subtotalAmount = 0
+            bill.items.forEach((item) => {
+              subtotalAmount += item.quantity * item.price
+            })
+
+            printer.text('--------------------------------------------')
+
+            // Hiển thị thông tin giảm giá tổng nếu có
+            if (bill.activePromotion) {
+              printer.align('rt')
+              printer.tableCustom([
+                {
+                  text: `Tong tien hang: `,
+                  width: 0.6,
+                  align: 'left'
+                },
+                {
+                  text: `${subtotalAmount.toLocaleString('vi-VN')} VND`,
+                  width: 0.4,
+                  align: 'right'
+                }
+              ])
+
+              const discountAmount = Math.floor((subtotalAmount * bill.activePromotion.discountPercentage) / 100)
+              printer.tableCustom([
+                {
+                  text: `Giam gia ${bill.activePromotion.discountPercentage}% - ${bill.activePromotion.name}: `,
+                  width: 0.6,
+                  align: 'left'
+                },
+                {
+                  text: `-${discountAmount.toLocaleString('vi-VN')} VND`,
+                  width: 0.4,
+                  align: 'right'
+                }
+              ])
+            }
 
             printer
               .text('--------------------------------------------')

@@ -4,6 +4,8 @@ import { HTTP_STATUS_CODE } from '~/constants/httpStatus'
 import { ROOM_MESSAGES } from '~/constants/messages'
 import { IAddRoomRequestBody } from '~/models/requests/Room.request'
 import { roomServices } from '~/services/room.service'
+import databaseService from '~/services/database.service'
+import { RoomStatus, RoomType } from '~/constants/enum'
 
 /**
  * @description Controller xử lý tạo phòng mới
@@ -157,5 +159,103 @@ export const turnOffVideosController = async (req: Request, res: Response, next:
     res.status(HTTP_STATUS_CODE.OK).json({ message: 'Videos turned off successfully' })
   } catch (error) {
     next(error)
+  }
+}
+
+/**
+ * Debug endpoint to check and create test rooms
+ * @param req Request
+ * @param res Response
+ */
+export const debugRooms = async (req: Request, res: Response) => {
+  try {
+    // Get all rooms
+    const rooms = await databaseService.rooms.find({}).toArray()
+
+    // Check if we have rooms
+    console.log(`Found ${rooms.length} rooms in database`)
+
+    // Get distinct room types
+    const roomTypes = await databaseService.rooms.distinct('roomType')
+    console.log('Room types in database:', roomTypes)
+
+    // Track created rooms
+    const createdRooms = []
+
+    // Create test rooms if needed and requested
+    if (req.query.createTest === 'true') {
+      console.log('Checking if we need to create test rooms')
+
+      // Create Small room if needed
+      if (!rooms.some((r) => r.roomType.toLowerCase() === 'small')) {
+        console.log('Creating a test room with type Small')
+        const smallRoom = {
+          roomName: 'Test Room - Small',
+          roomType: 'small',
+          status: RoomStatus.Available,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        }
+        const smallResult = await databaseService.rooms.insertOne(smallRoom)
+        console.log('Created Small test room with ID:', smallResult.insertedId)
+        createdRooms.push({ type: 'small', id: smallResult.insertedId })
+      }
+
+      // Create Medium room if needed
+      if (!rooms.some((r) => r.roomType.toLowerCase() === 'medium')) {
+        console.log('Creating a test room with type Medium')
+        const mediumRoom = {
+          roomName: 'Test Room - Medium',
+          roomType: 'medium',
+          status: RoomStatus.Available,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        }
+        const mediumResult = await databaseService.rooms.insertOne(mediumRoom)
+        console.log('Created Medium test room with ID:', mediumResult.insertedId)
+        createdRooms.push({ type: 'medium', id: mediumResult.insertedId })
+      }
+
+      // Create Large room if needed
+      if (!rooms.some((r) => r.roomType.toLowerCase() === 'large')) {
+        console.log('Creating a test room with type Large')
+        const largeRoom = {
+          roomName: 'Test Room - Large',
+          roomType: 'large',
+          status: RoomStatus.Available,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        }
+        const largeResult = await databaseService.rooms.insertOne(largeRoom)
+        console.log('Created Large test room with ID:', largeResult.insertedId)
+        createdRooms.push({ type: 'large', id: largeResult.insertedId })
+      }
+    }
+
+    // Get updated rooms list if we created any rooms
+    let updatedRooms = rooms
+    if (createdRooms.length > 0) {
+      updatedRooms = await databaseService.rooms.find({}).toArray()
+    }
+
+    // Return info about rooms
+    return res.status(HTTP_STATUS_CODE.OK).json({
+      message:
+        createdRooms.length > 0
+          ? `Debug rooms information with ${createdRooms.length} test room(s) created`
+          : 'Debug rooms information',
+      result: {
+        totalRooms: updatedRooms.length,
+        roomTypes: await databaseService.rooms.distinct('roomType'),
+        rooms: updatedRooms,
+        createdRooms: createdRooms.length > 0 ? createdRooms : undefined
+      }
+    })
+  } catch (error) {
+    console.error('Error in debug rooms:', error)
+    return res.status(HTTP_STATUS_CODE.INTERNAL_SERVER_ERROR).json({
+      message: 'Error checking rooms',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    })
   }
 }
