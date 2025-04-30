@@ -76,7 +76,8 @@ export const SONG_QUEUE_MESSAGES = {
   SONG_SKIPPED: 'Song is skipped',
   GET_VIDEO_INFO_SUCCESS: 'Get video info success',
   UPDATE_QUEUE_SUCCESS: 'Update queue success',
-  GET_SONG_NAME_SUCCESS: 'Get song name success'
+  GET_SONG_NAME_SUCCESS: 'Get song name success',
+  SEARCH_SONGS_SUCCESS: 'Search songs success'
 } as const
 
 export const Price_MESSAGES = {

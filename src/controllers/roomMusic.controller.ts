@@ -1,8 +1,10 @@
 import { NextFunction, Request, Response } from 'express'
 import { type ParamsDictionary } from 'express-serve-static-core'
+import ytSearch from 'yt-search'
 import { HTTP_STATUS_CODE } from '~/constants/httpStatus'
 import { SONG_QUEUE_MESSAGES } from '~/constants/messages'
 import { AddSongRequestBody } from '~/models/requests/Song.request'
+import { VideoSchema } from '~/models/schemas/Video.schema'
 import redis from '~/services/redis.service'
 import { roomMusicServices } from '~/services/roomMusic.service'
 import serverService from '~/services/server.service'
@@ -466,5 +468,104 @@ export const streamVideo = async (req: Request, res: Response, next: NextFunctio
     res.status(HTTP_STATUS_CODE.OK).json({ result: data })
   } catch (err) {
     next(err)
+  }
+}
+
+/**
+ * @description Search songs
+ * @path /song-queue/rooms/:roomId/search-songs
+ * @method GET
+ * @author QuangDoo
+ */
+export const searchSongs = async (req: Request, res: Response, next: NextFunction) => {
+  const { q, limit = '70' } = req.query
+  const parsedLimit = parseInt(limit as string, 10)
+
+  // Validate search query
+  if (!q || typeof q !== 'string') {
+    return res.status(400).json({ error: 'Missing or invalid search query' })
+  }
+
+  // Validate limit parameter
+  if (isNaN(parsedLimit) || parsedLimit < 1 || parsedLimit > 100) {
+    return res.status(400).json({ error: 'Invalid limit parameter. Must be between 1 and 100' })
+  }
+
+  try {
+    // Simplified search query
+    let searchQuery = q
+
+    // Thêm từ khóa Việt Nam nếu có dấu tiếng Việt
+    if (/[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]/i.test(q)) {
+      searchQuery = `${q} vpop`
+    }
+
+    // Thêm tham số region=VN để ưu tiên kết quả ở zone Việt Nam
+    const searchOptions = {
+      region: 'VN',
+      hl: 'vi', // Ngôn ngữ tiếng Việt
+      maxResults: 150 // Tăng số lượng kết quả tìm kiếm
+    }
+
+    console.log('Searching with query:', searchQuery)
+    const searchResults = await ytSearch({ query: searchQuery, ...searchOptions })
+    console.log('Total results found:', searchResults.videos.length)
+
+    // Lọc theo điều kiện đơn giản hơn
+    const musicVideos = searchResults.videos.filter((video) => {
+      // Loại bỏ video quá ngắn hoặc quá dài
+      const duration = video.duration.seconds
+      const isValidDuration = duration >= 30 && duration <= 1200 // 30s - 20 phút
+
+      return isValidDuration
+    })
+
+    console.log('Filtered results count:', musicVideos.length)
+
+    // Sắp xếp kết quả: ưu tiên theo độ chính xác với từ khóa tìm kiếm
+    musicVideos.sort((a, b) => {
+      const aContent = (a.title + ' ' + a.author.name).toLowerCase()
+      const bContent = (b.title + ' ' + b.author.name).toLowerCase()
+      const queryLower = q.toLowerCase()
+
+      // Ưu tiên video có tiêu đề chứa từ khóa tìm kiếm
+      const aContainsQuery = aContent.includes(queryLower)
+      const bContainsQuery = bContent.includes(queryLower)
+
+      if (aContainsQuery && !bContainsQuery) return -1
+      if (!aContainsQuery && bContainsQuery) return 1
+
+      // Ưu tiên video có thời lượng phù hợp (3-7 phút)
+      const aIdealDuration = a.duration.seconds >= 180 && a.duration.seconds <= 420
+      const bIdealDuration = b.duration.seconds >= 180 && b.duration.seconds <= 420
+
+      if (aIdealDuration && !bIdealDuration) return -1
+      if (!aIdealDuration && bIdealDuration) return 1
+
+      return 0
+    })
+
+    // Trích xuất danh sách video
+    const videos = musicVideos.map(
+      (video) =>
+        new VideoSchema({
+          video_id: video.videoId,
+          title: video.title,
+          duration: video.duration.seconds,
+          url: video.url,
+          thumbnail: video.thumbnail || '',
+          author: video.author.name
+        })
+    )
+
+    console.log('Returning results count:', videos.length)
+
+    return res.status(HTTP_STATUS_CODE.OK).json({
+      message: SONG_QUEUE_MESSAGES.SEARCH_SONGS_SUCCESS,
+      result: videos
+    })
+  } catch (error) {
+    console.error('Search error:', error)
+    next(error)
   }
 }
