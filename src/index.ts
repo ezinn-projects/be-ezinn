@@ -20,6 +20,7 @@ import usersRouter from '~/routes/users.routes'
 import databaseService from '~/services/database.service'
 import serverService from '~/services/server.service'
 import { startScheduledJobs } from './jobs'
+import holidayRouter from '~/routes/holiday.routes'
 // Khởi tạo các plugins cho dayjs
 dayjs.extend(utc)
 dayjs.extend(timezone)
@@ -39,6 +40,7 @@ const allowedOrigins = [
   'https://control.jozo.com.vn',
   'https://video.jozo.com.vn',
   'https://jozo.com.vn',
+  'https://backend.jozo.com.vn',
   'http://localhost:3001',
   'http://localhost:3002',
   'http://localhost:5173',
@@ -93,6 +95,8 @@ app.use('/promotions', promotionRouter)
 
 // Thêm route cho bookings API
 app.use('/bookings', bookingRouter)
+
+app.use('/holidays', holidayRouter)
 
 app.use(defaultErrorHandler)
 

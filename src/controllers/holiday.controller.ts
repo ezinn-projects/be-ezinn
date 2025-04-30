@@ -1,10 +1,9 @@
+import dayjs from 'dayjs'
+import timezone from 'dayjs/plugin/timezone'
+import utc from 'dayjs/plugin/utc'
 import { Request, Response } from 'express'
 import { HTTP_STATUS_CODE } from '~/constants/httpStatus'
 import { holidayService } from '~/services/holiday.service'
-import { ErrorWithStatus } from '~/models/Error'
-import dayjs from 'dayjs'
-import utc from 'dayjs/plugin/utc'
-import timezone from 'dayjs/plugin/timezone'
 
 dayjs.extend(utc)
 dayjs.extend(timezone)
@@ -49,7 +48,7 @@ export const getHolidays = async (req: Request, res: Response) => {
     const holidays = await holidayService.getHolidays()
     return res.status(HTTP_STATUS_CODE.OK).json({
       message: 'Get holidays successfully',
-      holidays
+      result: holidays
     })
   } catch (error: any) {
     return res.status(HTTP_STATUS_CODE.INTERNAL_SERVER_ERROR).json({

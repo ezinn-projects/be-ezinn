@@ -107,7 +107,7 @@ roomMusicRouter.get('/:roomId/now-playing', async (req, res, next) => {
  */
 roomMusicRouter.get('/:roomId/search-songs', async (req, res) => {
   const { q, limit = '70' } = req.query
-  const parsedLimit = parseInt(limit as string, 10)
+  const parsedLimit = parseInt(limit as string, 70)
 
   // Validate search query
   if (!q || typeof q !== 'string') {
@@ -135,7 +135,8 @@ roomMusicRouter.get('/:roomId/search-songs', async (req, res) => {
     // Thêm tham số region=VN để ưu tiên kết quả ở zone Việt Nam
     const searchOptions = {
       region: 'VN',
-      hl: 'vi' // Ngôn ngữ tiếng Việt
+      hl: 'vi', // Ngôn ngữ tiếng Việt
+      maxResults: 100 // Tăng số lượng kết quả tìm kiếm
     }
 
     const searchResults = await ytSearch({ query: searchQuery, ...searchOptions })
@@ -158,9 +159,139 @@ roomMusicRouter.get('/:roomId/search-songs', async (req, res) => {
         'bài hát',
         'karaoke',
         'vpop',
-        'v-pop'
+        'v-pop',
+        'music video',
+        'official music video',
+        'official mv',
+        'lyric video',
+        'audio official',
+        'audio lyrics',
+        'audio vietsub',
+        'vietsub lyrics',
+        'vietsub + lyrics',
+        'vietsub & lyrics',
+        'vietsub',
+        'lyrics vietsub',
+        'lyrics + vietsub',
+        'lyrics & vietsub',
+        'audio vietsub lyrics',
+        'audio + vietsub + lyrics',
+        'audio & vietsub & lyrics',
+        'audio vietsub & lyrics',
+        'audio & vietsub lyrics',
+        'audio + vietsub & lyrics',
+        'audio & vietsub + lyrics',
+        'audio + vietsub lyrics',
+        'audio lyrics vietsub',
+        'audio + lyrics + vietsub',
+        'audio & lyrics & vietsub',
+        'audio lyrics & vietsub',
+        'audio & lyrics vietsub',
+        'audio + lyrics & vietsub',
+        'audio & lyrics + vietsub',
+        'audio + lyrics vietsub',
+        'vietsub audio lyrics',
+        'vietsub + audio + lyrics',
+        'vietsub & audio & lyrics',
+        'vietsub audio & lyrics',
+        'vietsub & audio lyrics',
+        'vietsub + audio & lyrics',
+        'vietsub & audio + lyrics',
+        'vietsub + audio lyrics',
+        'vietsub lyrics audio',
+        'vietsub + lyrics + audio',
+        'vietsub & lyrics & audio',
+        'vietsub lyrics & audio',
+        'vietsub & lyrics audio',
+        'vietsub + lyrics & audio',
+        'vietsub & lyrics + audio',
+        'vietsub + lyrics audio',
+        'lyrics audio vietsub',
+        'lyrics + audio + vietsub',
+        'lyrics & audio & vietsub',
+        'lyrics audio & vietsub',
+        'lyrics & audio vietsub',
+        'lyrics + audio & vietsub',
+        'lyrics & audio + vietsub',
+        'lyrics + audio vietsub',
+        'lyrics vietsub audio',
+        'lyrics + vietsub + audio',
+        'lyrics & vietsub & audio',
+        'lyrics vietsub & audio',
+        'lyrics & vietsub audio',
+        'lyrics + vietsub & audio',
+        'lyrics & vietsub + audio',
+        'lyrics + vietsub audio'
       ]
-      const nonMusicKeywords = ['podcast', 'talk show', 'news', 'tin tức', 'gameplay', 'tutorial', 'hướng dẫn']
+
+      // Các từ khóa không liên quan đến âm nhạc
+      const nonMusicKeywords = [
+        'podcast',
+        'talk show',
+        'news',
+        'tin tức',
+        'gameplay',
+        'tutorial',
+        'hướng dẫn',
+        'thủ tướng',
+        'chính phủ',
+        'bộ trưởng',
+        'chủ tịch',
+        'tổng thống',
+        'phát biểu',
+        'họp báo',
+        'hội nghị',
+        'hội thảo',
+        'diễn đàn',
+        'thảo luận',
+        'phỏng vấn',
+        'interview',
+        'press conference',
+        'speech',
+        'address',
+        'statement',
+        'announcement',
+        'thông báo',
+        'công bố',
+        'tuyên bố',
+        'phát biểu',
+        'họp báo',
+        'hội nghị',
+        'hội thảo',
+        'diễn đàn',
+        'thảo luận',
+        'phỏng vấn',
+        'interview',
+        'press conference',
+        'speech',
+        'address',
+        'statement',
+        'announcement',
+        'thông báo',
+        'công bố',
+        'tuyên bố',
+        'thủ tướng',
+        'chính phủ',
+        'bộ trưởng',
+        'chủ tịch',
+        'tổng thống',
+        'phát biểu',
+        'họp báo',
+        'hội nghị',
+        'hội thảo',
+        'diễn đàn',
+        'thảo luận',
+        'phỏng vấn',
+        'interview',
+        'press conference',
+        'speech',
+        'address',
+        'statement',
+        'announcement',
+        'thông báo',
+        'công bố',
+        'tuyên bố'
+      ]
 
       // Kiểm tra xem video có chứa các từ khóa âm nhạc không
       const hasMusicKeyword = musicKeywords.some(
@@ -172,11 +303,17 @@ roomMusicRouter.get('/:roomId/search-songs', async (req, res) => {
         (keyword) => lowerTitle.includes(keyword) || lowerDescription.includes(keyword)
       )
 
-      // Kiểm tra thời lượng video (hầu hết bài hát có thời lượng từ 2-10 phút)
+      // Kiểm tra thời lượng video (mở rộng khoảng thời gian từ 1-15 phút)
       const duration = video.duration.seconds
-      const isValidDuration = duration >= 60 && duration <= 600
+      const isValidDuration = duration >= 60 && duration <= 900
 
-      return hasMusicKeyword && !hasNonMusicKeyword && isValidDuration
+      // Nếu có từ khóa âm nhạc và không có từ khóa không liên quan, cho phép thời lượng dài hơn
+      if (hasMusicKeyword && !hasNonMusicKeyword) {
+        return true
+      }
+
+      // Nếu không thỏa điều kiện trên, kiểm tra thời lượng
+      return isValidDuration
     })
 
     // Sắp xếp kết quả: ưu tiên nội dung Việt Nam lên đầu
