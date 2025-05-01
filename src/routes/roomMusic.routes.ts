@@ -11,7 +11,6 @@ import {
   playNextSong,
   removeAllSongsInQueue,
   removeSong,
-  searchSongs,
   sendNotification,
   streamVideo,
   updateQueue
@@ -106,7 +105,143 @@ roomMusicRouter.get('/:roomId/now-playing', async (req, res, next) => {
  * @method GET
  * @author QuangDoo
  */
-roomMusicRouter.get('/:roomId/search-songs', wrapRequestHandler(searchSongs)) // Tìm kiếm bài hát
+/**
+ * @description search songs
+ * @path /rooms/search-songs
+ * @method GET
+ * @author QuangDoo
+ */
+roomMusicRouter.get('/:roomId/search-songs', async (req, res) => {
+  const { q, limit = '70' } = req.query
+  const parsedLimit = parseInt(limit as string, 10)
+
+  // Validate search query
+  if (!q || typeof q !== 'string') {
+    return res.status(400).json({ error: 'Missing or invalid search query' })
+  }
+
+  // Validate limit parameter
+  if (isNaN(parsedLimit) || parsedLimit < 1 || parsedLimit > 100) {
+    return res.status(400).json({ error: 'Invalid limit parameter. Must be between 1 and 100' })
+  }
+
+  try {
+    // Tìm kiếm trên YouTube với từ khóa âm nhạc và ưu tiên nội dung Việt Nam
+    const vietnameseKeywords = ['vpop', 'v-pop', 'việt nam', 'vietnamese']
+
+    // Kiểm tra xem query có chứa từ khóa liên quan đến Việt Nam không
+    const hasVietnameseKeyword = vietnameseKeywords.some((keyword) => q.toLowerCase().includes(keyword.toLowerCase()))
+
+    // Thêm từ khóa Việt Nam vào query để ưu tiên kết quả ở zone Việt Nam
+    let searchQuery = `${q} lyrics music audio vietnam`
+    if (hasVietnameseKeyword) {
+      searchQuery = `${q} vpop vietnamese lyrics music audio`
+    }
+
+    // Thêm tham số region=VN để ưu tiên kết quả ở zone Việt Nam
+    const searchOptions = {
+      region: 'VN',
+      hl: 'vi' // Ngôn ngữ tiếng Việt
+    }
+
+    const searchResults = await ytSearch({ query: searchQuery, ...searchOptions })
+
+    // Lọc và chỉ giữ lại các video liên quan đến âm nhạc
+    const musicVideos = searchResults.videos.filter((video) => {
+      const lowerTitle = video.title.toLowerCase()
+      const lowerAuthor = video.author.name.toLowerCase()
+      const lowerDescription = (video.description || '').toLowerCase()
+
+      // Các từ khóa thường xuất hiện trong video âm nhạc
+      const musicKeywords = [
+        'audio',
+        'lyrics',
+        'music',
+        'mv',
+        'official',
+        'song',
+        'nhạc',
+        'bài hát',
+        'karaoke',
+        'vpop',
+        'v-pop'
+      ]
+      const nonMusicKeywords = ['podcast', 'talk show', 'news', 'tin tức', 'gameplay', 'tutorial', 'hướng dẫn']
+
+      // Kiểm tra xem video có chứa các từ khóa âm nhạc không
+      const hasMusicKeyword = musicKeywords.some(
+        (keyword) => lowerTitle.includes(keyword) || lowerDescription.includes(keyword)
+      )
+
+      // Kiểm tra xem video có chứa các từ khóa không liên quan đến âm nhạc không
+      const hasNonMusicKeyword = nonMusicKeywords.some(
+        (keyword) => lowerTitle.includes(keyword) || lowerDescription.includes(keyword)
+      )
+
+      // Kiểm tra thời lượng video (hầu hết bài hát có thời lượng từ 2-10 phút)
+      const duration = video.duration.seconds
+      const isValidDuration = duration >= 60 && duration <= 600
+
+      return hasMusicKeyword && !hasNonMusicKeyword && isValidDuration
+    })
+
+    // Sắp xếp kết quả: ưu tiên nội dung Việt Nam lên đầu
+    musicVideos.sort((a, b) => {
+      const aContent = (a.title + ' ' + a.author.name + ' ' + (a.description || '')).toLowerCase()
+      const bContent = (b.title + ' ' + b.author.name + ' ' + (b.description || '')).toLowerCase()
+
+      // Kiểm tra nội dung Việt Nam dựa trên các từ khóa
+      const aHasVietnameseKeywords = vietnameseKeywords.some((keyword) => aContent.includes(keyword.toLowerCase()))
+      const bHasVietnameseKeywords = vietnameseKeywords.some((keyword) => bContent.includes(keyword.toLowerCase()))
+
+      // Kiểm tra nội dung Việt Nam dựa trên dấu tiếng Việt
+      const aHasVietnameseDiacritics = /[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]/i.test(
+        aContent
+      )
+      const bHasVietnameseDiacritics = /[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]/i.test(
+        bContent
+      )
+
+      // Tính điểm ưu tiên cho nội dung Việt Nam
+      const aVietnameseScore = (aHasVietnameseKeywords ? 2 : 0) + (aHasVietnameseDiacritics ? 1 : 0)
+      const bVietnameseScore = (bHasVietnameseKeywords ? 2 : 0) + (bHasVietnameseDiacritics ? 1 : 0)
+
+      // Ưu tiên nội dung Việt Nam lên đầu
+      if (aVietnameseScore > bVietnameseScore) return -1
+      if (aVietnameseScore < bVietnameseScore) return 1
+
+      // Nếu query chứa chính xác từ khóa tìm kiếm, ưu tiên hơn
+      const queryLower = q.toLowerCase()
+      const aExactMatch = aContent.includes(queryLower)
+      const bExactMatch = bContent.includes(queryLower)
+
+      if (aExactMatch && !bExactMatch) return -1
+      if (!aExactMatch && bExactMatch) return 1
+
+      return 0
+    })
+
+    // Trích xuất danh sách video
+    const videos = musicVideos.slice(0, parsedLimit).map(
+      (video) =>
+        new VideoSchema({
+          video_id: video.videoId,
+          title: video.title,
+          duration: video.duration.seconds,
+          url: video.url,
+          thumbnail: video.thumbnail || '',
+          author: video.author.name
+        })
+    )
+
+    return res.status(HTTP_STATUS_CODE.OK).json({ result: videos })
+  } catch (error) {
+    return res.status(HTTP_STATUS_CODE.INTERNAL_SERVER_ERROR).json({
+      error: 'Failed to search YouTube',
+      message: (error as Error).message
+    })
+  }
+})
 
 /**
  * @description Get song name

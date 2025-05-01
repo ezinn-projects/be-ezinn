@@ -478,7 +478,7 @@ export const streamVideo = async (req: Request, res: Response, next: NextFunctio
  * @author QuangDoo
  */
 export const searchSongs = async (req: Request, res: Response, next: NextFunction) => {
-  const { q, limit = '20' } = req.query
+  const { q, limit = '10' } = req.query
   const parsedLimit = parseInt(limit as string, 10)
 
   // Validate search query
@@ -486,42 +486,74 @@ export const searchSongs = async (req: Request, res: Response, next: NextFunctio
     return res.status(400).json({ error: 'Missing or invalid search query' })
   }
 
-  // Validate limit parameter
-  if (isNaN(parsedLimit) || parsedLimit < 1 || parsedLimit > 100) {
-    return res.status(400).json({ error: 'Invalid limit parameter. Must be between 1 and 100' })
+  // Validate limit parameter - Giảm limit tối đa để tăng tốc độ
+  if (isNaN(parsedLimit) || parsedLimit < 1 || parsedLimit > 50) {
+    return res.status(400).json({ error: 'Invalid limit parameter. Must be between 1 and 50' })
   }
 
+  // Tạo một Promise với built-in timeout trong 3 giây
   try {
-    // Simplified search query
-    let searchQuery = q
+    let searchPromiseResolved = false
 
-    // Tối ưu query nhất có thể
+    // Phương pháp 1: ytSearch với tham số đơn giản
     const searchOptions = {
-      region: 'VN',
-      hl: 'vi',
-      maxResults: 35 // Chỉ lấy 25 kết quả
+      query: q,
+      pageStart: 1,
+      pageEnd: 1,
+      limit: parsedLimit
     }
 
-    console.log('Searching with query:', searchQuery)
-    const searchResults = await ytSearch({ query: searchQuery, ...searchOptions })
+    console.log('Starting search with query:', q)
 
-    // Lọc video không phù hợp
-    const videos = searchResults.videos
-      .filter((video) => video.duration.seconds >= 30) // Chỉ lọc video > 30s
-      .slice(0, parsedLimit)
-      .map(
-        (video) =>
-          new VideoSchema({
-            video_id: video.videoId,
-            title: video.title,
-            duration: video.duration.seconds,
-            url: video.url,
-            thumbnail: video.thumbnail || '',
-            author: video.author.name
-          })
-      )
+    // Cài đặt timeout hẹp để tránh chờ quá lâu
+    const searchPromise = new Promise<any[]>(async (resolve) => {
+      try {
+        // Dùng timeout tránh trường hợp ytSearch bị treo
+        setTimeout(() => {
+          if (!searchPromiseResolved) {
+            console.log('Search timeout, returning empty results')
+            resolve([])
+            searchPromiseResolved = true
+          }
+        }, 3000)
 
-    console.log('Returning results count:', videos.length)
+        // Thực hiện tìm kiếm
+        const result = await ytSearch(searchOptions)
+
+        if (!searchPromiseResolved) {
+          console.log('Search completed successfully, found videos:', result.videos.length)
+
+          // Map kết quả thành video schema
+          const videos = result.videos
+            .filter((video) => video.seconds >= 30)
+            .slice(0, parsedLimit)
+            .map(
+              (video) =>
+                new VideoSchema({
+                  video_id: video.videoId,
+                  title: video.title,
+                  duration: video.seconds,
+                  url: video.url,
+                  thumbnail: video.thumbnail || '',
+                  author: video.author.name
+                })
+            )
+
+          resolve(videos)
+          searchPromiseResolved = true
+        }
+      } catch (error) {
+        console.error('Error in ytSearch:', error)
+        if (!searchPromiseResolved) {
+          resolve([])
+          searchPromiseResolved = true
+        }
+      }
+    })
+
+    const videos = await searchPromise
+
+    console.log('Returning videos count:', videos.length)
 
     return res.status(HTTP_STATUS_CODE.OK).json({
       message: SONG_QUEUE_MESSAGES.SEARCH_SONGS_SUCCESS,
@@ -529,11 +561,9 @@ export const searchSongs = async (req: Request, res: Response, next: NextFunctio
     })
   } catch (error) {
     console.error('Search error:', error)
-
-    // Trả về phản hồi lỗi ngay khi có lỗi
-    return res.status(HTTP_STATUS_CODE.INTERNAL_SERVER_ERROR).json({
-      message: 'Failed to search songs',
-      error: (error as Error).message
+    return res.status(HTTP_STATUS_CODE.OK).json({
+      message: SONG_QUEUE_MESSAGES.SEARCH_SONGS_SUCCESS,
+      result: [] // Trả về mảng rỗng trong trường hợp lỗi
     })
   }
 }
