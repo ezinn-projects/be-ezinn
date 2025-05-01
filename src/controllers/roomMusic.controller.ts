@@ -478,7 +478,7 @@ export const streamVideo = async (req: Request, res: Response, next: NextFunctio
  * @author QuangDoo
  */
 export const searchSongs = async (req: Request, res: Response, next: NextFunction) => {
-  const { q, limit = '70' } = req.query
+  const { q, limit = '20' } = req.query
   const parsedLimit = parseInt(limit as string, 10)
 
   // Validate search query
@@ -495,68 +495,31 @@ export const searchSongs = async (req: Request, res: Response, next: NextFunctio
     // Simplified search query
     let searchQuery = q
 
-    // Thêm từ khóa Việt Nam nếu có dấu tiếng Việt
-    if (/[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]/i.test(q)) {
-      searchQuery = `${q} vpop`
-    }
-
-    // Thêm tham số region=VN để ưu tiên kết quả ở zone Việt Nam
+    // Tối ưu query nhất có thể
     const searchOptions = {
       region: 'VN',
-      hl: 'vi', // Ngôn ngữ tiếng Việt
-      maxResults: 150 // Tăng số lượng kết quả tìm kiếm
+      hl: 'vi',
+      maxResults: 35 // Chỉ lấy 25 kết quả
     }
 
     console.log('Searching with query:', searchQuery)
     const searchResults = await ytSearch({ query: searchQuery, ...searchOptions })
-    console.log('Total results found:', searchResults.videos.length)
 
-    // Lọc theo điều kiện đơn giản hơn
-    const musicVideos = searchResults.videos.filter((video) => {
-      // Loại bỏ video quá ngắn hoặc quá dài
-      const duration = video.duration.seconds
-      const isValidDuration = duration >= 30 && duration <= 1200 // 30s - 20 phút
-
-      return isValidDuration
-    })
-
-    console.log('Filtered results count:', musicVideos.length)
-
-    // Sắp xếp kết quả: ưu tiên theo độ chính xác với từ khóa tìm kiếm
-    musicVideos.sort((a, b) => {
-      const aContent = (a.title + ' ' + a.author.name).toLowerCase()
-      const bContent = (b.title + ' ' + b.author.name).toLowerCase()
-      const queryLower = q.toLowerCase()
-
-      // Ưu tiên video có tiêu đề chứa từ khóa tìm kiếm
-      const aContainsQuery = aContent.includes(queryLower)
-      const bContainsQuery = bContent.includes(queryLower)
-
-      if (aContainsQuery && !bContainsQuery) return -1
-      if (!aContainsQuery && bContainsQuery) return 1
-
-      // Ưu tiên video có thời lượng phù hợp (3-7 phút)
-      const aIdealDuration = a.duration.seconds >= 180 && a.duration.seconds <= 420
-      const bIdealDuration = b.duration.seconds >= 180 && b.duration.seconds <= 420
-
-      if (aIdealDuration && !bIdealDuration) return -1
-      if (!aIdealDuration && bIdealDuration) return 1
-
-      return 0
-    })
-
-    // Trích xuất danh sách video
-    const videos = musicVideos.map(
-      (video) =>
-        new VideoSchema({
-          video_id: video.videoId,
-          title: video.title,
-          duration: video.duration.seconds,
-          url: video.url,
-          thumbnail: video.thumbnail || '',
-          author: video.author.name
-        })
-    )
+    // Lọc video không phù hợp
+    const videos = searchResults.videos
+      .filter((video) => video.duration.seconds >= 30) // Chỉ lọc video > 30s
+      .slice(0, parsedLimit)
+      .map(
+        (video) =>
+          new VideoSchema({
+            video_id: video.videoId,
+            title: video.title,
+            duration: video.duration.seconds,
+            url: video.url,
+            thumbnail: video.thumbnail || '',
+            author: video.author.name
+          })
+      )
 
     console.log('Returning results count:', videos.length)
 
@@ -566,6 +529,11 @@ export const searchSongs = async (req: Request, res: Response, next: NextFunctio
     })
   } catch (error) {
     console.error('Search error:', error)
-    next(error)
+
+    // Trả về phản hồi lỗi ngay khi có lỗi
+    return res.status(HTTP_STATUS_CODE.INTERNAL_SERVER_ERROR).json({
+      message: 'Failed to search songs',
+      error: (error as Error).message
+    })
   }
 }
