@@ -56,7 +56,12 @@ const allowedOrigins = [
 // Cấu hình CORS để chấp nhận mọi origin và các header cần thiết
 app.use(
   cors({
-    origin: allowedOrigins,
+    origin:
+      process.env.NODE_ENV === 'development'
+        ? function (origin, callback) {
+            callback(null, true)
+          }
+        : allowedOrigins,
     credentials: true,
     allowedHeaders: ['Content-Type', 'Authorization'],
     exposedHeaders: ['Authorization'],
@@ -67,7 +72,12 @@ app.use(
 app.options(
   '*',
   cors({
-    origin: allowedOrigins,
+    origin:
+      process.env.NODE_ENV === 'development'
+        ? function (origin, callback) {
+            callback(null, true)
+          }
+        : allowedOrigins,
     credentials: true,
     allowedHeaders: ['Content-Type', 'Authorization'],
     exposedHeaders: ['Authorization']
