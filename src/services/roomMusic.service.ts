@@ -242,18 +242,6 @@ class RoomMusicServices {
 
   async getSongName(keyword: string, isKaraoke: boolean = false): Promise<string[]> {
     try {
-      if (keyword.length < 2) {
-        return []
-      }
-
-      const searchQuery = isKaraoke ? `${keyword} karaoke` : keyword
-
-      const searchResults = await ytSearch({
-        query: searchQuery,
-        pageStart: 1,
-        pageEnd: 2
-      })
-
       // Hàm chuyển text có dấu thành không dấu
       const removeAccents = (str: string): string => {
         return str
@@ -263,24 +251,143 @@ class RoomMusicServices {
           .replace(/Đ/g, 'D')
       }
 
-      const keywordNoAccent = removeAccents(keyword.toLowerCase())
+      // Hàm tính khoảng cách Levenshtein để xử lý lỗi chính tả
+      const calculateLevenshteinDistance = (a: string, b: string): number => {
+        const matrix: number[][] = Array(a.length + 1)
+          .fill(0)
+          .map(() => Array(b.length + 1).fill(0))
+
+        for (let i = 0; i <= a.length; i++) {
+          matrix[i][0] = i
+        }
+
+        for (let j = 0; j <= b.length; j++) {
+          matrix[0][j] = j
+        }
+
+        for (let i = 1; i <= a.length; i++) {
+          for (let j = 1; j <= b.length; j++) {
+            const cost = a[i - 1] === b[j - 1] ? 0 : 1
+            matrix[i][j] = Math.min(
+              matrix[i - 1][j] + 1, // deletion
+              matrix[i][j - 1] + 1, // insertion
+              matrix[i - 1][j - 1] + cost // substitution
+            )
+          }
+        }
+
+        return matrix[a.length][b.length]
+      }
+
+      // Xử lý từ khóa tìm kiếm trước khi sử dụng
+      const cleanKeyword = keyword.trim()
+
+      // Danh sách các từ khóa phổ biến thường bị gõ sai
+      const commonMisspellings: Record<string, string> = {
+        'black pinkk': 'blackpink',
+        blackpinkk: 'blackpink',
+        bts: 'bts',
+        twice: 'twice',
+        'son tung': 'son tung mtp',
+        sontung: 'son tung mtp'
+      }
+
+      // Tìm từ khóa gần nhất với misspelling
+      let correctedKeyword = cleanKeyword
+
+      // Tạo phiên bản không dấu, không khoảng trắng để so sánh
+      const normalizedKeyword = removeAccents(cleanKeyword.toLowerCase()).replace(/\s+/g, '')
+
+      for (const [misspelled, correct] of Object.entries(commonMisspellings)) {
+        const normalizedMisspelled = removeAccents(misspelled.toLowerCase()).replace(/\s+/g, '')
+
+        // So sánh với lỗi đánh máy phổ biến
+        if (
+          normalizedKeyword === normalizedMisspelled ||
+          (normalizedKeyword.length > 4 &&
+            (normalizedMisspelled.includes(normalizedKeyword) || normalizedKeyword.includes(normalizedMisspelled)))
+        ) {
+          correctedKeyword = correct
+          break
+        }
+
+        // Kiểm tra lỗi chính tả với khoảng cách Levenshtein
+        if (
+          normalizedKeyword.length > 4 &&
+          calculateLevenshteinDistance(normalizedKeyword, normalizedMisspelled) <= 2
+        ) {
+          correctedKeyword = correct
+          break
+        }
+      }
+
+      // Xử lý các trường hợp từ khóa quá ngắn
+      if (cleanKeyword.length < 2) {
+        // Lấy các xu hướng tìm kiếm được cache
+        const trendingKey = isKaraoke ? 'trending_karaoke_searches' : 'trending_music_searches'
+        const cachedTrending = await redis.get(trendingKey)
+
+        if (cachedTrending) {
+          return JSON.parse(cachedTrending)
+        }
+
+        // Fallback mặc định nếu không có cache
+        return isKaraoke
+          ? ['Karaoke Việt Nam', 'Karaoke Nhạc Trẻ', 'Karaoke Bolero', 'Karaoke English', 'Karaoke Trữ Tình']
+          : ['BLACKPINK', 'BTS', 'Sơn Tùng MTP', 'Bích Phương', 'Đen Vâu']
+      }
+
+      // Tạo cache key cho từ khóa tìm kiếm này
+      const cacheKey = `search_results_${removeAccents(correctedKeyword.toLowerCase())}_${isKaraoke ? 'karaoke' : 'normal'}`
+
+      // Kiểm tra cache
+      const cachedResults = await redis.get(cacheKey)
+      if (cachedResults) {
+        return JSON.parse(cachedResults)
+      }
+
+      const searchQuery = isKaraoke ? `${correctedKeyword} karaoke` : correctedKeyword
+
+      const searchResults = await ytSearch({
+        query: searchQuery,
+        pageStart: 1,
+        pageEnd: 2
+      })
+
+      const keywordNoAccent = removeAccents(correctedKeyword.toLowerCase())
 
       // Kiểm tra xem có phải đang tìm nghệ sĩ không
       const isSearchingArtist = searchResults.videos.some((video) =>
-        video.author.name?.toLowerCase().includes(keyword.toLowerCase())
+        video.author.name?.toLowerCase().includes(correctedKeyword.toLowerCase())
       )
 
       const calculateSimilarity = (str1: string, str2: string, checkAuthor: boolean = false): number => {
         const s1 = str1.toLowerCase()
         const s2 = str2.toLowerCase()
+        const s1NoAccent = removeAccents(s1)
+        const s2NoAccent = removeAccents(s2)
+
+        // Loại bỏ khoảng trắng cho việc so sánh
+        const s1NoSpace = s1NoAccent.replace(/\s+/g, '')
+        const s2NoSpace = s2NoAccent.replace(/\s+/g, '')
 
         // Nếu đang tìm nghệ sĩ và là author name
-        if (isSearchingArtist && checkAuthor && s2.includes(s1)) {
-          return 2000 // Ưu tiên cao nhất cho tên nghệ sĩ
+        if (isSearchingArtist && checkAuthor) {
+          if (s2.includes(s1)) return 2000 // Ưu tiên cao nhất cho tên nghệ sĩ chính xác
+          if (s2NoAccent.includes(s1NoAccent)) return 1800 // Ưu tiên cho tên nghệ sĩ không dấu
+          if (s2NoSpace.includes(s1NoSpace)) return 1700 // Ưu tiên cho tên nghệ sĩ không dấu và không khoảng trắng
         }
 
         // Kiểm tra chứa từ khóa chính xác
+        if (s2.startsWith(s1)) return 1500 // Ưu tiên bắt đầu bằng
         if (s2.includes(s1)) return 1000
+        if (s2NoAccent.includes(s1NoAccent)) return 800
+
+        // So sánh không có khoảng trắng
+        if (s2NoSpace.includes(s1NoSpace)) return 750
+
+        // Xử lý trường hợp lỗi chính tả
+        if (s1.length > 4 && calculateLevenshteinDistance(s1NoSpace, s2NoSpace) <= 2) return 700
 
         // Tính số ký tự giống nhau liên tiếp
         let maxCommonLength = 0
@@ -293,8 +400,17 @@ class RoomMusicServices {
             maxCommonLength = Math.max(maxCommonLength, length)
           }
         }
+
+        // Nếu từ khóa rất ngắn nhưng match được >= 60% thì cũng đáng kể
+        if (s1.length <= 3 && maxCommonLength >= s1.length * 0.6) {
+          return 700
+        }
+
         return maxCommonLength
       }
+
+      // Lưu trữ cặp tên bài hát và nghệ sĩ
+      const titleArtistPairs: { title: string; artist: string; score: number }[] = []
 
       const suggestions = searchResults.videos
         .sort((a, b) => {
@@ -306,10 +422,10 @@ class RoomMusicServices {
           }
 
           // Tính điểm tương đồng cho cả title và author
-          const aSimilarityTitle = calculateSimilarity(keyword, a.title)
-          const bSimilarityTitle = calculateSimilarity(keyword, b.title)
-          const aSimilarityAuthor = calculateSimilarity(keyword, a.author.name || '', true)
-          const bSimilarityAuthor = calculateSimilarity(keyword, b.author.name || '', true)
+          const aSimilarityTitle = calculateSimilarity(correctedKeyword, a.title)
+          const bSimilarityTitle = calculateSimilarity(correctedKeyword, b.title)
+          const aSimilarityAuthor = calculateSimilarity(correctedKeyword, a.author.name || '', true)
+          const bSimilarityAuthor = calculateSimilarity(correctedKeyword, b.author.name || '', true)
 
           // Lấy điểm cao nhất giữa title và author
           const aSimilarity = Math.max(aSimilarityTitle, aSimilarityAuthor)
@@ -322,8 +438,27 @@ class RoomMusicServices {
           return (b.views || 0) - (a.views || 0)
         })
         .map((video) => {
-          if (isSearchingArtist && video.author.name?.toLowerCase().includes(keyword.toLowerCase())) {
-            return video.author.name
+          const artist = video.author.name || ''
+
+          // Nếu đang tìm nghệ sĩ và tên tác giả có chứa từ khóa
+          if (
+            isSearchingArtist &&
+            (artist.toLowerCase().includes(correctedKeyword.toLowerCase()) ||
+              removeAccents(artist.toLowerCase()).includes(keywordNoAccent) ||
+              removeAccents(artist.toLowerCase()).replace(/\s+/g, '').includes(keywordNoAccent.replace(/\s+/g, '')))
+          ) {
+            // Lưu cả tên nghệ sĩ và một số bài hát của họ
+            titleArtistPairs.push({
+              title: video.title
+                .replace(/(Official Music Video|Official MV|Official Video|MV|Lyric Video|Audio|Official|M\/V)/gi, '')
+                .replace(/[^\p{L}\p{N}\s-]/gu, ' ')
+                .replace(/\s+/g, ' ')
+                .trim(),
+              artist,
+              score: 2000 + (video.views || 0) / 1000000
+            })
+
+            return artist
           }
 
           let title = video.title
@@ -335,23 +470,123 @@ class RoomMusicServices {
             .replace(/\s+/g, ' ')
             .trim()
 
+          // Lưu cặp title và artist cho mỗi kết quả
+          titleArtistPairs.push({
+            title,
+            artist,
+            score: calculateSimilarity(correctedKeyword, title) + (video.views || 0) / 1000000
+          })
+
           return title
         })
         .filter((title, index, self) => {
           const titleNoAccent = removeAccents(title.toLowerCase())
+          const titleNoSpace = titleNoAccent.replace(/\s+/g, '')
+          const keywordNoSpace = keywordNoAccent.replace(/\s+/g, '')
+
           return (
             // Loại bỏ các kết quả trùng lặp
             self.indexOf(title) === index &&
-            // Kiểm tra cả dạng có dấu và không dấu
-            (titleNoAccent.includes(keywordNoAccent) || title.toLowerCase().includes(keyword.toLowerCase()))
+            // Kiểm tra nhiều dạng khác nhau
+            (titleNoAccent.includes(keywordNoAccent) ||
+              title.toLowerCase().includes(correctedKeyword.toLowerCase()) ||
+              titleNoSpace.includes(keywordNoSpace) ||
+              calculateLevenshteinDistance(titleNoSpace, keywordNoSpace) <= 2)
           )
         })
-        .slice(0, 5)
 
-      return suggestions
+      // Nếu đang tìm nghệ sĩ và có kết quả, thêm một số bài hát của nghệ sĩ đó vào kết quả
+      let finalResults: string[] = []
+
+      if (isSearchingArtist && titleArtistPairs.some((p) => p.score >= 2000)) {
+        const artistName = titleArtistPairs.find((p) => p.score >= 2000)?.artist
+        if (artistName) {
+          // Lọc ra các bài hát của nghệ sĩ
+          const artistSongs = titleArtistPairs
+            .filter((p) => p.artist === artistName && p.title !== artistName)
+            .sort((a, b) => b.score - a.score)
+            .map((p) => `${p.title} - ${p.artist}`)
+            .slice(0, 2)
+
+          // Thêm bài hát của nghệ sĩ vào đầu kết quả
+          finalResults = [artistName, ...artistSongs, ...suggestions.filter((s) => s !== artistName)].slice(0, 5)
+
+          // Lưu vào trending artists cache nếu đây là nghệ sĩ
+          this.updateSearchTrends(artistName, 'artist')
+        }
+      } else {
+        finalResults = suggestions.slice(0, 5)
+
+        // Lưu vào trending songs cache nếu có kết quả
+        if (finalResults.length > 0) {
+          this.updateSearchTrends(finalResults[0], 'song')
+        }
+      }
+
+      // Nếu không có kết quả nhưng người dùng đang tìm kiếm từ khóa có sửa lỗi chính tả
+      if (finalResults.length === 0 && correctedKeyword !== cleanKeyword) {
+        // Thử lại với từ khóa gợi ý
+        return this.getSongName(correctedKeyword, isKaraoke)
+      }
+
+      // Cache kết quả cho từ khóa này (thời hạn 1 giờ)
+      await redis.setex(cacheKey, 3600, JSON.stringify(finalResults))
+
+      return finalResults
     } catch (error) {
       console.error('Error getting song suggestions:', error)
       return []
+    }
+  }
+
+  /**
+   * Cập nhật xu hướng tìm kiếm
+   * @param keyword Từ khóa được tìm kiếm
+   * @param type Loại tìm kiếm (artist hoặc song)
+   */
+  private async updateSearchTrends(keyword: string, type: 'artist' | 'song'): Promise<void> {
+    try {
+      // Cập nhật trending searches
+      const trendingKey = type === 'artist' ? 'trending_artists' : 'trending_songs'
+      const trending = await redis.get(trendingKey)
+      let trendingList: { keyword: string; count: number }[] = []
+
+      if (trending) {
+        trendingList = JSON.parse(trending)
+
+        // Tìm từ khóa trong danh sách đã có
+        const existingIndex = trendingList.findIndex((item) => item.keyword.toLowerCase() === keyword.toLowerCase())
+
+        if (existingIndex >= 0) {
+          // Tăng số lượt tìm kiếm
+          trendingList[existingIndex].count += 1
+        } else {
+          // Thêm từ khóa mới
+          trendingList.push({ keyword, count: 1 })
+        }
+
+        // Sắp xếp theo số lượt tìm kiếm
+        trendingList.sort((a, b) => b.count - a.count)
+
+        // Giới hạn danh sách
+        trendingList = trendingList.slice(0, 15)
+      } else {
+        // Tạo danh sách mới
+        trendingList = [{ keyword, count: 1 }]
+      }
+
+      // Lưu lại trending list với thời hạn 24 giờ
+      await redis.setex(trendingKey, 24 * 3600, JSON.stringify(trendingList))
+
+      // Cập nhật danh sách trending searches cho client
+      const trendingSearchKey = type === 'artist' ? 'trending_music_searches' : 'trending_karaoke_searches'
+      await redis.setex(
+        trendingSearchKey,
+        24 * 3600,
+        JSON.stringify(trendingList.map((item) => item.keyword).slice(0, 5))
+      )
+    } catch (error) {
+      console.error('Error updating search trends:', error)
     }
   }
 
