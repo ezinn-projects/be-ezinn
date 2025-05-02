@@ -121,156 +121,29 @@ roomMusicRouter.get('/:roomId/search-songs', async (req, res) => {
   }
 
   try {
-    // Tìm kiếm trên YouTube với từ khóa âm nhạc và ưu tiên nội dung Việt Nam
-    const vietnameseKeywords = ['vpop', 'v-pop', 'việt nam', 'vietnamese']
+    // Sử dụng một chiến lược tìm kiếm duy nhất với từ khóa âm nhạc để giảm thời gian phản hồi
+    const searchQuery = `${q.trim()} music`
+    console.log(`Searching with optimized strategy: "${searchQuery}"`)
 
-    // Phân tích query để xác định xem có phải đang tìm kiếm nghệ sĩ hay không
-    const queryWords = q
-      .toLowerCase()
-      .split(/\s+/)
-      .filter((word) => word.length > 1)
-
-    // Thêm từ khóa phù hợp vào query để cải thiện kết quả tìm kiếm
-    let searchQuery = `"${q}" music`
-
-    // Tạo các tham số tìm kiếm
     const searchOptions = {
+      query: searchQuery,
       region: 'VN',
-      hl: 'vi', // Ngôn ngữ tiếng Việt
+      hl: 'vi',
       pageStart: 1,
-      pageEnd: 3 // Tăng số trang kết quả
+      pageEnd: 1 // Giảm số trang tìm kiếm
     }
 
-    const searchResults = await ytSearch({ query: searchQuery, ...searchOptions })
+    const searchResults = await ytSearch(searchOptions)
 
-    // Xác định các video âm nhạc dựa trên phân tích nội dung
-    const musicVideos = searchResults.videos.filter((video) => {
-      // Kết hợp thông tin để phân tích
-      const content = (video.title + ' ' + video.author.name + ' ' + (video.description || '')).toLowerCase()
-
-      // Phân tích thời lượng (hầu hết bài hát có thời lượng từ 1-15 phút)
+    // Sử dụng bộ lọc đơn giản hơn
+    const filteredVideos = searchResults.videos.filter((video) => {
+      // Chỉ lọc theo thời lượng hợp lý cho bài hát
       const duration = video.duration.seconds
-      const isValidDuration = duration >= 30 && duration <= 900
-      if (!isValidDuration) return false
-
-      // Phân tích nội dung dựa trên đặc điểm video âm nhạc
-      // 1. Video có nhãn "Music" trong thể loại - bỏ qua vì không có thuộc tính category
-
-      // 2. Phát hiện các chỉ báo âm nhạc trong nội dung
-      const musicIndicators = [
-        'music',
-        'song',
-        'audio',
-        'lyrics',
-        'karaoke',
-        'sing',
-        'vocal',
-        'album',
-        'nhạc',
-        'bài hát',
-        'ca khúc',
-        'âm nhạc',
-        'mv',
-        'official',
-        'concert',
-        'live'
-      ]
-      const hasMusicIndicator = musicIndicators.some((indicator) => content.includes(indicator))
-
-      // 3. Phát hiện các chỉ báo không liên quan đến âm nhạc
-      const nonMusicIndicators = [
-        'gameplay',
-        'tutorial',
-        'podcast',
-        'news',
-        'documentary',
-        'talk show',
-        'hướng dẫn',
-        'tin tức',
-        'chính trị',
-        'thể thao',
-        'football'
-      ]
-      const hasNonMusicIndicator = nonMusicIndicators.some((indicator) => content.includes(indicator))
-
-      // Tính điểm phù hợp với nội dung âm nhạc (0-3)
-      let musicScore = 0
-      if (hasMusicIndicator) musicScore += 2
-      if (!hasNonMusicIndicator) musicScore += 1
-
-      // Quyết định dựa trên điểm số
-      return musicScore >= 2
+      return duration >= 30 && duration <= 900
     })
 
-    // Sắp xếp kết quả theo mức độ phù hợp với truy vấn
-    musicVideos.sort((a, b) => {
-      const aContent = (a.title + ' ' + a.author.name + ' ' + (a.description || '')).toLowerCase()
-      const bContent = (b.title + ' ' + b.author.name + ' ' + (b.description || '')).toLowerCase()
-      const aTitle = a.title.toLowerCase()
-      const bTitle = b.title.toLowerCase()
-
-      // Đánh giá độ chính xác của truy vấn
-      const queryLower = q.toLowerCase()
-
-      // Ưu tiên 1: Tiêu đề chứa chính xác cụm từ tìm kiếm (không thay đổi thứ tự từ)
-      const aExactPhraseMatch = aTitle.includes(queryLower)
-      const bExactPhraseMatch = bTitle.includes(queryLower)
-
-      if (aExactPhraseMatch && !bExactPhraseMatch) return -1
-      if (!aExactPhraseMatch && bExactPhraseMatch) return 1
-
-      // Ưu tiên 2: Tiêu đề bắt đầu bằng cụm từ tìm kiếm
-      const aStartsWithQuery = aTitle.startsWith(queryLower)
-      const bStartsWithQuery = bTitle.startsWith(queryLower)
-
-      if (aStartsWithQuery && !bStartsWithQuery) return -1
-      if (!aStartsWithQuery && bStartsWithQuery) return 1
-
-      // Ưu tiên 3: Tìm kiếm từng từ riêng lẻ trong tiêu đề và đếm số từ khớp
-      const queryWords = queryLower.split(/\s+/).filter((word) => word.length > 1)
-      let aMatchCount = 0
-      let bMatchCount = 0
-
-      queryWords.forEach((word) => {
-        if (aTitle.includes(word)) aMatchCount++
-        if (bTitle.includes(word)) bMatchCount++
-      })
-
-      // Nếu số từ khớp khác nhau, ưu tiên video có nhiều từ khớp hơn
-      if (aMatchCount !== bMatchCount) {
-        return bMatchCount - aMatchCount
-      }
-
-      // Ưu tiên 4: Nội dung chứa đầy đủ cụm từ tìm kiếm
-      const aContentMatch = aContent.includes(queryLower)
-      const bContentMatch = bContent.includes(queryLower)
-
-      if (aContentMatch && !bContentMatch) return -1
-      if (!aContentMatch && bContentMatch) return 1
-
-      // Ưu tiên 5: Độ dài tiêu đề gần với độ dài truy vấn hơn
-      const aLengthDiff = Math.abs(aTitle.length - queryLower.length)
-      const bLengthDiff = Math.abs(bTitle.length - queryLower.length)
-
-      if (aLengthDiff < bLengthDiff) return -1
-      if (aLengthDiff > bLengthDiff) return 1
-
-      // Ưu tiên nội dung Việt Nam (nếu có)
-      const aHasVietnameseIndicator = vietnameseKeywords.some((k) => aContent.includes(k))
-      const bHasVietnameseIndicator = vietnameseKeywords.some((k) => bContent.includes(k))
-
-      if (aHasVietnameseIndicator && !bHasVietnameseIndicator) return -1
-      if (!aHasVietnameseIndicator && bHasVietnameseIndicator) return 1
-
-      // Ưu tiên video có nhiều lượt xem hơn
-      return (b.views || 0) - (a.views || 0)
-    })
-
-    // Loại bỏ các video trùng lặp (dựa trên ID)
-    const uniqueVideos = Array.from(new Map(musicVideos.map((video) => [video.videoId, video])).values())
-
-    // Trích xuất danh sách video
-    const videos = uniqueVideos.slice(0, parsedLimit).map(
+    // Trích xuất danh sách video với số lượng giới hạn theo yêu cầu
+    const videos = filteredVideos.slice(0, parsedLimit).map(
       (video) =>
         new VideoSchema({
           video_id: video.videoId,
