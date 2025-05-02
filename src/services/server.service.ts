@@ -5,6 +5,39 @@ import { Server as SocketIOServer } from 'socket.io'
 import roomRoutes from '~/routes/room.routes'
 import { RoomSocket } from '~/sockets/room.socket'
 
+// Cấu hình CORS cho cả Express và Socket.IO
+const corsOptions = {
+  origin: [
+    'http://localhost:3001',
+    'http://localhost:3000',
+    'http://localhost:5137',
+    'https://video.jozo.com.vn',
+    'https://control.jozo.com.vn',
+    'https://jozo.com.vn',
+    'https://admin.jozo.com.vn',
+    'http://video.jozo.com.vn',
+    'http://control.jozo.com.vn',
+    'http://jozo.com.vn',
+    'http://admin.jozo.com.vn'
+  ],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: [
+    'Content-Type',
+    'Authorization',
+    'X-Requested-With',
+    'Accept',
+    'Origin',
+    'Access-Control-Allow-Headers',
+    'Cache-Control',
+    'Pragma',
+    'Expires'
+  ],
+  exposedHeaders: ['Authorization', 'Content-Length', 'X-Requested-With'],
+  preflightContinue: false,
+  optionsSuccessStatus: 204
+}
+
 class Server {
   private app: Express
   private httpServer: HttpServer
@@ -14,20 +47,10 @@ class Server {
   constructor() {
     this.app = express()
     this.httpServer = createServer(this.app)
+
+    // Cấu hình Socket.IO với CORS đồng bộ với Express
     this.io = new SocketIOServer(this.httpServer, {
-      cors: {
-        origin: [
-          'https://admin.jozo.com.vn',
-          'https://control.jozo.com.vn',
-          'https://video.jozo.com.vn',
-          'https://jozo.com.vn',
-          'http://localhost:3001',
-          'http://localhost:3002',
-          'http://localhost:5173',
-          'http://localhost:5174'
-        ],
-        credentials: true
-      },
+      cors: corsOptions,
       allowEIO3: true,
       transports: ['websocket', 'polling']
     })
@@ -39,21 +62,51 @@ class Server {
 
   // Khởi tạo middleware
   private initializeMiddleware() {
-    this.app.use(
-      cors({
-        origin: [
-          'https://admin.jozo.com.vn',
-          'https://control.jozo.com.vn',
-          'https://video.jozo.com.vn',
-          'https://jozo.com.vn',
-          'http://localhost:3001',
-          'http://localhost:3002',
-          'http://localhost:5173',
-          'http://localhost:5174'
-        ],
-        credentials: true
-      })
-    )
+    // Log origin cho mỗi request để debug
+    this.app.use((req, res, next) => {
+      console.log('[Socket Server CORS] Origin:', req.headers.origin)
+
+      // Tạo danh sách các domain được phép
+      const allowedOrigins = [
+        'http://localhost:3001',
+        'http://localhost:3000',
+        'http://localhost:5137',
+        'https://video.jozo.com.vn',
+        'https://control.jozo.com.vn',
+        'https://jozo.com.vn',
+        'https://admin.jozo.com.vn',
+        'http://video.jozo.com.vn',
+        'http://control.jozo.com.vn',
+        'http://jozo.com.vn',
+        'http://admin.jozo.com.vn'
+      ]
+
+      // Thêm headers cho mọi response
+      const origin = req.headers.origin
+      if (origin && allowedOrigins.includes(origin)) {
+        res.header('Access-Control-Allow-Origin', origin)
+      } else {
+        res.header('Access-Control-Allow-Origin', '*')
+      }
+
+      res.header('Access-Control-Allow-Credentials', 'true')
+      res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH')
+      res.header(
+        'Access-Control-Allow-Headers',
+        'Origin, X-Requested-With, Content-Type, Accept, Authorization, Cache-Control, Pragma, Expires'
+      )
+
+      // Xử lý preflight request
+      if (req.method === 'OPTIONS') {
+        return res.status(204).end()
+      }
+
+      next()
+    })
+
+    // Load CORS middleware đồng bộ với Express chính
+    this.app.use(cors(corsOptions))
+
     this.app.use(express.json())
   }
 
@@ -65,6 +118,14 @@ class Server {
 
   // Khởi tạo WebSocket logic
   private initializeWebSocket() {
+    // Debug kết nối socket
+    this.io.on('connection', (socket) => {
+      console.log(`[Socket] New connection: ${socket.id} from ${socket.handshake.headers.origin}`)
+      socket.on('disconnect', () => {
+        console.log(`[Socket] Disconnected: ${socket.id}`)
+      })
+    })
+
     RoomSocket(this.io)
   }
 
@@ -72,6 +133,7 @@ class Server {
   public start() {
     this.httpServer.listen(this.PORT, () => {
       console.log(`Socket server is running on http://localhost:${this.PORT}`)
+      console.log(`CORS config: ${JSON.stringify(corsOptions)}`)
     })
   }
 }

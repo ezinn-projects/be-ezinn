@@ -40,22 +40,81 @@ const port = 4000
 
 // CORS: echo lại Origin, cho phép credentials, headers và methods cần thiết
 const corsOptions = {
-  origin: true,
+  origin: [
+    'http://localhost:3001',
+    'http://localhost:3000',
+    'http://localhost:5137',
+    'https://video.jozo.com.vn',
+    'https://control.jozo.com.vn',
+    'https://jozo.com.vn',
+    'https://admin.jozo.com.vn',
+    'http://video.jozo.com.vn',
+    'http://control.jozo.com.vn',
+    'http://jozo.com.vn',
+    'http://admin.jozo.com.vn'
+  ], // Chỉ định các origin được phép
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  exposedHeaders: ['Authorization']
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: [
+    'Content-Type',
+    'Authorization',
+    'X-Requested-With',
+    'Accept',
+    'Origin',
+    'Access-Control-Allow-Headers',
+    'Cache-Control',
+    'Pragma',
+    'Expires'
+  ],
+  exposedHeaders: ['Authorization', 'Content-Length', 'X-Requested-With'],
+  preflightContinue: false,
+  optionsSuccessStatus: 204
 }
 
 // (Tuỳ chọn) Debug log Origin mỗi request
-app.use((req, _, next) => {
+app.use((req, res, next) => {
   console.log('[CORS] Origin:', req.headers.origin)
+
+  // Tạo danh sách các domain được phép
+  const allowedOrigins = [
+    'http://localhost:3001',
+    'http://localhost:3000',
+    'http://localhost:5137',
+    'https://video.jozo.com.vn',
+    'https://control.jozo.com.vn',
+    'https://jozo.com.vn',
+    'https://admin.jozo.com.vn',
+    'http://video.jozo.com.vn',
+    'http://control.jozo.com.vn',
+    'http://jozo.com.vn',
+    'http://admin.jozo.com.vn'
+  ]
+
+  // Thêm headers cho mọi response
+  const origin = req.headers.origin
+  if (origin && allowedOrigins.includes(origin)) {
+    res.header('Access-Control-Allow-Origin', origin)
+  } else {
+    res.header('Access-Control-Allow-Origin', '*')
+  }
+
+  res.header('Access-Control-Allow-Credentials', 'true')
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH')
+  res.header(
+    'Access-Control-Allow-Headers',
+    'Origin, X-Requested-With, Content-Type, Accept, Authorization, Cache-Control, Pragma, Expires'
+  )
+
+  // Xử lý preflight request
+  if (req.method === 'OPTIONS') {
+    return res.status(204).end()
+  }
+
   next()
 })
 
 // Load CORS middleware ngay đầu
 app.use(cors(corsOptions))
-app.options('*', cors(corsOptions))
 
 // Body parser
 app.use(express.json())

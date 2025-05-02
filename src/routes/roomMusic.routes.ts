@@ -17,6 +17,7 @@ import {
 } from '~/controllers/roomMusic.controller'
 import { VideoSchema } from '~/models/schemas/Video.schema'
 import { roomMusicServices } from '~/services/roomMusic.service'
+import { getMediaUrls } from '~/services/video.service'
 import { wrapRequestHandler } from '~/utils/handlers'
 
 const roomMusicRouter = Router()
@@ -129,180 +130,137 @@ roomMusicRouter.get('/:roomId/search-songs', async (req, res) => {
       .split(/\s+/)
       .filter((word) => word.length > 1)
 
-    // Hàm trợ giúp phân tích query để xác định khả năng là tên nghệ sĩ
-    const isLikelyArtistQuery = (query: string): boolean => {
-      // 1. Kiểm tra các dấu hiệu như "ca sĩ", "singer", "artist" trong query
-      const artistIndicators = [
-        'ca si',
-        'ca sĩ',
-        'nghệ sĩ',
-        'nghe si',
-        'singer',
-        'artist',
-        'band',
-        'rapper',
-        'nhóm nhạc'
-      ]
-      if (artistIndicators.some((indicator) => removeAccents(query.toLowerCase()).includes(indicator))) {
-        return true
-      }
-
-      // 2. Kiểm tra xem query có phải là cụm từ ngắn (thường tên nghệ sĩ là 2-4 từ)
-      const wordCount = query.split(/\s+/).length
-      if (wordCount >= 2 && wordCount <= 4) {
-        return true
-      }
-
-      // 3. Kiểm tra một số đặc điểm phổ biến trong tên nghệ sĩ (viết hoa, ký hiệu đặc biệt)
-      const hasSpecialFormat =
-        /[A-Z]{2,}/.test(query) || // Chứa từ viết hoa
-        /[._\-+&]/.test(query) // Chứa ký hiệu đặc biệt trong tên nhóm nhạc
-
-      return hasSpecialFormat
-    }
-
-    // Xác định query có khả năng là nghệ sĩ không
-    const isArtistQuery = isLikelyArtistQuery(q)
-
-    // Kiểm tra xem query có chứa từ khóa liên quan đến Việt Nam không
-    const hasVietnameseKeyword = vietnameseKeywords.some((keyword) => q.toLowerCase().includes(keyword.toLowerCase()))
-
     // Thêm từ khóa phù hợp vào query để cải thiện kết quả tìm kiếm
-    let searchQuery = `${q} lyrics music audio`
+    let searchQuery = `"${q}" music`
 
-    if (hasVietnameseKeyword) {
-      searchQuery = `${q} vpop vietnamese lyrics music audio`
-    } else if (isArtistQuery) {
-      // Đối với query có khả năng là nghệ sĩ, sử dụng ít từ khóa thêm vào
-      searchQuery = `${q} music`
-    }
-
-    // Thêm tham số region=VN để ưu tiên kết quả ở zone Việt Nam
+    // Tạo các tham số tìm kiếm
     const searchOptions = {
       region: 'VN',
       hl: 'vi', // Ngôn ngữ tiếng Việt
       pageStart: 1,
-      pageEnd: isArtistQuery ? 3 : 2 // Tăng số trang kết quả cho query nghệ sĩ
+      pageEnd: 3 // Tăng số trang kết quả
     }
 
     const searchResults = await ytSearch({ query: searchQuery, ...searchOptions })
 
-    // Xác định nếu đây thực sự là nghệ sĩ dựa trên kết quả tìm kiếm
-    // (nếu nhiều video có cùng tác giả khớp với từ khóa tìm kiếm)
-    const authorFrequency: Record<string, number> = {}
-    searchResults.videos.forEach((video) => {
-      const authorName = video.author.name.toLowerCase()
-      if (authorName.includes(q.toLowerCase()) || removeAccents(authorName).includes(removeAccents(q.toLowerCase()))) {
-        authorFrequency[authorName] = (authorFrequency[authorName] || 0) + 1
-      }
-    })
-
-    // Xác định xem có phải là nghệ sĩ phổ biến (nếu tên tác giả xuất hiện nhiều lần)
-    const popularArtistThreshold = 3 // Ngưỡng để xác định nghệ sĩ phổ biến
-    const isConfirmedArtist = Object.values(authorFrequency).some((count) => count >= popularArtistThreshold)
-
-    // Kết hợp cả hai đánh giá để xác định xem đây có phải là nghệ sĩ nổi tiếng không
-    const isFamousArtist = isArtistQuery || isConfirmedArtist
-
-    // Lọc và chỉ giữ lại các video liên quan đến âm nhạc
+    // Xác định các video âm nhạc dựa trên phân tích nội dung
     const musicVideos = searchResults.videos.filter((video) => {
-      const lowerTitle = video.title.toLowerCase()
-      const lowerAuthor = video.author.name.toLowerCase()
-      const lowerDescription = (video.description || '').toLowerCase()
+      // Kết hợp thông tin để phân tích
+      const content = (video.title + ' ' + video.author.name + ' ' + (video.description || '')).toLowerCase()
 
-      // Các từ khóa thường xuất hiện trong video âm nhạc
-      const musicKeywords = [
+      // Phân tích thời lượng (hầu hết bài hát có thời lượng từ 1-15 phút)
+      const duration = video.duration.seconds
+      const isValidDuration = duration >= 30 && duration <= 900
+      if (!isValidDuration) return false
+
+      // Phân tích nội dung dựa trên đặc điểm video âm nhạc
+      // 1. Video có nhãn "Music" trong thể loại - bỏ qua vì không có thuộc tính category
+
+      // 2. Phát hiện các chỉ báo âm nhạc trong nội dung
+      const musicIndicators = [
+        'music',
+        'song',
         'audio',
         'lyrics',
-        'music',
-        'mv',
-        'official',
-        'song',
+        'karaoke',
+        'sing',
+        'vocal',
+        'album',
         'nhạc',
         'bài hát',
-        'karaoke',
-        'vpop',
-        'v-pop',
-        'live',
-        'performance'
+        'ca khúc',
+        'âm nhạc',
+        'mv',
+        'official',
+        'concert',
+        'live'
       ]
-      const nonMusicKeywords = ['podcast', 'talk show', 'news', 'tin tức', 'gameplay', 'tutorial', 'hướng dẫn']
+      const hasMusicIndicator = musicIndicators.some((indicator) => content.includes(indicator))
 
-      // Nếu là nghệ sĩ nổi tiếng, giảm yêu cầu về từ khóa
-      if (isFamousArtist) {
-        // Kiểm tra xem video này có phải của nghệ sĩ được tìm kiếm không
-        const isArtistMatch =
-          lowerAuthor.includes(q.toLowerCase()) || removeAccents(lowerAuthor).includes(removeAccents(q.toLowerCase()))
+      // 3. Phát hiện các chỉ báo không liên quan đến âm nhạc
+      const nonMusicIndicators = [
+        'gameplay',
+        'tutorial',
+        'podcast',
+        'news',
+        'documentary',
+        'talk show',
+        'hướng dẫn',
+        'tin tức',
+        'chính trị',
+        'thể thao',
+        'football'
+      ]
+      const hasNonMusicIndicator = nonMusicIndicators.some((indicator) => content.includes(indicator))
 
-        // Hoặc tên nghệ sĩ xuất hiện trong tiêu đề
-        const artistInTitle = queryWords.some(
-          (word) => lowerTitle.includes(word) || removeAccents(lowerTitle).includes(removeAccents(word))
-        )
+      // Tính điểm phù hợp với nội dung âm nhạc (0-3)
+      let musicScore = 0
+      if (hasMusicIndicator) musicScore += 2
+      if (!hasNonMusicIndicator) musicScore += 1
 
-        if (isArtistMatch || artistInTitle) {
-          // Kiểm tra không có từ khóa không liên quan đến âm nhạc
-          const hasNonMusicKeyword = nonMusicKeywords.some(
-            (keyword) => lowerTitle.includes(keyword) || lowerDescription.includes(keyword)
-          )
-
-          // Kiểm tra thời lượng video (mở rộng phạm vi thời lượng cho nghệ sĩ nổi tiếng)
-          const duration = video.duration.seconds
-          const isValidDuration = duration >= 30 && duration <= 900 // 30 giây đến 15 phút
-
-          return !hasNonMusicKeyword && isValidDuration
-        }
-      }
-
-      // Xử lý trường hợp thông thường (không phải nghệ sĩ hoặc không khớp trực tiếp)
-      // Kiểm tra xem video có chứa các từ khóa âm nhạc không
-      const hasMusicKeyword = musicKeywords.some(
-        (keyword) => lowerTitle.includes(keyword) || lowerDescription.includes(keyword)
-      )
-
-      // Kiểm tra xem video có chứa các từ khóa không liên quan đến âm nhạc không
-      const hasNonMusicKeyword = nonMusicKeywords.some(
-        (keyword) => lowerTitle.includes(keyword) || lowerDescription.includes(keyword)
-      )
-
-      // Kiểm tra thời lượng video (hầu hết bài hát có thời lượng từ 1-10 phút)
-      const duration = video.duration.seconds
-      const isValidDuration = duration >= 60 && duration <= 600
-
-      return hasMusicKeyword && !hasNonMusicKeyword && isValidDuration
+      // Quyết định dựa trên điểm số
+      return musicScore >= 2
     })
 
-    // Sắp xếp kết quả: ưu tiên nội dung Việt Nam lên đầu
+    // Sắp xếp kết quả theo mức độ phù hợp với truy vấn
     musicVideos.sort((a, b) => {
       const aContent = (a.title + ' ' + a.author.name + ' ' + (a.description || '')).toLowerCase()
       const bContent = (b.title + ' ' + b.author.name + ' ' + (b.description || '')).toLowerCase()
+      const aTitle = a.title.toLowerCase()
+      const bTitle = b.title.toLowerCase()
 
-      // Kiểm tra nội dung Việt Nam dựa trên các từ khóa
-      const aHasVietnameseKeywords = vietnameseKeywords.some((keyword) => aContent.includes(keyword.toLowerCase()))
-      const bHasVietnameseKeywords = vietnameseKeywords.some((keyword) => bContent.includes(keyword.toLowerCase()))
-
-      // Kiểm tra nội dung Việt Nam dựa trên dấu tiếng Việt
-      const aHasVietnameseDiacritics = /[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]/i.test(
-        aContent
-      )
-      const bHasVietnameseDiacritics = /[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]/i.test(
-        bContent
-      )
-
-      // Tính điểm ưu tiên cho nội dung Việt Nam
-      const aVietnameseScore = (aHasVietnameseKeywords ? 2 : 0) + (aHasVietnameseDiacritics ? 1 : 0)
-      const bVietnameseScore = (bHasVietnameseKeywords ? 2 : 0) + (bHasVietnameseDiacritics ? 1 : 0)
-
-      // Ưu tiên nội dung Việt Nam lên đầu
-      if (aVietnameseScore > bVietnameseScore) return -1
-      if (aVietnameseScore < bVietnameseScore) return 1
-
-      // Nếu query chứa chính xác từ khóa tìm kiếm, ưu tiên hơn
+      // Đánh giá độ chính xác của truy vấn
       const queryLower = q.toLowerCase()
-      const aExactMatch = aContent.includes(queryLower)
-      const bExactMatch = bContent.includes(queryLower)
 
-      if (aExactMatch && !bExactMatch) return -1
-      if (!aExactMatch && bExactMatch) return 1
+      // Ưu tiên 1: Tiêu đề chứa chính xác cụm từ tìm kiếm (không thay đổi thứ tự từ)
+      const aExactPhraseMatch = aTitle.includes(queryLower)
+      const bExactPhraseMatch = bTitle.includes(queryLower)
+
+      if (aExactPhraseMatch && !bExactPhraseMatch) return -1
+      if (!aExactPhraseMatch && bExactPhraseMatch) return 1
+
+      // Ưu tiên 2: Tiêu đề bắt đầu bằng cụm từ tìm kiếm
+      const aStartsWithQuery = aTitle.startsWith(queryLower)
+      const bStartsWithQuery = bTitle.startsWith(queryLower)
+
+      if (aStartsWithQuery && !bStartsWithQuery) return -1
+      if (!aStartsWithQuery && bStartsWithQuery) return 1
+
+      // Ưu tiên 3: Tìm kiếm từng từ riêng lẻ trong tiêu đề và đếm số từ khớp
+      const queryWords = queryLower.split(/\s+/).filter((word) => word.length > 1)
+      let aMatchCount = 0
+      let bMatchCount = 0
+
+      queryWords.forEach((word) => {
+        if (aTitle.includes(word)) aMatchCount++
+        if (bTitle.includes(word)) bMatchCount++
+      })
+
+      // Nếu số từ khớp khác nhau, ưu tiên video có nhiều từ khớp hơn
+      if (aMatchCount !== bMatchCount) {
+        return bMatchCount - aMatchCount
+      }
+
+      // Ưu tiên 4: Nội dung chứa đầy đủ cụm từ tìm kiếm
+      const aContentMatch = aContent.includes(queryLower)
+      const bContentMatch = bContent.includes(queryLower)
+
+      if (aContentMatch && !bContentMatch) return -1
+      if (!aContentMatch && bContentMatch) return 1
+
+      // Ưu tiên 5: Độ dài tiêu đề gần với độ dài truy vấn hơn
+      const aLengthDiff = Math.abs(aTitle.length - queryLower.length)
+      const bLengthDiff = Math.abs(bTitle.length - queryLower.length)
+
+      if (aLengthDiff < bLengthDiff) return -1
+      if (aLengthDiff > bLengthDiff) return 1
+
+      // Ưu tiên nội dung Việt Nam (nếu có)
+      const aHasVietnameseIndicator = vietnameseKeywords.some((k) => aContent.includes(k))
+      const bHasVietnameseIndicator = vietnameseKeywords.some((k) => bContent.includes(k))
+
+      if (aHasVietnameseIndicator && !bHasVietnameseIndicator) return -1
+      if (!aHasVietnameseIndicator && bHasVietnameseIndicator) return 1
 
       // Ưu tiên video có nhiều lượt xem hơn
       return (b.views || 0) - (a.views || 0)
@@ -381,5 +339,33 @@ function removeAccents(str: string): string {
     .replace(/đ/g, 'd')
     .replace(/Đ/g, 'D')
 }
+
+roomMusicRouter.get('/:roomId/song-info/:videoId', async (req, res) => {
+  try {
+    const { roomId, videoId } = req.params
+
+    if (!videoId) {
+      return res.status(HTTP_STATUS_CODE.BAD_REQUEST).json({
+        error: 'Video ID is required'
+      })
+    }
+
+    console.log(`Requesting media URLs for video ID: ${videoId}`)
+    const { audioUrl, videoUrl } = await getMediaUrls(videoId)
+
+    res.status(HTTP_STATUS_CODE.OK).json({
+      result: { roomId, videoId, audioUrl, videoUrl }
+    })
+  } catch (error) {
+    // Ghi chi tiết lỗi để debug
+    console.error('Error detail:', error)
+
+    // Trả về thông tin lỗi cụ thể cho client
+    res.status(HTTP_STATUS_CODE.INTERNAL_SERVER_ERROR).json({
+      error: 'Failed to retrieve song information',
+      detail: error instanceof Error ? error.message : 'Unknown error'
+    })
+  }
+})
 
 export default roomMusicRouter
