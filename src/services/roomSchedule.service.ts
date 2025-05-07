@@ -8,6 +8,8 @@ import { IRoomScheduleRequestBody, IRoomScheduleRequestQuery } from '~/models/re
 import { BookingSource, RoomSchedule } from '~/models/schemas/RoomSchdedule.schema'
 import databaseService from './database.service'
 import { parseDate } from '~/utils/common'
+import redis from './redis.service'
+import { roomEventEmitter } from './room.service'
 
 /**
  * RoomScheduleService
@@ -180,6 +182,36 @@ class RoomScheduleService {
   }
 
   /**
+   * Xóa tất cả các cache liên quan đến phòng
+   * @param roomId - ID của phòng cần xóa cache
+   */
+  async clearRoomCache(roomId: string): Promise<void> {
+    try {
+      console.log(`Clearing all cache for room ${roomId}`)
+
+      // Xóa tất cả dữ liệu Redis liên quan đến phòng
+      await Promise.all([
+        redis.del(`room_${roomId}_queue`),
+        redis.del(`room_${roomId}_now_playing`),
+        redis.del(`room_${roomId}_playback`),
+        redis.del(`room_${roomId}_current_time`),
+        redis.del(`room_${roomId}_notification`)
+      ])
+
+      // Emit events để thông báo cho các client biết dữ liệu đã được xóa
+      roomEventEmitter.emit('queue_updated', { roomId, queue: [] })
+      roomEventEmitter.emit('now_playing_cleared', { roomId })
+      roomEventEmitter.emit('now_playing', { roomId, nowPlaying: null })
+      roomEventEmitter.emit('playback_status', { roomId, playbackStatus: 'stopped' })
+      roomEventEmitter.emit('current_time', { roomId, currentTime: 0 })
+
+      console.log(`Successfully cleared all cache for room ${roomId}`)
+    } catch (error) {
+      console.error(`Error clearing cache for room ${roomId}:`, error)
+    }
+  }
+
+  /**
    * Cập nhật event lịch phòng
    * @param id - RoomSchedule id
    * @param schedule - Đối tượng lịch phòng cần cập nhật {IRoomScheduleRequestBody}
@@ -187,6 +219,15 @@ class RoomScheduleService {
    */
   async updateSchedule(id: string, schedule: IRoomScheduleRequestBody) {
     const updateData: any = {}
+
+    // Lấy thông tin hiện tại của lịch phòng
+    const currentSchedule = await databaseService.roomSchedule.findOne({ _id: new ObjectId(id) })
+    if (!currentSchedule) {
+      throw new ErrorWithStatus({
+        message: 'Schedule not found',
+        status: HTTP_STATUS_CODE.NOT_FOUND
+      })
+    }
 
     if (schedule.startTime) {
       updateData.startTime = new Date(schedule.startTime)
@@ -204,6 +245,12 @@ class RoomScheduleService {
     }
 
     const result = await databaseService.roomSchedule.updateOne({ _id: new ObjectId(id) }, { $set: updateData })
+
+    // Nếu đang cập nhật trạng thái thành "Finished", xóa tất cả cache của phòng
+    if (schedule.status === RoomScheduleStatus.Finished && currentSchedule.status !== RoomScheduleStatus.Finished) {
+      await this.clearRoomCache(currentSchedule.roomId.toString())
+    }
+
     return result.modifiedCount
   }
 
@@ -279,8 +326,22 @@ class RoomScheduleService {
       // Tính điểm kết thúc của ngày hôm đó (ngày mai lúc 00:00)
       const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1)
 
+      // Lấy danh sách các lịch phòng cần cập nhật trạng thái
+      const schedulesToFinish = await databaseService.roomSchedule
+        .find({
+          startTime: { $lt: endOfDay },
+          status: {
+            $in: [
+              RoomScheduleStatus.Booked,
+              RoomScheduleStatus.InUse,
+              RoomScheduleStatus.Locked,
+              RoomScheduleStatus.Maintenance
+            ]
+          }
+        })
+        .toArray()
+
       // Cập nhật tất cả các event có startTime nhỏ hơn endOfDay và status là một trong các trạng thái cần tổng kết
-      // Ví dụ: tổng kết các trạng thái "Booked", "Ongoing", "Locked", "Maintenance" thành "Finished"
       const result = await databaseService.roomSchedule.updateMany(
         {
           startTime: { $lt: endOfDay },
@@ -295,6 +356,11 @@ class RoomScheduleService {
         },
         { $set: { status: RoomScheduleStatus.Finished, updatedAt: new Date() } }
       )
+
+      // Đối với mỗi lịch phòng đã cập nhật, xóa tất cả cache liên quan
+      for (const schedule of schedulesToFinish) {
+        await this.clearRoomCache(schedule.roomId.toString())
+      }
 
       console.log(`${result.modifiedCount} events finished automatically.`)
       // (Optional) Emit event hoặc gửi thông báo tới client nếu cần
