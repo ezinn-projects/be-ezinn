@@ -37,6 +37,29 @@ class BookingService {
     console.log('Starting conversion of booking to room schedule:', clientBooking._id)
 
     try {
+      // Validate time slots before processing
+      for (const timeSlot of clientBooking.time_slots) {
+        const [startTimeStr, endTimeStr] = timeSlot.split('-')
+        const startTime = dayjs.tz(
+          `${clientBooking.booking_date} ${startTimeStr}`,
+          'YYYY-MM-DD HH:mm',
+          'Asia/Ho_Chi_Minh'
+        )
+        const endTime = dayjs.tz(`${clientBooking.booking_date} ${endTimeStr}`, 'YYYY-MM-DD HH:mm', 'Asia/Ho_Chi_Minh')
+
+        // Calculate duration in milliseconds
+        const diffMs = endTime.diff(startTime)
+        const minDurationMs = 60 * 60 * 1000 // 1 hour in milliseconds
+
+        // Validate minimum duration
+        if (diffMs < minDurationMs) {
+          throw new ErrorWithStatus({
+            message: `Booking duration must be at least 1 hour. Invalid time slot: ${timeSlot}`,
+            status: HTTP_STATUS_CODE.UNPROCESSABLE_ENTITY
+          })
+        }
+      }
+
       // Kiểm tra xem booking này đã được chuyển đổi thành công trước đó chưa
       if (clientBooking._id) {
         const existingBooking = await databaseService.bookings.findOne({

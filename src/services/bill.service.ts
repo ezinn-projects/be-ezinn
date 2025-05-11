@@ -97,8 +97,9 @@ export class BillService {
    * @returns Number of hours
    */
   calculateHours(start: Date | string, end: Date | string): number {
-    const startDate = dayjs(start)
-    const endDate = dayjs(end)
+    // Explicitly convert to Vietnam timezone
+    const startDate = dayjs(start).tz('Asia/Ho_Chi_Minh')
+    const endDate = dayjs(end).tz('Asia/Ho_Chi_Minh')
 
     // Check if end date is before start date, which would produce negative values
     if (endDate.isBefore(startDate)) {
@@ -223,7 +224,14 @@ export class BillService {
       })
     }
     const dayType = await this.determineDayType(new Date(schedule.startTime))
-    const endTime = actualEndTime ? new Date(actualEndTime) : new Date(schedule.endTime as Date)
+    // Convert times to Vietnam timezone
+    const startTime = dayjs(schedule.startTime).tz('Asia/Ho_Chi_Minh').toDate()
+    const endTime = actualEndTime
+      ? dayjs(actualEndTime).tz('Asia/Ho_Chi_Minh').toDate()
+      : dayjs(schedule.endTime as Date)
+          .tz('Asia/Ho_Chi_Minh')
+          .toDate()
+
     if (!dayjs(endTime).isValid()) {
       throw new ErrorWithStatus({
         message: 'Thời gian kết thúc không hợp lý',
@@ -240,9 +248,6 @@ export class BillService {
       })
     }
 
-    // Thời gian bắt đầu và kết thúc
-    const startTime = new Date(schedule.startTime)
-
     // Tính toán phí dịch vụ với việc xét nhiều khung giờ
     let totalServiceFee = 0
     let totalHoursUsed = 0
@@ -257,19 +262,20 @@ export class BillService {
     const timeSlotBoundaries = []
 
     for (const slot of sortedTimeSlots) {
-      const slotStartTime = dayjs(startTime).format('YYYY-MM-DD') + ' ' + slot.start
+      // Use Vietnam timezone for all date calculations
+      const slotStartTime = dayjs(startTime).tz('Asia/Ho_Chi_Minh').format('YYYY-MM-DD') + ' ' + slot.start
       let slotEndTime
 
       // Xử lý khung giờ qua ngày
       if (slot.start > slot.end) {
-        slotEndTime = dayjs(startTime).add(1, 'day').format('YYYY-MM-DD') + ' ' + slot.end
+        slotEndTime = dayjs(startTime).tz('Asia/Ho_Chi_Minh').add(1, 'day').format('YYYY-MM-DD') + ' ' + slot.end
       } else {
-        slotEndTime = dayjs(startTime).format('YYYY-MM-DD') + ' ' + slot.end
+        slotEndTime = dayjs(startTime).tz('Asia/Ho_Chi_Minh').format('YYYY-MM-DD') + ' ' + slot.end
       }
 
       timeSlotBoundaries.push({
-        start: new Date(slotStartTime),
-        end: new Date(slotEndTime),
+        start: dayjs(slotStartTime).tz('Asia/Ho_Chi_Minh').toDate(),
+        end: dayjs(slotEndTime).tz('Asia/Ho_Chi_Minh').toDate(),
         prices: slot.prices
       })
     }
@@ -285,11 +291,15 @@ export class BillService {
       }
 
       // Kiểm tra thời gian phiên có nằm trong khung giờ này không
-      const sessionStart = dayjs(startTime).isAfter(dayjs(slot.start)) ? startTime : slot.start
-      const sessionEnd = dayjs(endTime).isBefore(dayjs(slot.end)) ? endTime : slot.end
+      const sessionStart = dayjs(startTime).tz('Asia/Ho_Chi_Minh').isAfter(dayjs(slot.start).tz('Asia/Ho_Chi_Minh'))
+        ? startTime
+        : slot.start
+      const sessionEnd = dayjs(endTime).tz('Asia/Ho_Chi_Minh').isBefore(dayjs(slot.end).tz('Asia/Ho_Chi_Minh'))
+        ? endTime
+        : slot.end
 
       // Nếu có thời gian sử dụng trong khung giờ này
-      if (dayjs(sessionStart).isBefore(dayjs(sessionEnd))) {
+      if (dayjs(sessionStart).tz('Asia/Ho_Chi_Minh').isBefore(dayjs(sessionEnd).tz('Asia/Ho_Chi_Minh'))) {
         const hoursInSlot = this.calculateHours(sessionStart, sessionEnd)
 
         if (hoursInSlot > 0) {

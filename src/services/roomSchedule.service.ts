@@ -94,8 +94,21 @@ class RoomScheduleService {
           status: HTTP_STATUS_CODE.UNPROCESSABLE_ENTITY
         })
       }
+
+      // Calculate duration in milliseconds
       const diffMs = endTime.getTime() - startTime.getTime()
-      const maxDurationMs = 8 * 60 * 60 * 1000 // 8 tiếng
+      const minDurationMs = 60 * 60 * 1000 // 1 hour in milliseconds
+      const maxDurationMs = 8 * 60 * 60 * 1000 // 8 hours in milliseconds
+
+      // Validate minimum duration
+      if (diffMs < minDurationMs) {
+        throw new ErrorWithStatus({
+          message: 'Booking duration must be at least 1 hour.',
+          status: HTTP_STATUS_CODE.UNPROCESSABLE_ENTITY
+        })
+      }
+
+      // Validate maximum duration
       if (diffMs > maxDurationMs) {
         throw new ErrorWithStatus({
           message: 'For booked status, the maximum duration is 8 hours.',
