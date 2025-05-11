@@ -47,7 +47,7 @@ export const getMenuItemById = async (req: Request, res: Response, next: NextFun
 export const createMenuItem = async (req: Request, res: Response, next: NextFunction) => {
   try {
     console.log('req', req.body)
-    const { name, price, description, category, createdAt } = req.body
+    const { name, price, description, category, createdAt, inventory } = req.body
     const file = req.file as Express.Multer.File | undefined
 
     console.log('file:', file)
@@ -81,6 +81,13 @@ export const createMenuItem = async (req: Request, res: Response, next: NextFunc
       description: description || '',
       image: imageUrl,
       category,
+      inventory: {
+        quantity: inventory?.quantity || 0,
+        unit: inventory?.unit || 'piece',
+        minStock: inventory?.minStock || 0,
+        maxStock: inventory?.maxStock || 0,
+        lastUpdated: new Date()
+      },
       createdAt: createdAt ? new Date(createdAt) : new Date()
     }
 

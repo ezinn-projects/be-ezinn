@@ -7,6 +7,13 @@ export interface FnbMenu {
   description: string
   image: string
   category: string
+  inventory: {
+    quantity: number
+    unit: string
+    minStock: number
+    maxStock: number
+    lastUpdated: Date
+  }
   createdAt: Date
   updatedAt?: Date
   createdBy?: string
@@ -20,6 +27,13 @@ export class FnbMenuModel {
   description: string
   image: string
   category: string
+  inventory: {
+    quantity: number
+    unit: string
+    minStock: number
+    maxStock: number
+    lastUpdated: Date
+  }
   createdAt: Date
   updatedAt?: Date
   createdBy?: string
@@ -31,6 +45,12 @@ export class FnbMenuModel {
     description: string,
     image: string,
     category: string,
+    inventory: {
+      quantity: number
+      unit: string
+      minStock: number
+      maxStock: number
+    },
     createdBy?: string,
     updatedBy?: string
   ) {
@@ -39,6 +59,10 @@ export class FnbMenuModel {
     this.description = description
     this.image = image
     this.category = category
+    this.inventory = {
+      ...inventory,
+      lastUpdated: new Date()
+    }
     this.createdAt = new Date()
     this.createdBy = createdBy || 'system'
     this.updatedAt = new Date()

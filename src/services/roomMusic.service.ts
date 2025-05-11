@@ -1,13 +1,11 @@
-import { AddSongRequestBody } from '~/models/requests/Song.request'
-import redis from '~/services/redis.service'
-import { historyService } from '~/services/songHistory.service'
-import ytdl from 'youtube-dl-exec'
-import ytSearch from 'yt-search'
-import serverService from './server.service'
 import { EventEmitter } from 'events'
-import { Logger } from '~/utils/logger'
+import ytdl from 'youtube-dl-exec'
+import { AddSongRequestBody } from '~/models/requests/Song.request'
 import { CacheService } from '~/services/cache.service'
+import redis from '~/services/redis.service'
 import { SearchService } from '~/services/search.service'
+import { historyService } from '~/services/songHistory.service'
+import { Logger } from '~/utils/logger'
 
 export const roomMusicEventEmitter = new EventEmitter()
 

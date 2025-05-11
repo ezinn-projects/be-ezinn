@@ -4,6 +4,12 @@ export interface ICreateFnBMenuRequestBody {
   description: string
   image: string
   category: string
+  inventory: {
+    quantity: number
+    unit: string
+    minStock: number
+    maxStock: number
+  }
   createdBy?: string
 }
 
@@ -13,5 +19,11 @@ export interface IUpdateFnBMenuRequestBody {
   description?: string
   image?: string
   category?: string
+  inventory?: {
+    quantity?: number
+    unit?: string
+    minStock?: number
+    maxStock?: number
+  }
   updatedBy?: string
 }
