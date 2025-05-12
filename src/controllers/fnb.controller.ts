@@ -18,7 +18,7 @@ export const createFnbOrder = async (
   next: NextFunction
 ) => {
   try {
-    const { name, price, description, image, category, createdBy } = req.body
+    const { name, price, description, image, category, createdBy, inventory } = req.body
     const result = await fnbMenuService.createFnbMenu({
       name,
       price,
@@ -26,7 +26,14 @@ export const createFnbOrder = async (
       image,
       category,
       createdBy,
-      createdAt: new Date()
+      createdAt: new Date(),
+      inventory: {
+        quantity: inventory.quantity,
+        unit: inventory.unit,
+        minStock: inventory.minStock,
+        maxStock: inventory.maxStock,
+        lastUpdated: new Date()
+      }
     })
     return res.status(HTTP_STATUS_CODE.CREATED).json({
       message: FNB_MESSAGES.CREATE_FNB_ORDER_SUCCESS,
