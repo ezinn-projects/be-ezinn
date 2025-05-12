@@ -11,7 +11,23 @@ class FnbMenuService {
 
   async getFnbMenuById(id: string): Promise<FnbMenu | null> {
     const menu = await databaseService.fnbMenu.findOne({ _id: new ObjectId(id) })
-    return menu ? new FnbMenuModel(menu.name, menu.price, menu.description, menu.image, menu.category) : null
+    return menu
+      ? new FnbMenuModel(
+          menu.name,
+          menu.price,
+          menu.description,
+          menu.image,
+          menu.category,
+          {
+            quantity: menu.inventory.quantity,
+            unit: menu.inventory.unit,
+            minStock: menu.inventory.minStock,
+            maxStock: menu.inventory.maxStock
+          },
+          menu.createdBy,
+          menu.updatedBy
+        )
+      : null
   }
 
   async getAllFnbMenu(): Promise<FnbMenuModel[]> {
