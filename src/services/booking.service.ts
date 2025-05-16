@@ -49,12 +49,12 @@ class BookingService {
 
         // Calculate duration in milliseconds
         const diffMs = endTime.diff(startTime)
-        const minDurationMs = 60 * 60 * 1000 // 1 hour in milliseconds
+        const minDurationMs = 30 * 60 * 1000 // 30 minutes in milliseconds
 
         // Validate minimum duration
         if (diffMs < minDurationMs) {
           throw new ErrorWithStatus({
-            message: `Booking duration must be at least 1 hour. Invalid time slot: ${timeSlot}`,
+            message: `Booking duration must be at least 30 minutes. Invalid time slot: ${timeSlot}`,
             status: HTTP_STATUS_CODE.UNPROCESSABLE_ENTITY
           })
         }

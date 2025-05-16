@@ -10,6 +10,7 @@ import databaseService from './database.service'
 import { parseDate } from '~/utils/common'
 import redis from './redis.service'
 import { roomEventEmitter } from './room.service'
+import billService from './bill.service'
 
 /**
  * RoomScheduleService
@@ -97,13 +98,13 @@ class RoomScheduleService {
 
       // Calculate duration in milliseconds
       const diffMs = endTime.getTime() - startTime.getTime()
-      const minDurationMs = 60 * 60 * 1000 // 1 hour in milliseconds
+      const minDurationMs = 30 * 60 * 1000 // 30 minutes in milliseconds
       const maxDurationMs = 8 * 60 * 60 * 1000 // 8 hours in milliseconds
 
       // Validate minimum duration
       if (diffMs < minDurationMs) {
         throw new ErrorWithStatus({
-          message: 'Booking duration must be at least 1 hour.',
+          message: 'Booking duration must be at least 30 minutes.',
           status: HTTP_STATUS_CODE.UNPROCESSABLE_ENTITY
         })
       }
@@ -262,6 +263,34 @@ class RoomScheduleService {
     // Nếu đang cập nhật trạng thái thành "Finished", xóa tất cả cache của phòng
     if (schedule.status === RoomScheduleStatus.Finished && currentSchedule.status !== RoomScheduleStatus.Finished) {
       await this.clearRoomCache(currentSchedule.roomId.toString())
+
+      // Khi trạng thái cập nhật thành Finished, tạo và lưu hóa đơn
+      try {
+        // Lấy thông tin hóa đơn từ lịch đặt phòng
+        const billData = await billService.getBill(id, schedule.endTime, schedule.paymentMethod)
+
+        // Lưu trực tiếp vào database thay vì gọi printBill
+        const bill = {
+          _id: new ObjectId(),
+          scheduleId: new ObjectId(id),
+          roomId: currentSchedule.roomId,
+          items: billData.items,
+          totalAmount: billData.totalAmount,
+          startTime: billData.startTime,
+          endTime: billData.endTime,
+          createdAt: new Date(),
+          paymentMethod: billData.paymentMethod,
+          note: billData.note,
+          activePromotion: billData.activePromotion
+        }
+
+        // Lưu hóa đơn vào database
+        await databaseService.bills.insertOne(bill)
+        console.log(`Đã lưu hóa đơn khi kết thúc phòng. ScheduleId=${id}, BillId=${bill._id}`)
+      } catch (error) {
+        console.error('Lỗi khi tạo hóa đơn khi kết thúc phòng:', error)
+        // Không throw error để không ảnh hưởng đến việc cập nhật trạng thái
+      }
     }
 
     return result.modifiedCount

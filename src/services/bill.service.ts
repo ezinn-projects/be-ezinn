@@ -492,30 +492,7 @@ export class BillService {
 
   async printBill(billData: IBill): Promise<IBill> {
     try {
-      // Kiểm tra xem đã có hóa đơn tương tự trong khoảng thời gian gần đây không
-      // (trong vòng 5 phút gần đây)
-      const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000)
-
-      // Tìm tất cả hóa đơn trong khoảng thời gian gần đây
-      const recentBills = await databaseService.bills
-        .find({
-          createdAt: { $gte: fiveMinutesAgo }
-        })
-        .toArray()
-
-      // Tạo key cho hóa đơn hiện tại
-      const newBillKey = this.getBillUniqueKey(billData)
-
-      // Tìm hóa đơn trùng lặp dựa trên key
-      const existingBill = recentBills.find((bill) => this.getBillUniqueKey(bill) === newBillKey)
-
-      // Nếu đã có hóa đơn tương tự, trả về hóa đơn đó thay vì tạo mới
-      if (existingBill) {
-        console.log(`Tìm thấy hóa đơn tương tự đã tồn tại trong 5 phút qua.`)
-        console.log(`Sử dụng hóa đơn đã tồn tại: ${existingBill._id}`)
-        return existingBill
-      }
-
+      // Tạo unique ID cho bill này, nhưng sẽ không lưu vào DB
       const bill: IBill = {
         _id: new ObjectId(),
         scheduleId: new ObjectId(billData.scheduleId),
@@ -524,20 +501,17 @@ export class BillService {
         totalAmount: billData.totalAmount,
         startTime: billData.startTime,
         endTime: billData.endTime,
-        createdAt: new Date(), // Sử dụng thời gian hiện tại
+        createdAt: new Date(),
         paymentMethod: billData.paymentMethod,
         note: billData.note,
         activePromotion: billData.activePromotion
       }
 
-      // Log thông tin bill trước khi lưu
+      // Kiểm tra status của schedule chỉ để ghi log
+      const schedule = await databaseService.roomSchedule.findOne({ _id: bill.scheduleId })
       console.log(
-        `Lưu hóa đơn mới: ${bill._id}, createdAt=${bill.createdAt.toISOString()}, totalAmount=${bill.totalAmount}`
+        `In hóa đơn cho ScheduleId=${bill.scheduleId}, Status=${schedule?.status || 'unknown'}, không lưu vào database`
       )
-
-      // Save bill to the database
-      const result = await databaseService.bills.insertOne(bill)
-      console.log(`Kết quả lưu hóa đơn: success=${result.acknowledged}, id=${result.insertedId}`)
 
       const room = await databaseService.rooms.findOne({ _id: bill.roomId })
 
@@ -794,21 +768,25 @@ export class BillService {
         `Tìm thấy ${finishedSchedules.length} lịch đặt phòng đã hoàn thành cho ngày ${inputDate.format('YYYY-MM-DD')}`
       )
 
-      // Lấy danh sách scheduleId
+      // Lấy danh sách scheduleId đã hoàn thành
       const scheduleIds = finishedSchedules.map((schedule) => schedule._id)
+
+      if (scheduleIds.length === 0) {
+        // Không có lịch nào hoàn thành
+        return {
+          totalRevenue: 0,
+          bills: []
+        }
+      }
 
       // Tìm hóa đơn theo ngày cụ thể và chỉ lấy hóa đơn của các lịch đã hoàn thành
       const bills = await databaseService.bills
         .find({
-          createdAt: {
-            $gte: startDate,
-            $lte: endDate
-          },
           scheduleId: { $in: scheduleIds }
         })
         .toArray()
 
-      console.log(`Tìm thấy ${bills.length} hóa đơn cho ngày ${inputDate.format('YYYY-MM-DD')}`)
+      console.log(`Tìm thấy ${bills.length} hóa đơn từ các lịch hoàn thành cho ngày ${inputDate.format('YYYY-MM-DD')}`)
 
       if (bills.length === 0) {
         // Kiểm tra xem bills collection có dữ liệu không
@@ -896,21 +874,27 @@ export class BillService {
 
       console.log(`Tìm thấy ${finishedSchedules.length} lịch đặt phòng đã hoàn thành trong tuần`)
 
-      // Lấy danh sách scheduleId
+      // Lấy danh sách scheduleId đã hoàn thành
       const scheduleIds = finishedSchedules.map((schedule) => schedule._id)
 
-      // Find all bills created within the week and only for completed schedules
+      if (scheduleIds.length === 0) {
+        // Không có lịch nào hoàn thành
+        return {
+          totalRevenue: 0,
+          bills: [],
+          startDate,
+          endDate
+        }
+      }
+
+      // Find all bills for completed schedules
       const bills = await databaseService.bills
         .find({
-          createdAt: {
-            $gte: startDate,
-            $lte: endDate
-          },
           scheduleId: { $in: scheduleIds }
         })
         .toArray()
 
-      console.log(`Tìm thấy ${bills.length} hóa đơn trong tuần`)
+      console.log(`Tìm thấy ${bills.length} hóa đơn từ các lịch hoàn thành trong tuần`)
 
       // Lọc bỏ hoá đơn trùng lặp dựa trên các thông tin quan trọng
       const uniqueBillsMap = new Map<string, IBill>()
@@ -985,21 +969,27 @@ export class BillService {
 
       console.log(`Tìm thấy ${finishedSchedules.length} lịch đặt phòng đã hoàn thành trong tháng`)
 
-      // Lấy danh sách scheduleId
+      // Lấy danh sách scheduleId đã hoàn thành
       const scheduleIds = finishedSchedules.map((schedule) => schedule._id)
 
-      // Find all bills created within the month and only for completed schedules
+      if (scheduleIds.length === 0) {
+        // Không có lịch nào hoàn thành
+        return {
+          totalRevenue: 0,
+          bills: [],
+          startDate,
+          endDate
+        }
+      }
+
+      // Find all bills for completed schedules
       const bills = await databaseService.bills
         .find({
-          createdAt: {
-            $gte: startDate,
-            $lte: endDate
-          },
           scheduleId: { $in: scheduleIds }
         })
         .toArray()
 
-      console.log(`Tìm thấy ${bills.length} hóa đơn trong tháng`)
+      console.log(`Tìm thấy ${bills.length} hóa đơn từ các lịch hoàn thành trong tháng`)
 
       // Lọc bỏ hoá đơn trùng lặp dựa trên các thông tin quan trọng
       const uniqueBillsMap = new Map<string, IBill>()
@@ -1083,21 +1073,27 @@ export class BillService {
 
       console.log(`Tìm thấy ${finishedSchedules.length} lịch đặt phòng đã hoàn thành trong khoảng thời gian chỉ định`)
 
-      // Lấy danh sách scheduleId
+      // Lấy danh sách scheduleId đã hoàn thành
       const scheduleIds = finishedSchedules.map((schedule) => schedule._id)
 
-      // Find all bills created within the date range and only for completed schedules
+      if (scheduleIds.length === 0) {
+        // Không có lịch nào hoàn thành
+        return {
+          totalRevenue: 0,
+          bills: [],
+          startDate: startDateObj,
+          endDate: endDateObj
+        }
+      }
+
+      // Find all bills for completed schedules
       const bills = await databaseService.bills
         .find({
-          createdAt: {
-            $gte: startDateObj,
-            $lte: endDateObj
-          },
           scheduleId: { $in: scheduleIds }
         })
         .toArray()
 
-      console.log(`Tìm thấy ${bills.length} hóa đơn trong khoảng thời gian chỉ định`)
+      console.log(`Tìm thấy ${bills.length} hóa đơn từ các lịch hoàn thành trong khoảng thời gian chỉ định`)
 
       // Lọc bỏ hoá đơn trùng lặp dựa trên các thông tin quan trọng
       const uniqueBillsMap = new Map<string, IBill>()

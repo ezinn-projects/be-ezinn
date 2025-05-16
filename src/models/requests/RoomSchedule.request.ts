@@ -17,4 +17,5 @@ export interface IRoomScheduleRequestBody {
   updatedBy?: string
   note?: string
   source?: BookingSource
+  paymentMethod?: string
 }
