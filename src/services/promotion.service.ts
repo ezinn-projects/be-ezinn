@@ -35,6 +35,15 @@ class PromotionService {
   }
 
   /**
+   * Get promotion by name
+   * @param name Promotion name
+   * @returns Promotion or null if not found
+   */
+  async getPromotionByName(name: string): Promise<IPromotion | null> {
+    return await databaseService.promotions.findOne({ name })
+  }
+
+  /**
    * Create new promotion
    * @param promotion Promotion data
    * @returns Created promotion ID

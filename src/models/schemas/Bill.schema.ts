@@ -24,6 +24,7 @@ export interface IBill {
     discountPercentage: number
     appliesTo: 'sing' | 'all' | string[]
   }
+  actualEndTime?: Date
 }
 
 /**
@@ -50,6 +51,7 @@ export class Bill {
     discountPercentage: number
     appliesTo: 'karaoke' | 'all'
   }
+  actualEndTime: Date
 
   /**
    * Tạo mới một Bill
@@ -90,5 +92,6 @@ export class Bill {
     this.createdAt = new Date()
     this.note = note
     this.activePromotion = activePromotion
+    this.actualEndTime = new Date()
   }
 }

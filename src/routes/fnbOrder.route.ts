@@ -24,6 +24,13 @@ const fnbOrderRouter = Router()
 fnbOrderRouter.post('/', protect([UserRole.Admin]), createFNBOrderValidator, wrapRequestHandler(upsertFnbOrder))
 
 /**
+ * @description Create or Update FNB Order for client (no auth required)
+ * @path /fnb-orders/client
+ * @method POST
+ */
+fnbOrderRouter.post('/client', createFNBOrderValidator, wrapRequestHandler(upsertFnbOrder))
+
+/**
  * @description Get FNB Order by id
  * @path /fnb-orders/:id
  * @method GET

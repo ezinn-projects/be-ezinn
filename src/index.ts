@@ -21,6 +21,7 @@ import fnbMenuRouter from '~/routes/fnbMenu.routes'
 import promotionRouter from '~/routes/promotion.routes'
 import bookingRouter from '~/routes/booking.routes'
 import holidayRouter from '~/routes/holiday.routes'
+import clientFnbRouter from '~/routes/clientFnb.routes'
 
 import { startScheduledJobs } from './jobs'
 import { finishSchedulerInADay, startBookingScheduler } from '~/jobs/bookingScheduler'
@@ -133,6 +134,7 @@ app.use('/fnb-menu', fnbMenuRouter)
 app.use('/promotions', promotionRouter)
 app.use('/bookings', bookingRouter)
 app.use('/holidays', holidayRouter)
+app.use('/client/fnb', clientFnbRouter)
 
 // Error handler
 app.use(defaultErrorHandler)

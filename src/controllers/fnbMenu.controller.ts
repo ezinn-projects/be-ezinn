@@ -46,11 +46,8 @@ export const getMenuItemById = async (req: Request, res: Response, next: NextFun
  */
 export const createMenuItem = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    console.log('req', req.body)
     const { name, price, description, category, createdAt, inventory } = req.body
     const file = req.file as Express.Multer.File | undefined
-
-    console.log('file:', file)
 
     // Kiểm tra nếu không có file hình ảnh
     if (!file) {
@@ -111,8 +108,45 @@ export const createMenuItem = async (req: Request, res: Response, next: NextFunc
  */
 export const updateMenuItem = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { name, price, description, image, category } = req.body
-    const menuItem: any = { name, price, description, category, updatedAt: new Date() }
+    const { name, price, description, image, category, inventory } = req.body
+    const menuItem: any = {
+      name,
+      description,
+      category,
+      updatedAt: new Date()
+    }
+
+    // Xử lý giá nếu được cung cấp
+    if (price) {
+      // Chuyển đổi giá từ chuỗi "15.000" sang số nếu là chuỗi
+      const numericPrice = typeof price === 'string' ? parseFloat(price.replace('.', '')) : price
+      menuItem.price = numericPrice
+    }
+
+    // Xử lý inventory nếu được cung cấp
+    if (inventory) {
+      let inventoryData = inventory
+
+      // Kiểm tra nếu inventory là chuỗi JSON (từ FormData)
+      if (typeof inventory === 'string') {
+        try {
+          inventoryData = JSON.parse(inventory)
+        } catch (error) {
+          console.error('Lỗi khi parse inventory JSON:', error)
+          // Sử dụng giá trị mặc định nếu parse thất bại
+          inventoryData = { quantity: 0, unit: 'piece', minStock: 0, maxStock: 0 }
+        }
+      }
+
+      menuItem.inventory = {
+        quantity: inventoryData.quantity !== undefined ? inventoryData.quantity : 0,
+        unit: inventoryData.unit || 'piece',
+        minStock: inventoryData.minStock !== undefined ? inventoryData.minStock : 0,
+        maxStock: inventoryData.maxStock !== undefined ? inventoryData.maxStock : 0,
+        lastUpdated: new Date()
+      }
+    }
+
     const file = req.file as Express.Multer.File | undefined
 
     // Chỉ cập nhật hình ảnh nếu có file mới được tải lên
