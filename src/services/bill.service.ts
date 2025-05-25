@@ -232,9 +232,28 @@ export class BillService {
           .tz('Asia/Ho_Chi_Minh')
           .toDate()
 
-    if (!dayjs(endTime).isValid()) {
+    // Kiểm tra và chuyển đổi định dạng thời gian kết thúc
+    // Nếu actualEndTime được truyền vào dưới dạng HH:mm, thêm ngày tháng năm của startTime vào
+    let validatedEndTime = endTime
+    if (actualEndTime && /^\d{2}:\d{2}$/.test(actualEndTime)) {
+      const [hours, minutes] = actualEndTime.split(':')
+      const endTimeWithDate = dayjs(startTime)
+        .hour(parseInt(hours))
+        .minute(parseInt(minutes))
+        .second(0)
+        .millisecond(0)
+        .toDate()
+
+      if (!dayjs(endTimeWithDate).isValid()) {
+        throw new ErrorWithStatus({
+          message: 'Thời gian kết thúc không hợp lệ',
+          status: HTTP_STATUS_CODE.BAD_REQUEST
+        })
+      }
+      validatedEndTime = endTimeWithDate
+    } else if (!dayjs(validatedEndTime).isValid()) {
       throw new ErrorWithStatus({
-        message: 'Thời gian kết thúc không hợp lý',
+        message: 'Thời gian kết thúc không hợp lệ',
         status: HTTP_STATUS_CODE.BAD_REQUEST
       })
     }

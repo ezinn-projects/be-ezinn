@@ -205,21 +205,22 @@ class RoomScheduleService {
 
       // Xóa tất cả dữ liệu Redis liên quan đến phòng
       await Promise.all([
-        redis.del(`room_${roomId}_queue`),
-        redis.del(`room_${roomId}_now_playing`),
-        redis.del(`room_${roomId}_playback`),
-        redis.del(`room_${roomId}_current_time`),
+        // Bỏ các lệnh xóa cache bài hát
+        // redis.del(`room_${roomId}_queue`),
+        // redis.del(`room_${roomId}_now_playing`),
+        // redis.del(`room_${roomId}_playback`),
+        // redis.del(`room_${roomId}_current_time`),
         redis.del(`room_${roomId}_notification`)
       ])
 
-      // Emit events để thông báo cho các client biết dữ liệu đã được xóa
-      roomEventEmitter.emit('queue_updated', { roomId, queue: [] })
-      roomEventEmitter.emit('now_playing_cleared', { roomId })
-      roomEventEmitter.emit('now_playing', { roomId, nowPlaying: null })
-      roomEventEmitter.emit('playback_status', { roomId, playbackStatus: 'stopped' })
-      roomEventEmitter.emit('current_time', { roomId, currentTime: 0 })
+      // Bỏ các lệnh emit events về bài hát
+      // roomEventEmitter.emit('queue_updated', { roomId, queue: [] })
+      // roomEventEmitter.emit('now_playing_cleared', { roomId })
+      // roomEventEmitter.emit('now_playing', { roomId, nowPlaying: null })
+      // roomEventEmitter.emit('playback_status', { roomId, playbackStatus: 'stopped' })
+      // roomEventEmitter.emit('current_time', { roomId, currentTime: 0 })
 
-      console.log(`Successfully cleared all cache for room ${roomId}`)
+      console.log(`Successfully cleared notification cache for room ${roomId}`)
     } catch (error) {
       console.error(`Error clearing cache for room ${roomId}:`, error)
     }
@@ -262,6 +263,7 @@ class RoomScheduleService {
 
     // Nếu đang cập nhật trạng thái thành "Finished", xóa tất cả cache của phòng
     if (schedule.status === RoomScheduleStatus.Finished && currentSchedule.status !== RoomScheduleStatus.Finished) {
+      // Bỏ dòng xóa cache để tránh lag
       await this.clearRoomCache(currentSchedule.roomId.toString())
 
       // Khi trạng thái cập nhật thành Finished, tạo và lưu hóa đơn
