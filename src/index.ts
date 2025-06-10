@@ -1,30 +1,29 @@
 import cors from 'cors'
-import express from 'express'
 import dayjs from 'dayjs'
 import timezone from 'dayjs/plugin/timezone'
 import utc from 'dayjs/plugin/utc'
+import express from 'express'
 
+import { defaultErrorHandler } from '~/middlewares/error.middleware'
 import databaseService from '~/services/database.service'
 import serverService from '~/services/server.service'
-import { defaultErrorHandler } from '~/middlewares/error.middleware'
 
-import usersRouter from '~/routes/users.routes'
-import roomTypeRouter from '~/routes/roomType.routes'
+import billRouter from '~/routes/bill.routes'
+import bookingRouter from '~/routes/booking.routes'
+import clientFnbRouter from '~/routes/clientFnb.routes'
+import fileRouter from '~/routes/file.routes'
+import fnbMenuRouter from '~/routes/fnbMenu.routes'
+import fnbOrderRouter from '~/routes/fnbOrder.route'
+import holidayRouter from '~/routes/holiday.routes'
+import priceRouter from '~/routes/price.routes'
+import promotionRouter from '~/routes/promotion.routes'
 import roomRouter from '~/routes/room.routes'
 import roomMusicRouter from '~/routes/roomMusic.routes'
-import priceRouter from '~/routes/price.routes'
-import fileRouter from '~/routes/file.routes'
 import roomScheduleRouter from '~/routes/roomSchedule.routes'
-import fnbOrderRouter from '~/routes/fnbOrder.route'
-import billRouter from '~/routes/bill.routes'
-import fnbMenuRouter from '~/routes/fnbMenu.routes'
-import promotionRouter from '~/routes/promotion.routes'
-import bookingRouter from '~/routes/booking.routes'
-import holidayRouter from '~/routes/holiday.routes'
-import clientFnbRouter from '~/routes/clientFnb.routes'
+import roomTypeRouter from '~/routes/roomType.routes'
+import usersRouter from '~/routes/users.routes'
 
-import { startScheduledJobs } from './jobs'
-import { finishSchedulerInADay, startBookingScheduler } from '~/jobs/bookingScheduler'
+import { finishSchedulerInADay } from '~/jobs/bookingScheduler'
 
 // Thiết lập timezone cho dayjs
 dayjs.extend(utc)
@@ -140,10 +139,10 @@ app.use('/client/fnb', clientFnbRouter)
 app.use(defaultErrorHandler)
 
 // Scheduler jobs
-startBookingScheduler()
+// startBookingScheduler()
 finishSchedulerInADay()
 
 app.listen(port, () => {
   console.log(`Server is running at http://localhost:${port}`)
-  startScheduledJobs()
+  // startScheduledJobs()
 })

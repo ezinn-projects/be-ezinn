@@ -25,6 +25,7 @@ export interface IBill {
     appliesTo: 'sing' | 'all' | string[]
   }
   actualEndTime?: Date
+  actualStartTime?: Date
 }
 
 /**

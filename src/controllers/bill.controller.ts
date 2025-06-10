@@ -12,9 +12,26 @@ dayjs.extend(weekday)
 
 export const getBill = async (req: Request, res: Response) => {
   const { scheduleId } = req.params
-  const { actualEndTime, promotionId } = req.query
+  const { actualEndTime, actualStartTime, promotionId } = req.query
 
-  const bill = await billService.getBill(scheduleId, actualEndTime as string, undefined, promotionId as string)
+  const bill = await billService.getBill(
+    scheduleId,
+    actualEndTime as string,
+    undefined,
+    promotionId as string,
+    actualStartTime as string
+  )
+
+  // Đảm bảo giữ nguyên số thập phân của quantity
+  if (bill && bill.items) {
+    bill.items.forEach((item) => {
+      if (typeof item.quantity === 'number') {
+        // Đảm bảo hiển thị đúng 2 chữ số thập phân
+        item.quantity = parseFloat(item.quantity.toFixed(2))
+      }
+    })
+  }
+
   return res.status(HTTP_STATUS_CODE.OK).json({
     message: 'Get bill successfully',
     result: bill
@@ -23,11 +40,36 @@ export const getBill = async (req: Request, res: Response) => {
 
 export const printBill = async (req: Request, res: Response) => {
   const { scheduleId } = req.params
-  const { actualEndTime, paymentMethod, promotionId } = req.body
+  const { actualEndTime, actualStartTime, paymentMethod, promotionId } = req.body
 
-  const billData = await billService.getBill(scheduleId, actualEndTime as string, paymentMethod, promotionId as string)
+  const billData = await billService.getBill(
+    scheduleId,
+    actualEndTime as string,
+    paymentMethod,
+    promotionId as string,
+    actualStartTime as string
+  )
+
+  // Đảm bảo giữ nguyên số thập phân của quantity
+  if (billData && billData.items) {
+    billData.items.forEach((item) => {
+      if (typeof item.quantity === 'number') {
+        // Đảm bảo hiển thị đúng 2 chữ số thập phân
+        item.quantity = parseFloat(item.quantity.toFixed(2))
+      }
+    })
+  }
 
   const bill = await billService.printBill(billData)
+
+  // Đảm bảo giữ nguyên số thập phân khi trả về kết quả
+  if (bill && bill.items) {
+    bill.items.forEach((item) => {
+      if (typeof item.quantity === 'number') {
+        item.quantity = parseFloat(item.quantity.toFixed(2))
+      }
+    })
+  }
 
   return res.status(HTTP_STATUS_CODE.OK).json({
     message: 'Print bill successfully',
@@ -285,12 +327,18 @@ export const cleanUpNonFinishedBills = async (req: Request, res: Response) => {
  */
 export const testBillWithDiscount = async (req: Request, res: Response) => {
   const { scheduleId } = req.params
-  const { actualEndTime, discountPercentage = 0 } = req.body
+  const { actualEndTime, actualStartTime, discountPercentage = 0 } = req.body
 
   try {
     // Get bill data using the regular method but without specifying a promotionId
     // This will either use no promotion or the default active one
-    const bill = await billService.getBill(scheduleId, actualEndTime as string)
+    const bill = await billService.getBill(
+      scheduleId,
+      actualEndTime as string,
+      undefined,
+      undefined,
+      actualStartTime as string
+    )
 
     // Create a temporary promotion object for testing
     const testPromotion = {
