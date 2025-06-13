@@ -585,6 +585,12 @@ export class BillService {
     // Làm tròn tổng tiền xuống đến 1000 VND để đảm bảo nhất quán
     bill.totalAmount = Math.floor(bill.totalAmount / 1000) * 1000
 
+    // Thêm mã hóa đơn nếu chưa có
+    if (!bill.invoiceCode) {
+      const now = new Date()
+      bill.invoiceCode = `#${now.getDate().toString().padStart(2, '0')}${(now.getMonth() + 1).toString().padStart(2, '0')}${now.getHours().toString().padStart(2, '0')}${now.getMinutes().toString().padStart(2, '0')}`
+    }
+
     return bill
   }
 
@@ -628,6 +634,10 @@ export class BillService {
         dayjs(exactStartTime).toISOString()
       )
 
+      // Tạo mã hóa đơn theo định dạng #DDMMHHMM (ngày, tháng, giờ, phút)
+      const now = new Date()
+      const invoiceCode = `#${now.getDate().toString().padStart(2, '0')}${(now.getMonth() + 1).toString().padStart(2, '0')}${now.getHours().toString().padStart(2, '0')}${now.getMinutes().toString().padStart(2, '0')}`
+
       // Tạo unique ID cho bill này, nhưng sẽ không lưu vào DB
       const bill: IBill = {
         _id: new ObjectId(),
@@ -642,7 +652,8 @@ export class BillService {
         note: recalculatedBill.note,
         activePromotion: recalculatedBill.activePromotion,
         actualEndTime: exactEndTime,
-        actualStartTime: exactStartTime
+        actualStartTime: exactStartTime,
+        invoiceCode: invoiceCode // Thêm mã hóa đơn
       }
 
       // Kiểm tra status của schedule chỉ để ghi log
@@ -745,7 +756,7 @@ export class BillService {
               .style('b')
               .size(0, 0)
               .text('--------------------------------------------')
-              .text(`Ma HD: ${invoiceCode}`)
+              .text(`Ma HD: ${bill.invoiceCode}`)
               .text(`${room?.roomName || 'Khong xac dinh'}`)
               .align('lt')
               .text(`Ngay: ${formatDate(new Date(bill.createdAt))}`)
@@ -1031,9 +1042,18 @@ export class BillService {
                 `- Thời gian kết thúc chính xác: ${dayjs(ensureVNTimezone(billToUse.actualEndTime)).format('DD/MM HH:mm:ss')}`
               )
             }
+
+            // Log thông tin khuyến mãi nếu có
+            if (billToUse.activePromotion) {
+              console.log(
+                `- Khuyến mãi đã áp dụng: ${billToUse.activePromotion.name} (${billToUse.activePromotion.discountPercentage}%)`
+              )
+              console.log(`- Tổng tiền sau giảm giá: ${billToUse.totalAmount.toLocaleString('vi-VN')} VND`)
+            }
           } else {
             // Nếu không có hóa đơn lưu sẵn, tính lại từ getBill
             console.log(`- Không tìm thấy hóa đơn đã lưu, đang tính toán lại...`)
+            // Không áp dụng promotion nào khi tính toán lại để tránh sai lệch
             billToUse = await this.getBill(scheduleId, undefined, undefined, 'null', undefined)
 
             // Gán _id nếu cần
@@ -1161,9 +1181,18 @@ export class BillService {
           if (savedBillMap.has(schedule._id.toString())) {
             billToUse = savedBillMap.get(schedule._id.toString())!
             console.log(`- Sử dụng hóa đơn đã lưu trong database, ID: ${billToUse._id}`)
+
+            // Log thông tin khuyến mãi nếu có
+            if (billToUse.activePromotion) {
+              console.log(
+                `- Khuyến mãi đã áp dụng: ${billToUse.activePromotion.name} (${billToUse.activePromotion.discountPercentage}%)`
+              )
+              console.log(`- Tổng tiền sau giảm giá: ${billToUse.totalAmount.toLocaleString('vi-VN')} VND`)
+            }
           } else {
             // Tính lại hóa đơn dựa trên thông tin schedule
             console.log(`- Không tìm thấy hóa đơn đã lưu, đang tính toán lại...`)
+            // Không áp dụng promotion nào khi tính toán lại để tránh sai lệch
             billToUse = await this.getBill(schedule._id.toString(), undefined, undefined, 'null', undefined)
 
             // Gán _id nếu cần
@@ -1301,9 +1330,18 @@ export class BillService {
           if (savedBillMap.has(schedule._id.toString())) {
             billToUse = savedBillMap.get(schedule._id.toString())!
             console.log(`- Sử dụng hóa đơn đã lưu trong database, ID: ${billToUse._id}`)
+
+            // Log thông tin khuyến mãi nếu có
+            if (billToUse.activePromotion) {
+              console.log(
+                `- Khuyến mãi đã áp dụng: ${billToUse.activePromotion.name} (${billToUse.activePromotion.discountPercentage}%)`
+              )
+              console.log(`- Tổng tiền sau giảm giá: ${billToUse.totalAmount.toLocaleString('vi-VN')} VND`)
+            }
           } else {
             // Tính lại hóa đơn dựa trên thông tin schedule
             console.log(`- Không tìm thấy hóa đơn đã lưu, đang tính toán lại...`)
+            // Không áp dụng promotion nào khi tính toán lại để tránh sai lệch
             billToUse = await this.getBill(schedule._id.toString(), undefined, undefined, 'null', undefined)
 
             // Gán _id nếu cần
@@ -1449,9 +1487,18 @@ export class BillService {
           if (savedBillMap.has(schedule._id.toString())) {
             billToUse = savedBillMap.get(schedule._id.toString())!
             console.log(`- Sử dụng hóa đơn đã lưu trong database, ID: ${billToUse._id}`)
+
+            // Log thông tin khuyến mãi nếu có
+            if (billToUse.activePromotion) {
+              console.log(
+                `- Khuyến mãi đã áp dụng: ${billToUse.activePromotion.name} (${billToUse.activePromotion.discountPercentage}%)`
+              )
+              console.log(`- Tổng tiền sau giảm giá: ${billToUse.totalAmount.toLocaleString('vi-VN')} VND`)
+            }
           } else {
             // Tính lại hóa đơn dựa trên thông tin schedule
             console.log(`- Không tìm thấy hóa đơn đã lưu, đang tính toán lại...`)
+            // Không áp dụng promotion nào khi tính toán lại để tránh sai lệch
             billToUse = await this.getBill(schedule._id.toString(), undefined, undefined, 'null', undefined)
 
             // Gán _id nếu cần
@@ -1676,6 +1723,171 @@ export class BillService {
       }
     } catch (error) {
       console.error('Lỗi khi dọn dẹp hóa đơn từ lịch chưa hoàn thành:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Get total revenue directly from bills collection without checking room schedules
+   * @param dateType Type of date range: 'day', 'week', 'month', or 'custom'
+   * @param startDate Start date (required for all types, format: ISO date string)
+   * @param endDate End date (only required for 'custom' type, format: ISO date string)
+   * @returns Object containing total revenue and bill details
+   */
+  async getRevenueFromBillsCollection(
+    dateType: 'day' | 'week' | 'month' | 'custom',
+    startDate: string,
+    endDate?: string
+  ): Promise<{
+    totalRevenue: number
+    bills: IBill[]
+    startDate: Date
+    endDate: Date
+    timeRange: string
+  }> {
+    try {
+      let start: dayjs.Dayjs
+      let end: dayjs.Dayjs
+      let timeRangeDescription: string
+
+      // Xác định khoảng thời gian dựa vào dateType
+      start = dayjs(startDate).tz('Asia/Ho_Chi_Minh')
+
+      switch (dateType) {
+        case 'day':
+          start = start.startOf('day')
+          end = start.endOf('day')
+          timeRangeDescription = `ngày ${start.format('DD/MM/YYYY')}`
+          break
+
+        case 'week':
+          start = start.startOf('week')
+          end = start.endOf('week')
+          timeRangeDescription = `tuần ${start.week()} năm ${start.year()} (${start.format('DD/MM')} - ${end.format('DD/MM/YYYY')})`
+          break
+
+        case 'month':
+          start = start.startOf('month')
+          end = start.endOf('month')
+          timeRangeDescription = `tháng ${start.format('MM/YYYY')}`
+          break
+
+        case 'custom':
+          if (!endDate) {
+            throw new ErrorWithStatus({
+              message: 'Cần cung cấp ngày kết thúc cho khoảng thời gian tùy chỉnh',
+              status: HTTP_STATUS_CODE.BAD_REQUEST
+            })
+          }
+          start = start.startOf('day')
+          end = dayjs(endDate).tz('Asia/Ho_Chi_Minh').endOf('day')
+          timeRangeDescription = `từ ${start.format('DD/MM/YYYY')} đến ${end.format('DD/MM/YYYY')}`
+
+          if (start.isAfter(end)) {
+            throw new ErrorWithStatus({
+              message: 'Ngày bắt đầu phải trước ngày kết thúc',
+              status: HTTP_STATUS_CODE.BAD_REQUEST
+            })
+          }
+          break
+      }
+
+      const startDateObj = start.toDate()
+      const endDateObj = end.toDate()
+
+      console.log(`[DOANH THU MỚI] Bắt đầu tính doanh thu ${timeRangeDescription}`)
+      console.log(
+        `[DOANH THU MỚI] Khoảng thời gian (VN): ${start.format('YYYY-MM-DD HH:mm:ss')} - ${end.format('YYYY-MM-DD HH:mm:ss')}`
+      )
+
+      // Truy vấn trực tiếp từ collection bills mà không thông qua roomSchedule
+      const bills = await databaseService.bills
+        .find({
+          // Sử dụng endTime để lọc vì đó là thời điểm kết thúc phiên và tạo hóa đơn
+          endTime: {
+            $gte: startDateObj,
+            $lte: endDateObj
+          }
+        })
+        .toArray()
+
+      console.log(`[DOANH THU MỚI] Tìm thấy ${bills.length} hóa đơn trong khoảng thời gian`)
+      console.log(
+        `[DOANH THU MỚI] LƯU Ý: Doanh thu được tính trực tiếp từ bills đã lưu trong database, bao gồm cả các khuyến mãi đã áp dụng`
+      )
+
+      if (bills.length === 0) {
+        return {
+          totalRevenue: 0,
+          bills: [],
+          startDate: startDateObj,
+          endDate: endDateObj,
+          timeRange: timeRangeDescription
+        }
+      }
+
+      // Loại bỏ các hóa đơn trùng lặp bằng Map với key là scheduleId
+      const uniqueBills = new Map<string, IBill>()
+
+      for (const bill of bills) {
+        const scheduleId = bill.scheduleId.toString()
+        // Nếu chưa có bill với scheduleId này hoặc bill hiện tại mới hơn
+        if (
+          !uniqueBills.has(scheduleId) ||
+          (bill.createdAt &&
+            uniqueBills.get(scheduleId)!.createdAt &&
+            new Date(bill.createdAt) > new Date(uniqueBills.get(scheduleId)!.createdAt))
+        ) {
+          uniqueBills.set(scheduleId, bill)
+        }
+      }
+
+      const finalBills = Array.from(uniqueBills.values())
+
+      // Làm tròn tổng tiền của từng hóa đơn (nếu cần)
+      finalBills.forEach((bill) => {
+        bill.totalAmount = Math.floor(bill.totalAmount / 1000) * 1000
+
+        // Log thông tin chi tiết về hóa đơn và khuyến mãi nếu có
+        console.log(`- Bill ID: ${bill._id}, Tổng tiền: ${bill.totalAmount.toLocaleString('vi-VN')} VND`)
+        if (bill.activePromotion) {
+          console.log(
+            `  + Khuyến mãi đã áp dụng: ${bill.activePromotion.name} (${bill.activePromotion.discountPercentage}%)`
+          )
+          console.log(`  + Đây là giá trị đã giảm giá, sử dụng trực tiếp từ database`)
+        }
+
+        // Log thông tin từng mục trong hóa đơn
+        if (bill.items && bill.items.length > 0) {
+          bill.items.forEach((item) => {
+            if (item.originalPrice) {
+              console.log(
+                `  + ${item.description}: ${item.quantity} x ${item.price} = ${item.originalPrice} -> ${item.price * item.quantity} VND (đã giảm giá)`
+              )
+            } else {
+              console.log(
+                `  + ${item.description}: ${item.quantity} x ${item.price} = ${item.price * item.quantity} VND`
+              )
+            }
+          })
+        }
+      })
+
+      // Tính tổng doanh thu
+      const totalRevenue = finalBills.reduce((sum, bill) => sum + bill.totalAmount, 0)
+
+      console.log(`[DOANH THU MỚI] Tổng doanh thu ${timeRangeDescription}: ${totalRevenue.toLocaleString('vi-VN')} VND`)
+      console.log(`[DOANH THU MỚI] Số lượng hóa đơn (sau khi lọc trùng): ${finalBills.length}`)
+
+      return {
+        totalRevenue,
+        bills: finalBills,
+        startDate: startDateObj,
+        endDate: endDateObj,
+        timeRange: timeRangeDescription
+      }
+    } catch (error) {
+      console.error('[DOANH THU MỚI] Lỗi khi tính doanh thu:', error)
       throw error
     }
   }

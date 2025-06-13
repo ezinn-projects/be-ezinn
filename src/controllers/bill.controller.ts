@@ -5,6 +5,7 @@ import dayjs from 'dayjs'
 import weekOfYear from 'dayjs/plugin/weekOfYear'
 import weekday from 'dayjs/plugin/weekday'
 import { ObjectId } from 'mongodb'
+import databaseService from '~/services/database.service'
 
 // Extend dayjs with the required plugins
 dayjs.extend(weekOfYear)
@@ -417,6 +418,303 @@ export const testBillWithDiscount = async (req: Request, res: Response) => {
     return res.status(HTTP_STATUS_CODE.INTERNAL_SERVER_ERROR).json({
       message: 'Error generating test bill',
       error: error instanceof Error ? error.message : 'Unknown error'
+    })
+  }
+}
+
+/**
+ * Get bill details by bill ID
+ * @param req Request object containing billId in params
+ * @param res Response object
+ * @returns Bill details for the specified ID
+ */
+export const getBillById = async (req: Request, res: Response) => {
+  const { billId } = req.params
+
+  if (!billId) {
+    return res.status(HTTP_STATUS_CODE.BAD_REQUEST).json({
+      message: 'Bill ID is required'
+    })
+  }
+
+  try {
+    // Validate ObjectId format
+    if (!ObjectId.isValid(billId)) {
+      return res.status(HTTP_STATUS_CODE.BAD_REQUEST).json({
+        message: 'Invalid bill ID format'
+      })
+    }
+
+    // Tìm hóa đơn trong database
+    const bill = await databaseService.bills.findOne({ _id: new ObjectId(billId) })
+
+    if (!bill) {
+      return res.status(HTTP_STATUS_CODE.NOT_FOUND).json({
+        message: 'Bill not found'
+      })
+    }
+
+    // Lấy thông tin phòng
+    const room = await databaseService.rooms.findOne({ _id: bill.roomId })
+
+    // Lấy thông tin lịch đặt phòng
+    const schedule = await databaseService.roomSchedule.findOne({ _id: bill.scheduleId })
+
+    // Format dates for better readability
+    const formattedBill = {
+      ...bill,
+      roomName: room?.roomName || 'Unknown Room',
+      roomType: room?.roomType || 'Unknown Type',
+      customerName: schedule?.note || '',
+      formattedStartTime: dayjs(bill.startTime).format('DD/MM/YYYY HH:mm'),
+      formattedEndTime: dayjs(bill.endTime).format('DD/MM/YYYY HH:mm'),
+      formattedCreatedAt: dayjs(bill.createdAt).format('DD/MM/YYYY HH:mm'),
+      usageDuration: billService.calculateHours(bill.startTime, bill.endTime).toFixed(2),
+      invoiceCode: bill.invoiceCode || 'N/A'
+    }
+
+    return res.status(HTTP_STATUS_CODE.OK).json({
+      message: 'Get bill details successfully',
+      result: formattedBill
+    })
+  } catch (error: any) {
+    return res.status(HTTP_STATUS_CODE.INTERNAL_SERVER_ERROR).json({
+      message: 'Error getting bill details',
+      error: error.message || 'Unknown error'
+    })
+  }
+}
+
+/**
+ * Get bills by room ID
+ * @param req Request object containing roomId in params and optional date range in query
+ * @param res Response object
+ * @returns List of bills for the specified room
+ */
+export const getBillsByRoomId = async (req: Request, res: Response) => {
+  const { roomId } = req.params
+  const { startDate, endDate, limit } = req.query
+
+  if (!roomId) {
+    return res.status(HTTP_STATUS_CODE.BAD_REQUEST).json({
+      message: 'Room ID is required'
+    })
+  }
+
+  try {
+    // Validate ObjectId format
+    if (!ObjectId.isValid(roomId)) {
+      return res.status(HTTP_STATUS_CODE.BAD_REQUEST).json({
+        message: 'Invalid room ID format'
+      })
+    }
+
+    // Xây dựng query filter
+    const filter: any = { roomId: new ObjectId(roomId) }
+
+    // Thêm điều kiện lọc theo thời gian nếu có
+    if (startDate && endDate) {
+      // Validate date format
+      if (!dayjs(startDate as string).isValid() || !dayjs(endDate as string).isValid()) {
+        return res.status(HTTP_STATUS_CODE.BAD_REQUEST).json({
+          message: 'Invalid date format. Please use ISO date string format'
+        })
+      }
+
+      const startDateObj = dayjs(startDate as string)
+        .startOf('day')
+        .toDate()
+      const endDateObj = dayjs(endDate as string)
+        .endOf('day')
+        .toDate()
+
+      filter.endTime = {
+        $gte: startDateObj,
+        $lte: endDateObj
+      }
+    }
+
+    // Giới hạn số lượng kết quả trả về nếu có
+    const queryLimit = limit ? parseInt(limit as string, 10) : 50
+
+    // Lấy danh sách hóa đơn từ database
+    const bills = await databaseService.bills
+      .find(filter)
+      .sort({ endTime: -1 }) // Sắp xếp theo thời gian kết thúc, mới nhất lên đầu
+      .limit(queryLimit)
+      .toArray()
+
+    // Lấy thông tin phòng
+    const room = await databaseService.rooms.findOne({ _id: new ObjectId(roomId) })
+
+    // Format dates for better readability
+    const formattedBills = await Promise.all(
+      bills.map(async (bill) => {
+        // Lấy thông tin lịch đặt phòng
+        const schedule = await databaseService.roomSchedule.findOne({ _id: bill.scheduleId })
+
+        return {
+          _id: bill._id,
+          scheduleId: bill.scheduleId,
+          roomId: bill.roomId,
+          roomName: room?.roomName || 'Unknown Room',
+          roomType: room?.roomType || 'Unknown Type',
+          customerName: schedule?.note || '',
+          startTime: bill.startTime,
+          endTime: bill.endTime,
+          formattedStartTime: dayjs(bill.startTime).format('DD/MM/YYYY HH:mm'),
+          formattedEndTime: dayjs(bill.endTime).format('DD/MM/YYYY HH:mm'),
+          formattedCreatedAt: dayjs(bill.createdAt).format('DD/MM/YYYY HH:mm'),
+          totalAmount: bill.totalAmount,
+          paymentMethod: bill.paymentMethod,
+          itemCount: bill.items?.length || 0,
+          usageDuration: billService.calculateHours(bill.startTime, bill.endTime).toFixed(2),
+          invoiceCode: bill.invoiceCode || 'N/A'
+        }
+      })
+    )
+
+    return res.status(HTTP_STATUS_CODE.OK).json({
+      message: 'Get bills by room ID successfully',
+      result: {
+        roomId,
+        roomName: room?.roomName || 'Unknown Room',
+        billCount: formattedBills.length,
+        bills: formattedBills
+      }
+    })
+  } catch (error: any) {
+    return res.status(HTTP_STATUS_CODE.INTERNAL_SERVER_ERROR).json({
+      message: 'Error getting bills by room ID',
+      error: error.message || 'Unknown error'
+    })
+  }
+}
+
+/**
+ * Get all bills with pagination and filtering
+ * @param req Request object containing query parameters
+ * @param res Response object
+ * @returns Paginated list of bills
+ */
+export const getAllBills = async (req: Request, res: Response) => {
+  const { page = '1', limit = '10', startDate, endDate, minAmount, maxAmount, paymentMethod, invoiceCode } = req.query
+
+  try {
+    // Parse pagination parameters
+    const pageNumber = parseInt(page as string, 10)
+    const limitNumber = parseInt(limit as string, 10)
+    const skip = (pageNumber - 1) * limitNumber
+
+    // Build filter object
+    const filter: any = {}
+
+    // Add date range filter if provided
+    if (startDate && endDate) {
+      // Validate date format
+      if (!dayjs(startDate as string).isValid() || !dayjs(endDate as string).isValid()) {
+        return res.status(HTTP_STATUS_CODE.BAD_REQUEST).json({
+          message: 'Invalid date format. Please use ISO date string format'
+        })
+      }
+
+      const startDateObj = dayjs(startDate as string)
+        .startOf('day')
+        .toDate()
+      const endDateObj = dayjs(endDate as string)
+        .endOf('day')
+        .toDate()
+
+      filter.endTime = {
+        $gte: startDateObj,
+        $lte: endDateObj
+      }
+    }
+
+    // Add amount range filter if provided
+    if (minAmount || maxAmount) {
+      filter.totalAmount = {}
+
+      if (minAmount) {
+        filter.totalAmount.$gte = parseInt(minAmount as string, 10)
+      }
+
+      if (maxAmount) {
+        filter.totalAmount.$lte = parseInt(maxAmount as string, 10)
+      }
+    }
+
+    // Add payment method filter if provided
+    if (paymentMethod) {
+      filter.paymentMethod = paymentMethod
+    }
+
+    // Add invoice code filter if provided
+    if (invoiceCode) {
+      filter.invoiceCode = invoiceCode
+    }
+
+    // Get total count for pagination
+    const totalCount = await databaseService.bills.countDocuments(filter)
+    const totalPages = Math.ceil(totalCount / limitNumber)
+
+    // Get bills with pagination
+    const bills = await databaseService.bills
+      .find(filter)
+      .sort({ endTime: -1 }) // Sort by end time descending (newest first)
+      .skip(skip)
+      .limit(limitNumber)
+      .toArray()
+
+    // Format bills with additional information
+    const formattedBills = await Promise.all(
+      bills.map(async (bill) => {
+        // Get room information
+        const room = await databaseService.rooms.findOne({ _id: bill.roomId })
+
+        // Get schedule information
+        const schedule = await databaseService.roomSchedule.findOne({ _id: bill.scheduleId })
+
+        return {
+          _id: bill._id,
+          scheduleId: bill.scheduleId,
+          roomId: bill.roomId,
+          roomName: room?.roomName || 'Unknown Room',
+          roomType: room?.roomType || 'Unknown Type',
+          customerName: schedule?.note || '',
+          startTime: bill.startTime,
+          endTime: bill.endTime,
+          formattedStartTime: dayjs(bill.startTime).format('DD/MM/YYYY HH:mm'),
+          formattedEndTime: dayjs(bill.endTime).format('DD/MM/YYYY HH:mm'),
+          formattedCreatedAt: dayjs(bill.createdAt).format('DD/MM/YYYY HH:mm'),
+          totalAmount: bill.totalAmount,
+          paymentMethod: bill.paymentMethod,
+          itemCount: bill.items?.length || 0,
+          usageDuration: billService.calculateHours(bill.startTime, bill.endTime).toFixed(2),
+          hasPromotion: !!bill.activePromotion,
+          invoiceCode: bill.invoiceCode || 'N/A'
+        }
+      })
+    )
+
+    return res.status(HTTP_STATUS_CODE.OK).json({
+      message: 'Get all bills successfully',
+      result: {
+        bills: formattedBills,
+        pagination: {
+          totalCount,
+          totalPages,
+          currentPage: pageNumber,
+          limit: limitNumber,
+          hasNextPage: pageNumber < totalPages,
+          hasPrevPage: pageNumber > 1
+        }
+      }
+    })
+  } catch (error: any) {
+    return res.status(HTTP_STATUS_CODE.INTERNAL_SERVER_ERROR).json({
+      message: 'Error getting bills',
+      error: error.message || 'Unknown error'
     })
   }
 }

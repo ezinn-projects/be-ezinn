@@ -26,6 +26,7 @@ export interface IBill {
   }
   actualEndTime?: Date
   actualStartTime?: Date
+  invoiceCode?: string // Mã hóa đơn với format #DDMMHHMM
 }
 
 /**
@@ -53,6 +54,7 @@ export class Bill {
     appliesTo: 'karaoke' | 'all'
   }
   actualEndTime: Date
+  invoiceCode?: string // Mã hóa đơn với format #DDMMHHMM
 
   /**
    * Tạo mới một Bill

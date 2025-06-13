@@ -271,6 +271,11 @@ class RoomScheduleService {
         // Lấy thông tin hóa đơn từ lịch đặt phòng
         const billData = await billService.getBill(id, schedule.endTime, schedule.paymentMethod)
 
+        // Tạo mã hóa đơn theo định dạng #DDMMHHMM (ngày, tháng, giờ, phút)
+        // Sử dụng thời gian kết thúc thay vì thời gian hiện tại
+        const endTimeDate = new Date(schedule.endTime || billData.endTime)
+        const invoiceCode = `#${endTimeDate.getDate().toString().padStart(2, '0')}${(endTimeDate.getMonth() + 1).toString().padStart(2, '0')}${endTimeDate.getHours().toString().padStart(2, '0')}${endTimeDate.getMinutes().toString().padStart(2, '0')}`
+
         // Lưu trực tiếp vào database thay vì gọi printBill
         const bill = {
           _id: new ObjectId(),
@@ -283,7 +288,8 @@ class RoomScheduleService {
           createdAt: new Date(),
           paymentMethod: billData.paymentMethod,
           note: billData.note,
-          activePromotion: billData.activePromotion
+          activePromotion: billData.activePromotion,
+          invoiceCode: invoiceCode // Thêm mã hóa đơn
         }
 
         // Lưu hóa đơn vào database

@@ -8,7 +8,10 @@ import {
   getCustomRangeRevenue,
   cleanDuplicateBills,
   cleanUpNonFinishedBills,
-  testBillWithDiscount
+  testBillWithDiscount,
+  getBillById,
+  getBillsByRoomId,
+  getAllBills
 } from '~/controllers/bill.controller'
 import { protect } from '~/middlewares/auth.middleware'
 import { UserRole } from '~/constants/enum'
@@ -47,6 +50,20 @@ billRouter.get('/revenue/monthly', protect([UserRole.Admin]), wrapRequestHandler
  * @author: AI Assistant
  */
 billRouter.get('/revenue/custom', protect([UserRole.Admin]), wrapRequestHandler(getCustomRangeRevenue))
+
+/**
+ * @route GET /bill/details/:billId
+ * @description Get bill details by bill ID
+ * @access Private
+ */
+billRouter.get('/details/:billId', protect([UserRole.Admin, UserRole.Staff]), wrapRequestHandler(getBillById))
+
+/**
+ * @route GET /bill/room/:roomId
+ * @description Get bills by room ID
+ * @access Private
+ */
+billRouter.get('/room/:roomId', protect([UserRole.Admin, UserRole.Staff]), wrapRequestHandler(getBillsByRoomId))
 
 /**
  * @route GET /bill/:scheduleId
@@ -88,6 +105,13 @@ billRouter.post(
   protect([UserRole.Admin, UserRole.Staff]),
   wrapRequestHandler(testBillWithDiscount)
 )
+
+/**
+ * @route GET /bill/all
+ * @description Get all bills with pagination and filtering
+ * @access Private
+ */
+billRouter.get('/all', protect([UserRole.Admin, UserRole.Staff]), wrapRequestHandler(getAllBills))
 
 // /**
 //  * @route POST /bill/:scheduleId/generate
