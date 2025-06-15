@@ -110,6 +110,12 @@ roomMusicRouter.get('/:roomId/search-songs', async (req, res) => {
   const { q, limit = '50' } = req.query
   const parsedLimit = parseInt(limit as string, 10)
 
+  // Simple in-memory cache (for demo, not for production)
+  const cache = (global as any)._ytSearchCache || ((global as any)._ytSearchCache = {})
+  const cacheKey = `${q}|${limit}`
+  const now = Date.now()
+  const CACHE_TTL = 30 * 1000 // 30 seconds
+
   // Validate search query
   if (!q || typeof q !== 'string') {
     return res.status(400).json({ error: 'Missing or invalid search query' })
@@ -120,40 +126,46 @@ roomMusicRouter.get('/:roomId/search-songs', async (req, res) => {
     return res.status(400).json({ error: 'Invalid limit parameter. Must be between 1 and 50' })
   }
 
+  // Check cache
+  if (cache[cacheKey] && now - cache[cacheKey].timestamp < CACHE_TTL) {
+    return res.status(HTTP_STATUS_CODE.OK).json({ result: cache[cacheKey].data })
+  }
+
   try {
     // Sử dụng một chiến lược tìm kiếm duy nhất với từ khóa âm nhạc để giảm thời gian phản hồi
     const searchQuery = `${q.trim()} music`
     console.log(`Searching with optimized strategy: "${searchQuery}"`)
 
-    const searchOptions = {
+    const searchOptions: ytSearch.Options = {
       query: searchQuery,
-      region: 'VN',
+      userAgent:
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      search: 'music',
       hl: 'vi',
       pageStart: 1,
-      pageEnd: 1 // Giảm số trang tìm kiếm
+      pageEnd: 1 // Only fetch the first page for speed
     }
 
     const searchResults = await ytSearch(searchOptions)
 
-    // Sử dụng bộ lọc đơn giản hơn
+    // Lọc trước khi map để tiết kiệm thời gian xử lý
     const filteredVideos = searchResults.videos.filter((video) => {
-      // Chỉ lọc theo thời lượng hợp lý cho bài hát
       const duration = video.duration.seconds
       return duration >= 30 && duration <= 900
     })
 
     // Trích xuất danh sách video với số lượng giới hạn theo yêu cầu
-    const videos = filteredVideos.slice(0, parsedLimit).map(
-      (video) =>
-        new VideoSchema({
-          video_id: video.videoId,
-          title: video.title,
-          duration: video.duration.seconds,
-          url: video.url,
-          thumbnail: video.thumbnail || '',
-          author: video.author.name
-        })
-    )
+    const videos = filteredVideos.slice(0, parsedLimit).map((video) => ({
+      video_id: video.videoId,
+      title: video.title,
+      duration: video.duration.seconds,
+      url: video.url,
+      thumbnail: video.thumbnail || '',
+      author: video.author.name
+    }))
+
+    // Lưu vào cache
+    cache[cacheKey] = { data: videos, timestamp: now }
 
     return res.status(HTTP_STATUS_CODE.OK).json({ result: videos })
   } catch (error) {
