@@ -103,15 +103,15 @@ export class BillService {
   }
 
   /**
-   * Calculate hours between two dates
+   * Calculate hours between two dates based only on hours and minutes, ignoring seconds and milliseconds
    * @param start Start date
    * @param end End date
    * @returns Number of hours
    */
   calculateHours(start: Date | string, end: Date | string): number {
-    // Explicitly ensure both dates are in Vietnam timezone
-    const startDate = dayjs(ensureVNTimezone(start)).tz('Asia/Ho_Chi_Minh')
-    const endDate = dayjs(ensureVNTimezone(end)).tz('Asia/Ho_Chi_Minh')
+    // Explicitly ensure both dates are in Vietnam timezone and reset seconds/milliseconds to 0
+    const startDate = dayjs(ensureVNTimezone(start)).tz('Asia/Ho_Chi_Minh').second(0).millisecond(0)
+    const endDate = dayjs(ensureVNTimezone(end)).tz('Asia/Ho_Chi_Minh').second(0).millisecond(0)
 
     // Check if end date is before start date, which would produce negative values
     if (endDate.isBefore(startDate)) {
@@ -120,33 +120,19 @@ export class BillService {
       return 0.5
     }
 
-    // Calculate difference in milliseconds
-    const diffMilliseconds = endDate.diff(startDate)
-    // Convert to hours
-    const diffHours = diffMilliseconds / (1000 * 60 * 60)
-
-    // Giảm tolerance xuống chỉ còn 3 giây để đảm bảo hầu hết các trường hợp
-    // được tính chính xác theo số phút thực tế
-    const tolerance = 3 / 3600 // 3 giây chuyển thành giờ
-    const isNearWholeHour = Math.abs(Math.round(diffHours) - diffHours) <= tolerance
+    // Calculate difference in minutes only (ignoring seconds and milliseconds)
+    const diffMinutes = endDate.diff(startDate, 'minute')
+    // Convert to hours with 2 decimal places
+    const diffHours = diffMinutes / 60
 
     console.log(`Time calculation: ${startDate.format('HH:mm')} to ${endDate.format('HH:mm')}`)
-    console.log(`Raw difference: ${diffHours} hours`)
-    console.log(`Is near whole hour: ${isNearWholeHour}`)
+    console.log(`Difference in minutes: ${diffMinutes} minutes`)
+    console.log(`Calculated hours: ${diffHours} hours`)
 
-    if (isNearWholeHour) {
-      console.log(`Rounding to: ${Math.round(diffHours)} hours`)
-      return Math.round(diffHours)
-    }
+    // Round to 2 decimal places for consistency
+    const result = Math.round(diffHours * 100) / 100
+    console.log(`Final result: ${result} hours`)
 
-    // Tính toán số giờ và phút
-    const hours = Math.floor(diffHours)
-    const minutes = Math.floor((diffHours - hours) * 60)
-
-    // Luôn tính giờ theo tỷ lệ phút sử dụng thực tế
-    // Bỏ điều kiện minutes > 0 để đảm bảo luôn trả về giá trị chính xác
-    const result = parseFloat((hours + minutes / 60).toFixed(2))
-    console.log(`Calculated hours with minutes: ${hours}h ${minutes}m = ${result} hours`)
     return result
   }
 
@@ -236,6 +222,14 @@ export class BillService {
     promotionId?: string,
     actualStartTime?: string
   ): Promise<IBill> {
+    // Validate ObjectId format for scheduleId
+    if (!ObjectId.isValid(scheduleId)) {
+      throw new ErrorWithStatus({
+        message: 'Invalid scheduleId format - must be a valid 24 character hex string',
+        status: HTTP_STATUS_CODE.BAD_REQUEST
+      })
+    }
+
     const id = new ObjectId(scheduleId)
     const schedule = await databaseService.roomSchedule.findOne({ _id: id })
     const orders = await databaseService.fnbOrder.find({ roomScheduleId: id }).toArray()
@@ -266,8 +260,8 @@ export class BillService {
           .toDate()
         console.log('Validated start time:', dayjs(validatedStartTime).format('YYYY-MM-DD HH:mm:ss'))
       } else {
-        // Nếu là định dạng datetime đầy đủ
-        validatedStartTime = dayjs(actualStartTime).tz('Asia/Ho_Chi_Minh').toDate()
+        // Nếu là định dạng datetime đầy đủ - reset giây và millisecond về 0
+        validatedStartTime = dayjs(actualStartTime).tz('Asia/Ho_Chi_Minh').second(0).millisecond(0).toDate()
 
         if (!dayjs(validatedStartTime).isValid()) {
           throw new ErrorWithStatus({
@@ -275,10 +269,11 @@ export class BillService {
             status: HTTP_STATUS_CODE.BAD_REQUEST
           })
         }
+        console.log('Validated start time (from datetime):', dayjs(validatedStartTime).format('YYYY-MM-DD HH:mm:ss'))
       }
     } else {
-      // Nếu không có actualStartTime, sử dụng schedule.startTime
-      validatedStartTime = dayjs(ensureVNTimezone(schedule.startTime)).toDate()
+      // Nếu không có actualStartTime, sử dụng schedule.startTime và reset giây/millisecond
+      validatedStartTime = dayjs(ensureVNTimezone(schedule.startTime)).second(0).millisecond(0).toDate()
     }
 
     // Convert times to Vietnam timezone
@@ -304,13 +299,13 @@ export class BillService {
           `Warning: Actual end time (${actualEndTime}) is before start time (${dayjs(ensureVNTimezone(startTime)).format('HH:mm')})`
         )
         // Đặt giá trị mặc định là startTime + 1 giờ
-        validatedEndTime = dayjs(ensureVNTimezone(startTime)).add(1, 'hour').toDate()
+        validatedEndTime = dayjs(ensureVNTimezone(startTime)).add(1, 'hour').second(0).millisecond(0).toDate()
       }
 
       console.log('Validated end time:', dayjs(validatedEndTime).format('YYYY-MM-DD HH:mm:ss'))
     } else if (actualEndTime) {
-      // Nếu là định dạng datetime đầy đủ
-      validatedEndTime = dayjs(actualEndTime).tz('Asia/Ho_Chi_Minh').toDate()
+      // Nếu là định dạng datetime đầy đủ - reset giây và millisecond về 0
+      validatedEndTime = dayjs(actualEndTime).tz('Asia/Ho_Chi_Minh').second(0).millisecond(0).toDate()
 
       if (!dayjs(validatedEndTime).isValid()) {
         throw new ErrorWithStatus({
@@ -318,11 +313,12 @@ export class BillService {
           status: HTTP_STATUS_CODE.BAD_REQUEST
         })
       }
+      console.log('Validated end time (from datetime):', dayjs(validatedEndTime).format('YYYY-MM-DD HH:mm:ss'))
     } else {
-      // Nếu không có actualEndTime, sử dụng schedule.endTime
+      // Nếu không có actualEndTime, sử dụng schedule.endTime và reset giây/millisecond
       validatedEndTime = schedule.endTime
-        ? dayjs(ensureVNTimezone(schedule.endTime)).toDate()
-        : dayjs(ensureVNTimezone(startTime)).add(1, 'hour').toDate() // Nếu không có endTime, mặc định là startTime + 1 giờ
+        ? dayjs(ensureVNTimezone(schedule.endTime)).second(0).millisecond(0).toDate()
+        : dayjs(ensureVNTimezone(startTime)).add(1, 'hour').second(0).millisecond(0).toDate() // Nếu không có endTime, mặc định là startTime + 1 giờ
     }
 
     // Lấy thông tin bảng giá cho loại ngày (weekday/weekend)
@@ -596,23 +592,7 @@ export class BillService {
 
   async printBill(billData: IBill): Promise<IBill> {
     try {
-      console.log('PrintBill - Promotion info:', JSON.stringify(billData.activePromotion))
-
-      // Xác định promotionId đúng để truyền vào getBill
-      let promotionIdToUse = undefined
-      if (billData.activePromotion) {
-        // Tìm promotion dựa vào tên
-        const promotionFromDB = await databaseService.promotions.findOne({
-          name: billData.activePromotion.name
-        })
-
-        if (promotionFromDB && promotionFromDB._id) {
-          promotionIdToUse = promotionFromDB._id.toString()
-          console.log('Found promotion by name, using ID:', promotionIdToUse)
-        } else {
-          console.log('Could not find promotion with name:', billData.activePromotion.name)
-        }
-      }
+      console.log('PrintBill - Đang in hóa đơn với dữ liệu đã tính sẵn')
 
       // Lưu lại thời gian bắt đầu và kết thúc chính xác khi in hóa đơn
       const exactStartTime = billData.actualStartTime || billData.startTime
@@ -624,56 +604,45 @@ export class BillService {
         `Thời gian kết thúc chính xác khi in hóa đơn: ${dayjs(ensureVNTimezone(exactEndTime)).format('DD/MM/YYYY HH:mm:ss')}`
       )
 
-      // Sử dụng tính năng tính lại hóa đơn từ getBill để đảm bảo tính chính xác
-      // thay vì chỉ sao chép billData đã truyền vào
-      const recalculatedBill = await this.getBill(
-        billData.scheduleId.toString(),
-        dayjs(exactEndTime).toISOString(),
-        billData.paymentMethod,
-        promotionIdToUse,
-        dayjs(exactStartTime).toISOString()
-      )
+      // SỬ DỤNG TRỰC TIẾP billData thay vì tính lại
+      console.log('=== SỬ DỤNG DỮ LIỆU ĐÃ TÍNH SẴN ===')
+      console.log('Tổng tiền từ billData:', billData.totalAmount)
+      console.log('Chi tiết items từ billData:')
+      billData.items.forEach((item, index) => {
+        console.log(`Item ${index + 1}: ${item.description}`)
+        console.log(`  - Quantity: ${item.quantity}, Price: ${item.price}`)
+        console.log(`  - Calculated total: ${item.quantity * item.price}`)
+        if (item.originalPrice) {
+          console.log(`  - Original price: ${item.originalPrice}`)
+        }
+      })
 
       // Tạo mã hóa đơn theo định dạng #DDMMHHMM (ngày, tháng, giờ, phút)
       const now = new Date()
       const invoiceCode = `#${now.getDate().toString().padStart(2, '0')}${(now.getMonth() + 1).toString().padStart(2, '0')}${now.getHours().toString().padStart(2, '0')}${now.getMinutes().toString().padStart(2, '0')}`
 
-      // Tạo unique ID cho bill này, nhưng sẽ không lưu vào DB
+      // SỬ DỤNG TRỰC TIẾP billData thay vì tạo bill object mới
       const bill: IBill = {
+        ...billData,
         _id: new ObjectId(),
-        scheduleId: new ObjectId(recalculatedBill.scheduleId),
-        roomId: new ObjectId(recalculatedBill.roomId),
-        items: recalculatedBill.items,
-        totalAmount: recalculatedBill.totalAmount,
-        startTime: recalculatedBill.startTime,
-        endTime: recalculatedBill.endTime,
+        scheduleId: new ObjectId(billData.scheduleId),
+        roomId: new ObjectId(billData.roomId),
         createdAt: new Date(),
-        paymentMethod: recalculatedBill.paymentMethod,
-        note: recalculatedBill.note,
-        activePromotion: recalculatedBill.activePromotion,
         actualEndTime: exactEndTime,
         actualStartTime: exactStartTime,
-        invoiceCode: invoiceCode // Thêm mã hóa đơn
+        invoiceCode: invoiceCode
       }
 
       // Kiểm tra status của schedule chỉ để ghi log
-      const schedule = await databaseService.roomSchedule.findOne({ _id: bill.scheduleId })
+      const schedule = await databaseService.roomSchedule.findOne({ _id: new ObjectId(bill.scheduleId) })
       console.log(
-        `In hóa đơn cho ScheduleId=${bill.scheduleId}, Status=${schedule?.status || 'unknown'}, không lưu vào database`
+        `In hóa đơn cho ScheduleId=${bill.scheduleId}, Status=${schedule?.status || 'unknown'}, CHỈ IN - KHÔNG LƯU VÀO DATABASE`
       )
 
-      // Lưu hóa đơn vào DB sau khi tính
-      try {
-        // Tạo một bản sao của bill để lưu vào DB
-        const billToSave = { ...bill }
-        const result = await databaseService.bills.insertOne(billToSave as any)
-        console.log(`Đã lưu hóa đơn vào database với ID: ${result.insertedId}`)
-      } catch (saveError) {
-        console.error('Lỗi khi lưu hóa đơn vào database:', saveError)
-        // Không ảnh hưởng đến việc in hóa đơn
-      }
+      // BỎ PHẦN LƯU HÓA ĐƠN VÀO DB - CHỈ IN THÔI
+      // Hóa đơn sẽ được lưu khi updateSchedule status thành Finished
 
-      const room = await databaseService.rooms.findOne({ _id: bill.roomId })
+      const room = await databaseService.rooms.findOne({ _id: new ObjectId(bill.roomId) })
 
       let paymentMethodText = ''
       switch (bill.paymentMethod) {
@@ -781,14 +750,13 @@ export class BillService {
             printer.text('--------------------------------------')
 
             // In chi tiết từng mục với định dạng cải thiện
-            bill.items.forEach((item) => {
+            // TÍNH TOÁN TỶ LỆ từ totalAmount để đảm bảo chính xác 100%
+            const rawItemTotals = bill.items.map((item) => item.quantity * item.price)
+            const sumRawTotals = rawItemTotals.reduce((sum, total) => sum + total, 0)
+
+            bill.items.forEach((item, index) => {
               let description = item.description
               let quantity = item.quantity
-
-              // Xử lý hiển thị cho phí dịch vụ thu âm
-              if (description === 'Phi dich vu thu am') {
-                quantity = Math.round(quantity * 10) / 10
-              }
 
               // Tách mô tả và thông tin khuyến mãi nếu mô tả có chứa thông tin khuyến mãi
               const promotionMatch = description.match(/ \(Giam (\d+)% - (.*)\)$/)
@@ -806,13 +774,21 @@ export class BillService {
               // Định dạng số tiền để hiển thị gọn hơn
               const formattedPrice = item.price >= 1000 ? `${Math.floor(item.price / 1000)}K` : item.price.toString()
 
-              // Sử dụng originalPrice nếu có, nếu không sử dụng price để tính toán
+              // TÍNH TOÁN TỶ LỆ từ totalAmount để đảm bảo chính xác với getBill
               let itemTotalDisplay = 0
               if (item.originalPrice) {
+                // Nếu có khuyến mãi, sử dụng originalPrice
                 itemTotalDisplay = item.originalPrice
               } else {
-                // Sử dụng cùng logic làm tròn như trong getBill
-                itemTotalDisplay = Math.floor((item.quantity * item.price) / 1000) * 1000
+                // Tính tỷ lệ từ totalAmount thực tế
+                const rawTotal = rawItemTotals[index]
+                if (sumRawTotals > 0) {
+                  // Phân bổ tỷ lệ từ totalAmount
+                  const proportion = rawTotal / sumRawTotals
+                  itemTotalDisplay = Math.round(bill.totalAmount * proportion)
+                } else {
+                  itemTotalDisplay = 0
+                }
               }
 
               const formattedTotal =
@@ -827,15 +803,22 @@ export class BillService {
               ])
             })
 
-            // Hiển thị tổng giá trước khi giảm
+            // SỬ DỤNG TRỰC TIẾP totalAmount từ billData thay vì tính lại
             let subtotalAmount = 0
 
-            // Tính lại subtotalAmount từ các item với giá không giảm giá
-            bill.items.forEach((item) => {
+            // Tính subtotal bằng cách cộng các itemTotalDisplay đã tính theo tỷ lệ
+            bill.items.forEach((item, index) => {
               if (item.originalPrice) {
+                // Nếu có originalPrice (tức là có khuyến mãi), dùng originalPrice
                 subtotalAmount += item.originalPrice
               } else {
-                subtotalAmount += item.quantity * item.price
+                // Tính tỷ lệ từ totalAmount thực tế (giống logic ở trên)
+                const rawTotal = rawItemTotals[index]
+                if (sumRawTotals > 0) {
+                  const proportion = rawTotal / sumRawTotals
+                  const itemTotalDisplay = Math.round(bill.totalAmount * proportion)
+                  subtotalAmount += itemTotalDisplay
+                }
               }
             })
 
@@ -917,179 +900,105 @@ export class BillService {
    */
   async getDailyRevenue(date: string): Promise<{ totalRevenue: number; bills: IBill[] }> {
     try {
-      // Chuyển đổi input date sang múi giờ Việt Nam
-      const inputDate = dayjs(date).tz('Asia/Ho_Chi_Minh')
+      // Validate date format
+      if (!dayjs(date).isValid()) {
+        throw new ErrorWithStatus({
+          message: 'Invalid date format. Please use ISO date string format',
+          status: HTTP_STATUS_CODE.BAD_REQUEST
+        })
+      }
 
-      // Tạo đầu ngày và cuối ngày trong múi giờ Việt Nam
-      const startOfDay = inputDate.startOf('day')
-      const endOfDay = inputDate.endOf('day')
+      console.log(`[DOANH THU] Lấy doanh thu ngày ${dayjs(date).format('DD/MM/YYYY')}`)
 
-      // Chuyển sang UTC để lưu vào database (MongoDB lưu ở UTC)
-      const startDateUTC = startOfDay.toDate()
-      const endDateUTC = endOfDay.toDate()
+      // Use same date logic as getAllBills endpoint
+      const startDateObj = dayjs(date).startOf('day').toDate()
+      const endDateObj = dayjs(date).endOf('day').toDate()
 
-      console.log(`[DOANH THU] Bắt đầu tính doanh thu ngày ${inputDate.format('DD/MM/YYYY')}`)
-      console.log(
-        `[DOANH THU] Khoảng thời gian (VN): ${startOfDay.format('YYYY-MM-DD HH:mm:ss')} - ${endOfDay.format('YYYY-MM-DD HH:mm:ss')}`
-      )
-      console.log(`[DOANH THU] Khoảng thời gian (UTC): ${startDateUTC.toISOString()} - ${endDateUTC.toISOString()}`)
+      console.log(`[DOANH THU] Query range: ${startDateObj.toISOString()} to ${endDateObj.toISOString()}`)
 
-      // Lấy các lịch đặt phòng đã hoàn thành trong ngày (sử dụng UTC trong query)
-      const finishedSchedules = await databaseService.roomSchedule
+      // Simple query - get all bills for the date
+      const bills = await databaseService.bills
         .find({
-          status: RoomScheduleStatus.Finished,
           endTime: {
-            $gte: startDateUTC,
-            $lte: endDateUTC
+            $gte: startDateObj,
+            $lte: endDateObj
           }
         })
+        .sort({ endTime: -1 })
         .toArray()
 
-      console.log(`[DOANH THU] Tìm thấy ${finishedSchedules.length} lịch đã hoàn thành`)
+      console.log(`[DOANH THU] Tìm thấy ${bills.length} hóa đơn (bao gồm trùng lặp)`)
 
-      if (finishedSchedules.length === 0) {
-        console.log('[DOANH THU] Không có lịch nào hoàn thành trong ngày này')
-        return {
-          totalRevenue: 0,
-          bills: []
+      // Remove duplicates by scheduleId - keep paid bills or latest bill
+      const uniqueBills = new Map<string, IBill>()
+
+      for (const bill of bills) {
+        const scheduleId = bill.scheduleId.toString()
+
+        if (!uniqueBills.has(scheduleId)) {
+          // First bill for this scheduleId
+          uniqueBills.set(scheduleId, bill)
+          console.log(`[DOANH THU] First bill for schedule ${scheduleId}: ${bill._id} (${bill.totalAmount})`)
+        } else {
+          const existingBill = uniqueBills.get(scheduleId)!
+          let shouldReplace = false
+
+          // Priority 1: Bills with paymentMethod (paid) over bills without
+          if (bill.paymentMethod && !existingBill.paymentMethod) {
+            shouldReplace = true
+            console.log(
+              `[DOANH THU] Replacing unpaid bill ${existingBill._id} with paid bill ${bill._id} for schedule ${scheduleId}`
+            )
+          }
+          // Priority 2: If both have same payment status, use latest createdAt
+          else if (
+            !!bill.paymentMethod === !!existingBill.paymentMethod &&
+            bill.createdAt &&
+            existingBill.createdAt &&
+            new Date(bill.createdAt) > new Date(existingBill.createdAt)
+          ) {
+            shouldReplace = true
+            console.log(
+              `[DOANH THU] Replacing older bill ${existingBill._id} with newer bill ${bill._id} for schedule ${scheduleId}`
+            )
+          }
+
+          if (shouldReplace) {
+            uniqueBills.set(scheduleId, bill)
+            console.log(
+              `[DOANH THU] Selected bill ${bill._id} (${bill.totalAmount}) over ${existingBill._id} (${existingBill.totalAmount})`
+            )
+          } else {
+            console.log(
+              `[DOANH THU] Keeping existing bill ${existingBill._id} (${existingBill.totalAmount}) over ${bill._id} (${bill.totalAmount})`
+            )
+          }
         }
       }
 
-      // Đầu tiên tìm kiếm trong database xem đã có hóa đơn lưu sẵn chưa
-      console.log('[DOANH THU] Tìm kiếm hóa đơn đã lưu trong database...')
-      const scheduleIds = finishedSchedules.map((schedule) => schedule._id)
-      const savedBills = await databaseService.bills
-        .find({
-          scheduleId: { $in: scheduleIds }
-        })
-        .toArray()
+      const finalBills = Array.from(uniqueBills.values())
 
-      // Filter lại savedBills để chỉ giữ các hóa đơn thực sự nằm trong ngày đã chọn
-      // (kiểm tra theo createdAt hoặc endTime)
-      const filteredSavedBills = savedBills.filter((bill) => {
-        // Chuyển đổi sang múi giờ Việt Nam để so sánh
-        const billCreatedAt = dayjs(ensureVNTimezone(bill.createdAt)).tz('Asia/Ho_Chi_Minh')
-        const billEndTime = dayjs(ensureVNTimezone(bill.endTime)).tz('Asia/Ho_Chi_Minh')
+      console.log(`[DOANH THU] Sau khi loại bỏ trùng lặp: ${finalBills.length} hóa đơn`)
 
-        // Nếu createdAt nằm trong ngày đã chọn
-        if (billCreatedAt.isAfter(startOfDay) && billCreatedAt.isBefore(endOfDay)) {
-          return true
-        }
-
-        // Hoặc nếu endTime nằm trong ngày đã chọn
-        if (billEndTime.isAfter(startOfDay) && billEndTime.isBefore(endOfDay)) {
-          return true
-        }
-
-        return false
+      // Log final bills
+      finalBills.forEach((bill, index) => {
+        console.log(
+          `[DOANH THU] Final Bill ${index + 1}: ID=${bill._id}, ScheduleId=${bill.scheduleId}, Amount=${bill.totalAmount}, PaymentMethod=${bill.paymentMethod || 'null'}`
+        )
       })
 
-      console.log(
-        `[DOANH THU] Tìm thấy ${filteredSavedBills.length} hóa đơn đã lưu trong database (thuộc ngày ${inputDate.format('DD/MM/YYYY')})`
-      )
+      // Simple calculation - just sum all totalAmount
+      const totalRevenue = finalBills.reduce((sum, bill) => sum + bill.totalAmount, 0)
 
-      // Tạo map từ scheduleId đến bill đã lưu để tra cứu nhanh
-      const savedBillMap = new Map<string, IBill>()
-      for (const bill of filteredSavedBills) {
-        const scheduleId = bill.scheduleId.toString()
-        if (
-          !savedBillMap.has(scheduleId) ||
-          (bill.createdAt &&
-            savedBillMap.get(scheduleId)!.createdAt &&
-            new Date(bill.createdAt) > new Date(savedBillMap.get(scheduleId)!.createdAt))
-        ) {
-          savedBillMap.set(scheduleId, bill)
-        }
-      }
-
-      console.log(`[DOANH THU] Có ${savedBillMap.size} lịch có hóa đơn đã lưu (sau khi lọc trùng lặp)`)
-
-      // CÁCH MỚI: Ưu tiên sử dụng hóa đơn đã lưu, nếu không có thì tính lại
-      const finalBills: IBill[] = []
-      let totalRevenue = 0
-
-      for (const schedule of finishedSchedules) {
-        try {
-          const scheduleId = schedule._id.toString()
-          console.log(`\n[DOANH THU] Xử lý hóa đơn cho lịch ${scheduleId}:`)
-
-          // Lấy thông tin phòng
-          const room = await databaseService.rooms.findOne({ _id: schedule.roomId })
-          console.log(`- Phòng: ${room?.roomName || schedule.roomId}`)
-          console.log(
-            `- Thời gian: ${dayjs(ensureVNTimezone(schedule.startTime)).format('DD/MM HH:mm')} - ${dayjs(ensureVNTimezone(schedule.endTime)).format('DD/MM HH:mm')}`
-          )
-
-          // Kiểm tra xem lịch này có thực sự thuộc về ngày đã chọn không
-          const scheduleEndTime = dayjs(schedule.endTime).tz('Asia/Ho_Chi_Minh')
-          if (!scheduleEndTime.isAfter(startOfDay) || !scheduleEndTime.isBefore(endOfDay)) {
-            console.log(`- Lịch này không thuộc về ngày ${inputDate.format('DD/MM/YYYY')}, bỏ qua`)
-            continue
-          }
-
-          let billToUse: IBill
-
-          // Kiểm tra xem đã có hóa đơn lưu sẵn chưa
-          if (savedBillMap.has(scheduleId)) {
-            billToUse = savedBillMap.get(scheduleId)!
-            console.log(`- Sử dụng hóa đơn đã lưu trong database, ID: ${billToUse._id}`)
-            console.log(
-              `- Thời gian kết thúc trong hóa đơn: ${dayjs(ensureVNTimezone(billToUse.endTime)).format('DD/MM HH:mm:ss')}`
-            )
-
-            if (billToUse.actualEndTime) {
-              console.log(
-                `- Thời gian kết thúc chính xác: ${dayjs(ensureVNTimezone(billToUse.actualEndTime)).format('DD/MM HH:mm:ss')}`
-              )
-            }
-
-            // Log thông tin khuyến mãi nếu có
-            if (billToUse.activePromotion) {
-              console.log(
-                `- Khuyến mãi đã áp dụng: ${billToUse.activePromotion.name} (${billToUse.activePromotion.discountPercentage}%)`
-              )
-              console.log(`- Tổng tiền sau giảm giá: ${billToUse.totalAmount.toLocaleString('vi-VN')} VND`)
-            }
-          } else {
-            // Nếu không có hóa đơn lưu sẵn, tính lại từ getBill
-            console.log(`- Không tìm thấy hóa đơn đã lưu, đang tính toán lại...`)
-            // Không áp dụng promotion nào khi tính toán lại để tránh sai lệch
-            billToUse = await this.getBill(scheduleId, undefined, undefined, 'null', undefined)
-
-            // Gán _id nếu cần
-            if (!billToUse._id) {
-              billToUse._id = new ObjectId()
-            }
-          }
-
-          // Làm tròn tổng tiền xuống đến 1000 VND để đảm bảo nhất quán
-          billToUse.totalAmount = Math.floor(billToUse.totalAmount / 1000) * 1000
-
-          // Log chi tiết hóa đơn
-          console.log(`- Hóa đơn được sử dụng:`)
-          console.log(`  + Tổng tiền: ${billToUse.totalAmount.toLocaleString('vi-VN')} VND`)
-
-          // Sử dụng hóa đơn
-          finalBills.push(billToUse)
-          totalRevenue += billToUse.totalAmount
-
-          console.log(`- Đã thêm vào tổng doanh thu: ${billToUse.totalAmount.toLocaleString('vi-VN')} VND`)
-          console.log(`- Tổng doanh thu hiện tại: ${totalRevenue.toLocaleString('vi-VN')} VND`)
-        } catch (error) {
-          console.error(`[DOANH THU] Lỗi khi xử lý hóa đơn cho lịch ${schedule._id}:`, error)
-        }
-      }
-
-      console.log(`\n[DOANH THU] Tổng kết doanh thu ngày ${inputDate.format('DD/MM/YYYY')}:`)
-      console.log(`- Số lượng hóa đơn: ${finalBills.length}`)
-      console.log(`- Tổng doanh thu: ${totalRevenue.toLocaleString('vi-VN')} VND`)
+      console.log(`[DOANH THU] Tổng doanh thu: ${totalRevenue.toLocaleString('vi-VN')} VND`)
+      console.log(`[DOANH THU] Số lượng hóa đơn: ${finalBills.length}`)
 
       return {
         totalRevenue,
-        bills: finalBills as any // Cast to compatible type
+        bills: finalBills
       }
     } catch (error) {
-      console.error('[DOANH THU] Lỗi khi tính doanh thu:', error)
+      console.error('[DOANH THU] Lỗi khi lấy doanh thu:', error)
       throw error
     }
   }
@@ -1795,11 +1704,6 @@ export class BillService {
       const startDateObj = start.toDate()
       const endDateObj = end.toDate()
 
-      console.log(`[DOANH THU MỚI] Bắt đầu tính doanh thu ${timeRangeDescription}`)
-      console.log(
-        `[DOANH THU MỚI] Khoảng thời gian (VN): ${start.format('YYYY-MM-DD HH:mm:ss')} - ${end.format('YYYY-MM-DD HH:mm:ss')}`
-      )
-
       // Truy vấn trực tiếp từ collection bills mà không thông qua roomSchedule
       const bills = await databaseService.bills
         .find({
@@ -1811,11 +1715,6 @@ export class BillService {
         })
         .toArray()
 
-      console.log(`[DOANH THU MỚI] Tìm thấy ${bills.length} hóa đơn trong khoảng thời gian`)
-      console.log(
-        `[DOANH THU MỚI] LƯU Ý: Doanh thu được tính trực tiếp từ bills đã lưu trong database, bao gồm cả các khuyến mãi đã áp dụng`
-      )
-
       if (bills.length === 0) {
         return {
           totalRevenue: 0,
@@ -1826,19 +1725,49 @@ export class BillService {
         }
       }
 
-      // Loại bỏ các hóa đơn trùng lặp bằng Map với key là scheduleId
+      // Remove duplicates by scheduleId (prioritize paid bills, then latest createdAt)
       const uniqueBills = new Map<string, IBill>()
-
       for (const bill of bills) {
         const scheduleId = bill.scheduleId.toString()
-        // Nếu chưa có bill với scheduleId này hoặc bill hiện tại mới hơn
-        if (
-          !uniqueBills.has(scheduleId) ||
-          (bill.createdAt &&
-            uniqueBills.get(scheduleId)!.createdAt &&
-            new Date(bill.createdAt) > new Date(uniqueBills.get(scheduleId)!.createdAt))
-        ) {
+
+        if (!uniqueBills.has(scheduleId)) {
+          // First bill for this scheduleId
           uniqueBills.set(scheduleId, bill)
+        } else {
+          const existingBill = uniqueBills.get(scheduleId)!
+          let shouldReplace = false
+
+          // Priority 1: Bills with paymentMethod (paid) over bills without
+          if (bill.paymentMethod && !existingBill.paymentMethod) {
+            shouldReplace = true
+          }
+          // Priority 2: If both have paymentMethod or both don't have, use latest createdAt
+          else if (
+            (!bill.paymentMethod && !existingBill.paymentMethod) ||
+            (bill.paymentMethod && existingBill.paymentMethod)
+          ) {
+            if (
+              bill.createdAt &&
+              existingBill.createdAt &&
+              new Date(bill.createdAt) > new Date(existingBill.createdAt)
+            ) {
+              shouldReplace = true
+              console.log(
+                `[DOANH THU] Replacing older bill ${existingBill._id} with newer bill ${bill._id} for schedule ${scheduleId}`
+              )
+            }
+          }
+
+          if (shouldReplace) {
+            uniqueBills.set(scheduleId, bill)
+            console.log(
+              `[DOANH THU] Selected bill ${bill._id} (${bill.totalAmount}) over ${existingBill._id} (${existingBill.totalAmount})`
+            )
+          } else {
+            console.log(
+              `[DOANH THU] Keeping existing bill ${existingBill._id} (${existingBill.totalAmount}) over ${bill._id} (${bill.totalAmount})`
+            )
+          }
         }
       }
 

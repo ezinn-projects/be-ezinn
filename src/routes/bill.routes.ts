@@ -11,7 +11,8 @@ import {
   testBillWithDiscount,
   getBillById,
   getBillsByRoomId,
-  getAllBills
+  getAllBills,
+  saveBill
 } from '~/controllers/bill.controller'
 import { protect } from '~/middlewares/auth.middleware'
 import { UserRole } from '~/constants/enum'
@@ -66,6 +67,20 @@ billRouter.get('/details/:billId', protect([UserRole.Admin, UserRole.Staff]), wr
 billRouter.get('/room/:roomId', protect([UserRole.Admin, UserRole.Staff]), wrapRequestHandler(getBillsByRoomId))
 
 /**
+ * @route GET /bill/all
+ * @description Get all bills with pagination and filtering
+ * @access Private
+ */
+billRouter.get('/all', protect([UserRole.Admin, UserRole.Staff]), wrapRequestHandler(getAllBills))
+
+/**
+ * @route POST /bill/save
+ * @description Save a bill directly to the bills collection
+ * @access Private
+ */
+billRouter.post('/save', protect([UserRole.Admin, UserRole.Staff]), wrapRequestHandler(saveBill))
+
+/**
  * @route GET /bill/:scheduleId
  * @description Get bill by scheduleId
  * @access Private
@@ -105,13 +120,6 @@ billRouter.post(
   protect([UserRole.Admin, UserRole.Staff]),
   wrapRequestHandler(testBillWithDiscount)
 )
-
-/**
- * @route GET /bill/all
- * @description Get all bills with pagination and filtering
- * @access Private
- */
-billRouter.get('/all', protect([UserRole.Admin, UserRole.Staff]), wrapRequestHandler(getAllBills))
 
 // /**
 //  * @route POST /bill/:scheduleId/generate

@@ -15,6 +15,13 @@ export const getBill = async (req: Request, res: Response) => {
   const { scheduleId } = req.params
   const { actualEndTime, actualStartTime, promotionId } = req.query
 
+  // Validate ObjectId format for scheduleId
+  if (!ObjectId.isValid(scheduleId)) {
+    return res.status(HTTP_STATUS_CODE.BAD_REQUEST).json({
+      message: 'Invalid scheduleId format - must be a valid 24 character hex string'
+    })
+  }
+
   const bill = await billService.getBill(
     scheduleId,
     actualEndTime as string,
@@ -22,16 +29,6 @@ export const getBill = async (req: Request, res: Response) => {
     promotionId as string,
     actualStartTime as string
   )
-
-  // Đảm bảo giữ nguyên số thập phân của quantity
-  if (bill && bill.items) {
-    bill.items.forEach((item) => {
-      if (typeof item.quantity === 'number') {
-        // Đảm bảo hiển thị đúng 2 chữ số thập phân
-        item.quantity = parseFloat(item.quantity.toFixed(2))
-      }
-    })
-  }
 
   return res.status(HTTP_STATUS_CODE.OK).json({
     message: 'Get bill successfully',
@@ -43,6 +40,13 @@ export const printBill = async (req: Request, res: Response) => {
   const { scheduleId } = req.params
   const { actualEndTime, actualStartTime, paymentMethod, promotionId } = req.body
 
+  // Validate ObjectId format for scheduleId
+  if (!ObjectId.isValid(scheduleId)) {
+    return res.status(HTTP_STATUS_CODE.BAD_REQUEST).json({
+      message: 'Invalid scheduleId format - must be a valid 24 character hex string'
+    })
+  }
+
   const billData = await billService.getBill(
     scheduleId,
     actualEndTime as string,
@@ -51,26 +55,7 @@ export const printBill = async (req: Request, res: Response) => {
     actualStartTime as string
   )
 
-  // Đảm bảo giữ nguyên số thập phân của quantity
-  if (billData && billData.items) {
-    billData.items.forEach((item) => {
-      if (typeof item.quantity === 'number') {
-        // Đảm bảo hiển thị đúng 2 chữ số thập phân
-        item.quantity = parseFloat(item.quantity.toFixed(2))
-      }
-    })
-  }
-
   const bill = await billService.printBill(billData)
-
-  // Đảm bảo giữ nguyên số thập phân khi trả về kết quả
-  if (bill && bill.items) {
-    bill.items.forEach((item) => {
-      if (typeof item.quantity === 'number') {
-        item.quantity = parseFloat(item.quantity.toFixed(2))
-      }
-    })
-  }
 
   return res.status(HTTP_STATUS_CODE.OK).json({
     message: 'Print bill successfully',
@@ -330,6 +315,13 @@ export const testBillWithDiscount = async (req: Request, res: Response) => {
   const { scheduleId } = req.params
   const { actualEndTime, actualStartTime, discountPercentage = 0 } = req.body
 
+  // // Validate ObjectId format for scheduleId
+  // if (!ObjectId.isValid(scheduleId)) {
+  //   return res.status(HTTP_STATUS_CODE.BAD_REQUEST).json({
+  //     message: 'Invalid scheduleId format - must be a valid 24 character hex string'
+  //   })
+  // }
+
   try {
     // Get bill data using the regular method but without specifying a promotionId
     // This will either use no promotion or the default active one
@@ -455,10 +447,14 @@ export const getBillById = async (req: Request, res: Response) => {
     }
 
     // Lấy thông tin phòng
-    const room = await databaseService.rooms.findOne({ _id: bill.roomId })
+    const room = await databaseService.rooms.findOne({
+      _id: bill.roomId instanceof ObjectId ? bill.roomId : new ObjectId(bill.roomId)
+    })
 
     // Lấy thông tin lịch đặt phòng
-    const schedule = await databaseService.roomSchedule.findOne({ _id: bill.scheduleId })
+    const schedule = await databaseService.roomSchedule.findOne({
+      _id: bill.scheduleId instanceof ObjectId ? bill.scheduleId : new ObjectId(bill.scheduleId)
+    })
 
     // Format dates for better readability
     const formattedBill = {
@@ -551,12 +547,14 @@ export const getBillsByRoomId = async (req: Request, res: Response) => {
     const formattedBills = await Promise.all(
       bills.map(async (bill) => {
         // Lấy thông tin lịch đặt phòng
-        const schedule = await databaseService.roomSchedule.findOne({ _id: bill.scheduleId })
+        const schedule = await databaseService.roomSchedule.findOne({
+          _id: bill.scheduleId instanceof ObjectId ? bill.scheduleId : new ObjectId(bill.scheduleId)
+        })
 
         return {
           _id: bill._id,
-          scheduleId: bill.scheduleId,
-          roomId: bill.roomId,
+          scheduleId: bill.scheduleId instanceof ObjectId ? bill.scheduleId : new ObjectId(bill.scheduleId),
+          roomId: bill.roomId instanceof ObjectId ? bill.roomId : new ObjectId(bill.roomId),
           roomName: room?.roomName || 'Unknown Room',
           roomType: room?.roomType || 'Unknown Type',
           customerName: schedule?.note || '',
@@ -670,15 +668,19 @@ export const getAllBills = async (req: Request, res: Response) => {
     const formattedBills = await Promise.all(
       bills.map(async (bill) => {
         // Get room information
-        const room = await databaseService.rooms.findOne({ _id: bill.roomId })
+        const room = await databaseService.rooms.findOne({
+          _id: bill.roomId instanceof ObjectId ? bill.roomId : new ObjectId(bill.roomId)
+        })
 
         // Get schedule information
-        const schedule = await databaseService.roomSchedule.findOne({ _id: bill.scheduleId })
+        const schedule = await databaseService.roomSchedule.findOne({
+          _id: bill.scheduleId instanceof ObjectId ? bill.scheduleId : new ObjectId(bill.scheduleId)
+        })
 
         return {
-          _id: bill._id,
-          scheduleId: bill.scheduleId,
-          roomId: bill.roomId,
+          _id: bill._id ? (bill._id instanceof ObjectId ? bill._id : new ObjectId(bill._id)) : new ObjectId(),
+          scheduleId: bill.scheduleId instanceof ObjectId ? bill.scheduleId : new ObjectId(bill.scheduleId),
+          roomId: bill.roomId instanceof ObjectId ? bill.roomId : new ObjectId(bill.roomId),
           roomName: room?.roomName || 'Unknown Room',
           roomType: room?.roomType || 'Unknown Type',
           customerName: schedule?.note || '',
@@ -692,7 +694,8 @@ export const getAllBills = async (req: Request, res: Response) => {
           itemCount: bill.items?.length || 0,
           usageDuration: billService.calculateHours(bill.startTime, bill.endTime).toFixed(2),
           hasPromotion: !!bill.activePromotion,
-          invoiceCode: bill.invoiceCode || 'N/A'
+          invoiceCode: bill.invoiceCode || 'N/A',
+          items: bill.items
         }
       })
     )
@@ -714,6 +717,48 @@ export const getAllBills = async (req: Request, res: Response) => {
   } catch (error: any) {
     return res.status(HTTP_STATUS_CODE.INTERNAL_SERVER_ERROR).json({
       message: 'Error getting bills',
+      error: error.message || 'Unknown error'
+    })
+  }
+}
+
+/**
+ * Save a bill directly to the bills collection
+ * @route POST /bill/save
+ * @param req.body: Bill object directly
+ */
+export const saveBill = async (req: Request, res: Response) => {
+  const bill = req.body
+
+  console.log('bill', bill)
+  if (!bill || !bill.scheduleId || !bill.roomId || !bill.items || !bill.totalAmount) {
+    return res.status(HTTP_STATUS_CODE.BAD_REQUEST).json({
+      message: 'Missing required bill fields (scheduleId, roomId, items, totalAmount)'
+    })
+  }
+
+  try {
+    const now = new Date()
+    const billToSave = {
+      ...bill,
+      _id: bill._id ? (bill._id instanceof ObjectId ? bill._id : new ObjectId(bill._id)) : new ObjectId(),
+      scheduleId: bill.scheduleId,
+      roomId: bill.roomId,
+      createdAt: bill.createdAt ? new Date(bill.createdAt) : now,
+      startTime: bill.startTime ? new Date(bill.startTime) : new Date(),
+      endTime: bill.endTime ? new Date(bill.endTime) : new Date(),
+      invoiceCode:
+        bill.invoiceCode ||
+        `#${now.getDate().toString().padStart(2, '0')}${(now.getMonth() + 1).toString().padStart(2, '0')}${now.getHours().toString().padStart(2, '0')}${now.getMinutes().toString().padStart(2, '0')}`
+    }
+    await databaseService.bills.insertOne(billToSave)
+    return res.status(HTTP_STATUS_CODE.OK).json({
+      message: 'Bill saved successfully',
+      result: billToSave
+    })
+  } catch (error: any) {
+    return res.status(HTTP_STATUS_CODE.INTERNAL_SERVER_ERROR).json({
+      message: 'Error saving bill',
       error: error.message || 'Unknown error'
     })
   }

@@ -3,8 +3,8 @@ import { ObjectId } from 'mongodb'
 
 export interface IBill {
   _id?: ObjectId
-  scheduleId: ObjectId
-  roomId: ObjectId
+  scheduleId: ObjectId | string
+  roomId: ObjectId | string
   items: Array<{
     description: string
     price: number
