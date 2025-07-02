@@ -772,7 +772,7 @@ export class BillService {
               }
 
               // Định dạng số tiền để hiển thị gọn hơn
-              const formattedPrice = item.price >= 1000 ? `${Math.floor(item.price / 1000)}K` : item.price.toString()
+              const formattedPrice = item.price >= 1000 ? `${Math.round(item.price / 1000)}K` : item.price.toString()
 
               // TÍNH TOÁN TỶ LỆ từ totalAmount để đảm bảo chính xác với getBill
               let itemTotalDisplay = 0
@@ -792,7 +792,7 @@ export class BillService {
               }
 
               const formattedTotal =
-                itemTotalDisplay >= 1000 ? `${Math.floor(itemTotalDisplay / 1000)}K` : itemTotalDisplay.toString()
+                itemTotalDisplay >= 1000 ? `${Math.round(itemTotalDisplay / 1000)}K` : itemTotalDisplay.toString()
 
               // In thông tin item mà không hiển thị thông tin giảm giá
               printer.tableCustom([
