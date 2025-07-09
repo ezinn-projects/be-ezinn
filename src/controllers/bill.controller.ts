@@ -63,6 +63,109 @@ export const printBill = async (req: Request, res: Response) => {
   })
 }
 
+export const printBillWifi = async (req: Request, res: Response) => {
+  const { scheduleId } = req.params
+  const {
+    actualEndTime,
+    actualStartTime,
+    paymentMethod,
+    promotionId,
+    printerIP = '192.168.68.51',
+    printerPort = 9100
+  } = req.body
+
+  // Validate ObjectId format for scheduleId
+  if (!ObjectId.isValid(scheduleId)) {
+    return res.status(HTTP_STATUS_CODE.BAD_REQUEST).json({
+      message: 'Invalid scheduleId format - must be a valid 24 character hex string'
+    })
+  }
+
+  try {
+    const billData = await billService.getBill(
+      scheduleId,
+      actualEndTime as string,
+      paymentMethod,
+      promotionId as string,
+      actualStartTime as string
+    )
+
+    const bill = await billService.printBillWifi(billData, printerIP, printerPort)
+
+    return res.status(HTTP_STATUS_CODE.OK).json({
+      message: 'Print bill via WiFi successfully',
+      result: bill
+    })
+  } catch (error: any) {
+    console.error('Error printing bill via WiFi:', error)
+    return res.status(HTTP_STATUS_CODE.INTERNAL_SERVER_ERROR).json({
+      message: 'Error printing bill via WiFi',
+      error: error.message || 'Unknown error'
+    })
+  }
+}
+
+export const printBillWifiRaw = async (req: Request, res: Response) => {
+  const { scheduleId } = req.params
+  const {
+    actualEndTime,
+    actualStartTime,
+    paymentMethod,
+    promotionId,
+    printerIP = '192.168.68.51',
+    printerPort = 9100
+  } = req.body
+
+  // Validate ObjectId format for scheduleId
+  if (!ObjectId.isValid(scheduleId)) {
+    return res.status(HTTP_STATUS_CODE.BAD_REQUEST).json({
+      message: 'Invalid scheduleId format - must be a valid 24 character hex string'
+    })
+  }
+
+  try {
+    const billData = await billService.getBill(
+      scheduleId,
+      actualEndTime as string,
+      paymentMethod,
+      promotionId as string,
+      actualStartTime as string
+    )
+
+    const bill = await billService.printBillWifiRaw(billData, printerIP, printerPort)
+
+    return res.status(HTTP_STATUS_CODE.OK).json({
+      message: 'Print bill via WiFi raw socket successfully',
+      result: bill
+    })
+  } catch (error: any) {
+    console.error('Error printing bill via WiFi raw socket:', error)
+    return res.status(HTTP_STATUS_CODE.INTERNAL_SERVER_ERROR).json({
+      message: 'Error printing bill via WiFi raw socket',
+      error: error.message || 'Unknown error'
+    })
+  }
+}
+
+export const testPrintWifi = async (req: Request, res: Response) => {
+  const { printerIP = '192.168.68.51', printerPort = 9100, encoding = 'windows-1258' } = req.body
+
+  try {
+    const result = await billService.testPrintWifi(printerIP, printerPort, encoding)
+
+    return res.status(HTTP_STATUS_CODE.OK).json({
+      message: `Test print via WiFi with encoding ${encoding} successfully`,
+      result: result
+    })
+  } catch (error: any) {
+    console.error('Error testing print via WiFi:', error)
+    return res.status(HTTP_STATUS_CODE.INTERNAL_SERVER_ERROR).json({
+      message: 'Error testing print via WiFi',
+      error: error.message || 'Unknown error'
+    })
+  }
+}
+
 /**
  * Get total revenue for a specific date
  * @param req Request object containing date in query params
@@ -762,4 +865,84 @@ export const saveBill = async (req: Request, res: Response) => {
       error: error.message || 'Unknown error'
     })
   }
+}
+
+export const testPrinterConnection = async (req: Request, res: Response) => {
+  const { printerIP = '192.168.68.51' } = req.body
+  const portsToTest = [9100, 9101, 9102, 9103, 515, 631, 80, 443]
+  const results: any[] = []
+
+  for (const port of portsToTest) {
+    try {
+      const result = await testPortConnection(printerIP, port)
+      results.push({ port, status: 'success', message: 'Port open' })
+    } catch (error: any) {
+      results.push({ port, status: 'failed', message: error.message })
+    }
+  }
+
+  return res.status(HTTP_STATUS_CODE.OK).json({
+    message: 'Test printer connection completed',
+    printerIP,
+    results
+  })
+}
+
+export const printBillShared = async (req: Request, res: Response) => {
+  const { scheduleId } = req.params
+  const { actualEndTime, actualStartTime, paymentMethod, promotionId, printerName = 'Jozo_Printer' } = req.body
+
+  // Validate ObjectId format for scheduleId
+  if (!ObjectId.isValid(scheduleId)) {
+    return res.status(HTTP_STATUS_CODE.BAD_REQUEST).json({
+      message: 'Invalid scheduleId format - must be a valid 24 character hex string'
+    })
+  }
+
+  try {
+    const billData = await billService.getBill(
+      scheduleId,
+      actualEndTime as string,
+      paymentMethod,
+      promotionId as string,
+      actualStartTime as string
+    )
+
+    const bill = await billService.printBillShared(billData, printerName)
+
+    return res.status(HTTP_STATUS_CODE.OK).json({
+      message: 'Print bill via shared printer successfully',
+      result: bill
+    })
+  } catch (error: any) {
+    console.error('Error printing bill via shared printer:', error)
+    return res.status(HTTP_STATUS_CODE.INTERNAL_SERVER_ERROR).json({
+      message: 'Error printing bill via shared printer',
+      error: error.message || 'Unknown error'
+    })
+  }
+}
+
+function testPortConnection(ip: string, port: number): Promise<boolean> {
+  return new Promise((resolve, reject) => {
+    const net = require('net')
+    const socket = new net.Socket()
+
+    socket.setTimeout(3000)
+
+    socket.connect(port, ip, () => {
+      socket.destroy()
+      resolve(true)
+    })
+
+    socket.on('error', (err: any) => {
+      socket.destroy()
+      reject(new Error(`Port ${port}: ${err.message}`))
+    })
+
+    socket.on('timeout', () => {
+      socket.destroy()
+      reject(new Error(`Port ${port}: Timeout`))
+    })
+  })
 }

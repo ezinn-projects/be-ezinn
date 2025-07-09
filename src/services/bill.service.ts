@@ -60,6 +60,9 @@ export class BillService {
   private deviceData: any // Lưu thông tin thiết bị USB được tìm thấy
   private transactionHistory: Array<IBill> = [] // Lưu lịch sử giao dịch
   private printer: any
+  private lastPrintTime: number = 0 // Thời gian in lần cuối
+  private printQueue: Array<() => Promise<any>> = [] // Queue để tránh conflict
+  private isPrinting: boolean = false // Flag đang in
 
   constructor() {
     this.initEscPos()
@@ -590,6 +593,58 @@ export class BillService {
     return bill
   }
 
+  // Quản lý queue in để tránh conflict
+  private async managePrintQueue<T>(printFunction: () => Promise<T>): Promise<T> {
+    return new Promise((resolve, reject) => {
+      this.printQueue.push(async () => {
+        try {
+          // Kiểm tra thời gian từ lần in cuối
+          const currentTime = Date.now()
+          const timeSinceLastPrint = currentTime - this.lastPrintTime
+          const minCooldown = 3000 // 3 giây giữa các lần in
+
+          if (timeSinceLastPrint < minCooldown) {
+            const waitTime = minCooldown - timeSinceLastPrint
+            console.log(`Cho ${waitTime}ms de may in san sang...`)
+            await new Promise((resolve) => setTimeout(resolve, waitTime))
+          }
+
+          this.isPrinting = true
+          console.log('Bat dau in... (Queue size:', this.printQueue.length, ')')
+
+          const result = await printFunction()
+
+          this.lastPrintTime = Date.now()
+          this.isPrinting = false
+
+          console.log('Hoan thanh in thanh cong')
+          resolve(result)
+        } catch (error) {
+          this.isPrinting = false
+          console.error('Loi khi in:', error)
+          reject(error)
+        } finally {
+          // Xử lý job tiếp theo trong queue
+          this.processNextInQueue()
+        }
+      })
+
+      // Nếu không đang in, xử lý ngay
+      if (!this.isPrinting) {
+        this.processNextInQueue()
+      }
+    })
+  }
+
+  private async processNextInQueue() {
+    if (this.printQueue.length > 0 && !this.isPrinting) {
+      const nextJob = this.printQueue.shift()
+      if (nextJob) {
+        await nextJob()
+      }
+    }
+  }
+
   async printBill(billData: IBill): Promise<IBill> {
     try {
       console.log('PrintBill - Đang in hóa đơn với dữ liệu đã tính sẵn')
@@ -870,7 +925,7 @@ export class BillService {
               .text('Hen gap lai quy khach!')
               .text('--------------------------------------------')
               .align('ct')
-              .text('Dia chi: 247/5 Phan Trung, Tan Mai, Bien Hoa')
+              .text('Dia chi: 247/5 Phan Trung, Tam Hiep, Bien Hoa')
               .text('Website: jozo.com.vn')
               .style('i')
               .text('Powered by Jozo')
@@ -1819,6 +1874,808 @@ export class BillService {
       console.error('[DOANH THU MỚI] Lỗi khi tính doanh thu:', error)
       throw error
     }
+  }
+
+  /**
+   * In hóa đơn qua WiFi
+   * @param billData Dữ liệu hóa đơn đã tính sẵn
+   * @param printerIP Địa chỉ IP của máy in WiFi (mặc định: 192.168.68.51)
+   * @param printerPort Port của máy in WiFi (mặc định: 9100)
+   * @returns Promise chứa thông tin hóa đơn đã in
+   */
+  async printBillWifi(billData: IBill, printerIP = '192.168.68.51', printerPort = 9100): Promise<IBill> {
+    // Sử dụng queue để tránh conflict khi in liên tiếp
+    return this.managePrintQueue(() => this.printBillWifiInternal(billData, printerIP, printerPort))
+  }
+
+  private async printBillWifiInternal(
+    billData: IBill,
+    printerIP = '192.168.68.51',
+    printerPort = 9100
+  ): Promise<IBill> {
+    try {
+      console.log(`PrintBillWifi - Đang in hóa đơn qua WiFi tại ${printerIP}:${printerPort}`)
+
+      // Lưu lại thời gian bắt đầu và kết thúc chính xác khi in hóa đơn
+      const exactStartTime = billData.actualStartTime || billData.startTime
+      const exactEndTime = billData.endTime || new Date()
+      console.log(
+        `Thời gian bắt đầu chính xác khi in hóa đơn: ${dayjs(ensureVNTimezone(exactStartTime)).format('DD/MM/YYYY HH:mm:ss')}`
+      )
+      console.log(
+        `Thời gian kết thúc chính xác khi in hóa đơn: ${dayjs(ensureVNTimezone(exactEndTime)).format('DD/MM/YYYY HH:mm:ss')}`
+      )
+
+      // Tạo mã hóa đơn theo định dạng #DDMMHHMM (ngày, tháng, giờ, phút)
+      const now = new Date()
+      const invoiceCode = `#${now.getDate().toString().padStart(2, '0')}${(now.getMonth() + 1).toString().padStart(2, '0')}${now.getHours().toString().padStart(2, '0')}${now.getMinutes().toString().padStart(2, '0')}`
+
+      // SỬ DỤNG TRỰC TIẾP billData thay vì tạo bill object mới
+      const bill: IBill = {
+        ...billData,
+        _id: new ObjectId(),
+        scheduleId: new ObjectId(billData.scheduleId),
+        roomId: new ObjectId(billData.roomId),
+        createdAt: new Date(),
+        actualEndTime: exactEndTime,
+        actualStartTime: exactStartTime,
+        invoiceCode: invoiceCode
+      }
+
+      // Kiểm tra status của schedule chỉ để ghi log
+      const schedule = await databaseService.roomSchedule.findOne({ _id: new ObjectId(bill.scheduleId) })
+      console.log(
+        `In hóa đơn qua WiFi cho ScheduleId=${bill.scheduleId}, Status=${schedule?.status || 'unknown'}, CHỈ IN - KHÔNG LƯU VÀO DATABASE`
+      )
+
+      const room = await databaseService.rooms.findOne({ _id: new ObjectId(bill.roomId) })
+
+      let paymentMethodText = ''
+      switch (bill.paymentMethod) {
+        case 'cash':
+          paymentMethodText = 'Tien mat'
+          break
+        case 'bank_transfer':
+          paymentMethodText = 'Chuyen khoan'
+          break
+        case 'momo':
+          paymentMethodText = 'MoMo'
+          break
+        case 'zalo_pay':
+          paymentMethodText = 'Zalo Pay'
+          break
+        case 'vnpay':
+          paymentMethodText = 'VNPay'
+          break
+        case 'visa':
+          paymentMethodText = 'Visa'
+          break
+        case 'mastercard':
+          paymentMethodText = 'Mastercard'
+          break
+        default:
+          paymentMethodText = bill.paymentMethod || ''
+      }
+
+      // Sử dụng Promise để xử lý in hóa đơn qua WiFi
+      return new Promise((resolve, reject) => {
+        const self = this // Lưu tham chiếu this
+
+        try {
+          const escpos = require('escpos')
+          escpos.Network = require('escpos-network')
+
+          // Kết nối qua WiFi thay vì USB
+          const device = new escpos.Network(printerIP, printerPort)
+
+          // Sử dụng encoding windows-1258 (CP1258) cho tiếng Việt
+          const printer = new escpos.Printer(device, { encoding: 'windows-1258' })
+
+          // Định dạng ngày giờ
+          const formatDate = (date: Date) => {
+            return `${dayjs(ensureVNTimezone(date)).format('DD/MM/YYYY HH:mm')}`
+          }
+
+          device.open(function (err: any) {
+            if (err) {
+              return reject(new Error('Lỗi kết nối máy in WiFi: ' + err.message))
+            }
+
+            // In hóa đơn
+            printer
+              .font('a')
+              .align('ct')
+              .style('b')
+              .size(1, 1)
+              .text('Jozo Music Box')
+              .text('Hoa don thanh toan')
+              .style('b')
+              .size(0, 0)
+              .text('--------------------------------------------')
+              .text(`Mã HĐ: ${bill.invoiceCode}`)
+              .text(`${room?.roomName || 'Khong xac dinh'}`)
+              .align('lt')
+              .text(`Ngay: ${formatDate(new Date(bill.createdAt))}`)
+              .text(`Gio bat dau: ${dayjs(ensureVNTimezone(bill.startTime)).format('HH:mm')}`)
+              .text(`Gio ket thuc: ${dayjs(ensureVNTimezone(bill.endTime)).format('HH:mm')}`)
+              .align('ct')
+              .text('--------------------------------------------')
+              .style('b')
+              .text('Chi tiet dich vu')
+              .style('b')
+              .text('--------------------------------------------')
+
+            // Tạo header cho bảng với khoảng cách đều hơn
+            const tableHeader = [
+              { text: 'Dich vu', width: 0.45, align: 'left' },
+              { text: 'SL', width: 0.15, align: 'center' },
+              { text: 'Don gia', width: 0.2, align: 'right' },
+              { text: 'T.Tien', width: 0.2, align: 'right' }
+            ]
+
+            printer.tableCustom(tableHeader)
+            printer.text('--------------------------------------')
+
+            // In chi tiết từng mục với định dạng cải thiện
+            // TÍNH TOÁN TỶ LỆ từ totalAmount để đảm bảo chính xác 100%
+            const rawItemTotals = bill.items.map((item) => item.quantity * item.price)
+            const sumRawTotals = rawItemTotals.reduce((sum, total) => sum + total, 0)
+
+            bill.items.forEach((item, index) => {
+              let description = item.description
+              let quantity = item.quantity
+
+              // Tách mô tả và thông tin khuyến mãi nếu mô tả có chứa thông tin khuyến mãi
+              const promotionMatch = description.match(/ \(Giam (\d+)% - (.*)\)$/)
+              if (promotionMatch) {
+                // Tách phần mô tả gốc và phần khuyến mãi
+                description = description.replace(/ \(Giam (\d+)% - (.*)\)$/, '')
+              }
+
+              // Giới hạn độ dài của description để tránh bị tràn
+              // Không cắt ngắn các mô tả về phí dịch vụ thu âm
+              if (description.length > 20 && !description.includes('Phi dich vu thu am')) {
+                description = description.substring(0, 17) + '...'
+              }
+
+              // Định dạng số tiền để hiển thị gọn hơn
+              const formattedPrice = item.price >= 1000 ? `${Math.round(item.price / 1000)}K` : item.price.toString()
+
+              // TÍNH TOÁN TỶ LỆ từ totalAmount để đảm bảo chính xác với getBill
+              let itemTotalDisplay = 0
+              if (item.originalPrice) {
+                // Nếu có khuyến mãi, sử dụng originalPrice
+                itemTotalDisplay = item.originalPrice
+              } else {
+                // Tính tỷ lệ từ totalAmount thực tế
+                const rawTotal = rawItemTotals[index]
+                if (sumRawTotals > 0) {
+                  // Phân bổ tỷ lệ từ totalAmount
+                  const proportion = rawTotal / sumRawTotals
+                  itemTotalDisplay = Math.round(bill.totalAmount * proportion)
+                } else {
+                  itemTotalDisplay = 0
+                }
+              }
+
+              const formattedTotal =
+                itemTotalDisplay >= 1000 ? `${Math.round(itemTotalDisplay / 1000)}K` : itemTotalDisplay.toString()
+
+              // In thông tin item mà không hiển thị thông tin giảm giá
+              printer.tableCustom([
+                { text: description, width: 0.45, align: 'left' },
+                { text: quantity.toString(), width: 0.15, align: 'center' },
+                { text: formattedPrice, width: 0.2, align: 'right' },
+                { text: formattedTotal, width: 0.2, align: 'right' }
+              ])
+            })
+
+            // SỬ DỤNG TRỰC TIẾP totalAmount từ billData thay vì tính lại
+            let subtotalAmount = 0
+
+            // Tính subtotal bằng cách cộng các itemTotalDisplay đã tính theo tỷ lệ
+            bill.items.forEach((item, index) => {
+              if (item.originalPrice) {
+                // Nếu có originalPrice (tức là có khuyến mãi), dùng originalPrice
+                subtotalAmount += item.originalPrice
+              } else {
+                // Tính tỷ lệ từ totalAmount thực tế (giống logic ở trên)
+                const rawTotal = rawItemTotals[index]
+                if (sumRawTotals > 0) {
+                  const proportion = rawTotal / sumRawTotals
+                  const itemTotalDisplay = Math.round(bill.totalAmount * proportion)
+                  subtotalAmount += itemTotalDisplay
+                }
+              }
+            })
+
+            printer.text('--------------------------------------------')
+
+            // Hiển thị thông tin giảm giá tổng nếu có
+            if (bill.activePromotion) {
+              printer.align('rt')
+              printer.tableCustom([
+                {
+                  text: `Tong tien hang: `,
+                  width: 0.6,
+                  align: 'left'
+                },
+                {
+                  text: `${subtotalAmount.toLocaleString('vi-VN')} VND`,
+                  width: 0.4,
+                  align: 'right'
+                }
+              ])
+
+              const discountAmount = Math.floor((subtotalAmount * bill.activePromotion.discountPercentage) / 100)
+              printer.tableCustom([
+                {
+                  text: `Giam gia ${bill.activePromotion.discountPercentage}% - ${bill.activePromotion.name}: `,
+                  width: 0.6,
+                  align: 'left'
+                },
+                {
+                  text: `-${discountAmount.toLocaleString('vi-VN')} VND`,
+                  width: 0.4,
+                  align: 'right'
+                }
+              ])
+            }
+
+            printer
+              .text('--------------------------------------------')
+              .align('rt')
+              .style('b')
+              .text(`TONG CONG: ${bill.totalAmount.toLocaleString('vi-VN')} VND`)
+              .align('lt')
+              .style('normal')
+              .text('--------------------------------------------')
+              .text(`Phương thức thanh toán: ${paymentMethodText}`)
+              .align('ct')
+              .text('--------------------------------------------')
+              .text('Cam on quy khach da su dung dich vu cua Jozo')
+              .text('Hen gap lai quy khach!')
+              .text('--------------------------------------------')
+              .align('ct')
+              .text('Dia chi: 247/5 Phan Trung, Tam Hiep, Bien Hoa')
+              .text('Website: jozo.com.vn')
+              .style('i')
+              .text('Powered by Jozo')
+              .style('normal')
+              .feed(3)
+              .cut()
+              .close(function () {
+                console.log('In hóa đơn qua WiFi thành công')
+                self.transactionHistory.push(bill)
+                resolve(bill)
+              })
+          })
+        } catch (error) {
+          reject(error)
+        }
+      })
+    } catch (error) {
+      console.error('Lỗi khi in hóa đơn qua WiFi:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Test in hóa đơn qua WiFi với encoding tùy chỉnh
+   * @param printerIP Địa chỉ IP của máy in WiFi
+   * @param printerPort Port của máy in WiFi
+   * @param encoding Encoding để test (mặc định: windows-1258)
+   * @returns Promise chứa kết quả test
+   */
+  async testPrintWifi(printerIP = '192.168.68.51', printerPort = 9100, encoding = 'windows-1258'): Promise<any> {
+    try {
+      console.log(`TestPrintWifi - Test in với encoding: ${encoding} tại ${printerIP}:${printerPort}`)
+
+      // Sử dụng Promise để xử lý test in
+      return new Promise((resolve, reject) => {
+        try {
+          const escpos = require('escpos')
+          escpos.Network = require('escpos-network')
+
+          // Kết nối qua WiFi
+          const device = new escpos.Network(printerIP, printerPort)
+
+          // Sử dụng encoding được chỉ định
+          const printer = new escpos.Printer(device, { encoding: encoding })
+
+          device.open(function (err: any) {
+            if (err) {
+              return reject(new Error('Lỗi kết nối máy in WiFi: ' + err.message))
+            }
+
+            // Test in các ký tự tiếng Việt
+            printer
+              .font('a')
+              .align('ct')
+              .style('b')
+              .size(1, 1)
+              .text('=== TEST TIẾNG VIỆT ===')
+              .style('normal')
+              .size(0, 0)
+              .text('--------------------------------------------')
+              .text(`Encoding: ${encoding}`)
+              .text('--------------------------------------------')
+              .align('lt')
+              .text('Thử nghiệm các ký tự tiếng Việt:')
+              .text('Áá Àà Ảả Ãã Ạạ')
+              .text('Éé Èè Ẻẻ Ẽẽ Ẹẹ')
+              .text('Íí Ìì Ỉỉ Ĩĩ Ịị')
+              .text('Óó Òò Ỏỏ Õõ Ọọ')
+              .text('Úú Ùù Ủủ Ũũ Ụụ')
+              .text('Ýý Ỳỳ Ỷỷ Ỹỹ Ỵỵ')
+              .text('Đđ')
+              .text('--------------------------------------------')
+              .text('Ăă Ââ Êê Ôô Ơơ Ưư')
+              .text('--------------------------------------------')
+              .text('Test text thường dùng:')
+              .text('HÓA ĐƠN THANH TOÁN')
+              .text('Mã HĐ: #12345')
+              .text('Ngày: 15/01/2024 14:30')
+              .text('Giờ bắt đầu: 13:00')
+              .text('Giờ kết thúc: 14:30')
+              .text('CHI TIẾT DỊCH VỤ')
+              .text('Dịch vụ karaoke')
+              .text('Đơn giá: 100.000 VND')
+              .text('TỔNG CỘNG: 100.000 VND')
+              .text('Phương thức thanh toán: Tiền mặt')
+              .text('Cảm ơn quý khách!')
+              .text('Địa chỉ: 247/5 Phan Trung, Tân Mai')
+              .text('--------------------------------------------')
+              .align('ct')
+              .text(`Test completed with ${encoding}`)
+              .feed(3)
+              .cut()
+              .close(function () {
+                console.log(`Test in với encoding ${encoding} thành công`)
+                resolve({
+                  success: true,
+                  encoding: encoding,
+                  message: `Test print completed with ${encoding}`
+                })
+              })
+          })
+        } catch (error) {
+          reject(error)
+        }
+      })
+    } catch (error) {
+      console.error('Lỗi khi test in qua WiFi:', error)
+      throw error
+    }
+  }
+
+  // Kiem tra may in co san sang khong
+  private async checkPrinterReady(printerIP: string, printerPort: number): Promise<boolean> {
+    return new Promise((resolve) => {
+      const net = require('net')
+      const socket = new net.Socket()
+
+      socket.setTimeout(5000) // Tăng timeout lên 5 giây
+
+      socket.connect(printerPort, printerIP, () => {
+        // Đợi thêm 100ms để đảm bảo connection stable
+        setTimeout(() => {
+          socket.destroy()
+          resolve(true)
+        }, 100)
+      })
+
+      socket.on('error', () => {
+        socket.destroy()
+        resolve(false)
+      })
+
+      socket.on('timeout', () => {
+        socket.destroy()
+        resolve(false)
+      })
+    })
+  }
+
+  /**
+   * In hóa đơn qua WiFi sử dụng raw socket connection
+   * @param billData Dữ liệu hóa đơn đã tính sẵn
+   * @param printerIP Địa chỉ IP của máy in WiFi (mặc định: 192.168.68.51)
+   * @param printerPort Port của máy in WiFi (mặc định: 9100)
+   * @returns Promise chứa thông tin hóa đơn đã in
+   */
+  async printBillWifiRaw(billData: IBill, printerIP = '192.168.68.51', printerPort = 9100): Promise<IBill> {
+    // Sử dụng queue để tránh conflict khi in liên tiếp
+    return this.managePrintQueue(() => this.printBillWifiRawInternal(billData, printerIP, printerPort))
+  }
+
+  private async printBillWifiRawInternal(
+    billData: IBill,
+    printerIP = '192.168.68.51',
+    printerPort = 9100
+  ): Promise<IBill> {
+    try {
+      console.log(`PrintBillWifiRaw - Đang in hóa đơn qua raw socket tại ${printerIP}:${printerPort}`)
+
+      // Lưu lại thời gian bắt đầu và kết thúc chính xác khi in hóa đơn
+      const exactStartTime = billData.actualStartTime || billData.startTime
+      const exactEndTime = billData.endTime || new Date()
+
+      // Tạo mã hóa đơn theo định dạng #DDMMHHMM (ngày, tháng, giờ, phút)
+      const now = new Date()
+      const invoiceCode = `#${now.getDate().toString().padStart(2, '0')}${(now.getMonth() + 1).toString().padStart(2, '0')}${now.getHours().toString().padStart(2, '0')}${now.getMinutes().toString().padStart(2, '0')}`
+
+      const bill: IBill = {
+        ...billData,
+        _id: new ObjectId(),
+        scheduleId: new ObjectId(billData.scheduleId),
+        roomId: new ObjectId(billData.roomId),
+        createdAt: new Date(),
+        actualEndTime: exactEndTime,
+        actualStartTime: exactStartTime,
+        invoiceCode: invoiceCode
+      }
+
+      const room = await databaseService.rooms.findOne({ _id: new ObjectId(bill.roomId) })
+
+      let paymentMethodText = ''
+      switch (bill.paymentMethod) {
+        case 'cash':
+          paymentMethodText = 'Tiền mặt'
+          break
+        case 'bank_transfer':
+          paymentMethodText = 'Chuyển khoản'
+          break
+        case 'momo':
+          paymentMethodText = 'MoMo'
+          break
+        case 'zalo_pay':
+          paymentMethodText = 'Zalo Pay'
+          break
+        case 'vnpay':
+          paymentMethodText = 'VNPay'
+          break
+        case 'visa':
+          paymentMethodText = 'Visa'
+          break
+        case 'mastercard':
+          paymentMethodText = 'Mastercard'
+          break
+        default:
+          paymentMethodText = bill.paymentMethod || ''
+      }
+
+      // Dinh dang ngay gio
+      const formatDate = (date: Date) => {
+        return `${dayjs(ensureVNTimezone(date)).format('DD/MM/YYYY HH:mm')}`
+      }
+
+      // Tao noi dung in bang ESC/POS commands
+      const ESC = '\x1B'
+      const GS = '\x1D'
+
+      // Tao noi dung hoa don
+      let content = ''
+
+      // ESC @ - Reset may in
+      content += ESC + '@'
+
+      // Cai dat font va can giua
+      content += ESC + 'a' + '\x01' // Can giua
+      content += ESC + '!' + '\x18' // Font lon, dam
+      content += 'Jozo Music Box\n'
+      content += 'HOA DON THANH TOAN\n'
+
+      // Font binh thuong
+      content += ESC + '!' + '\x00'
+      content += '--------------------------------------------\n'
+      content += `Ma HD: ${bill.invoiceCode}\n`
+      content += `${room?.roomName || 'Khong xac dinh'}\n`
+
+      // Can trai
+      content += ESC + 'a' + '\x00'
+      content += `Ngay: ${formatDate(new Date(bill.createdAt))}\n`
+      content += `Gio bat dau: ${dayjs(ensureVNTimezone(bill.startTime)).format('HH:mm')}\n`
+      content += `Gio ket thuc: ${dayjs(ensureVNTimezone(bill.endTime)).format('HH:mm')}\n`
+
+      // Can giua
+      content += ESC + 'a' + '\x01'
+      content += '--------------------------------------------\n'
+      content += ESC + '!' + '\x08' // Font dam
+      content += 'CHI TIET DICH VU\n'
+      content += ESC + '!' + '\x00' // Font binh thuong
+      content += '--------------------------------------------\n'
+
+      // Header bang
+      content += 'Dich vu           SL  Don gia    T.Tien\n'
+      content += '--------------------------------------\n'
+
+      // TINH TOAN TY LE tu totalAmount de dam bao chinh xac 100%
+      const rawItemTotals = bill.items.map((item) => item.quantity * item.price)
+      const sumRawTotals = rawItemTotals.reduce((sum, total) => sum + total, 0)
+
+      // In chi tiet tung muc
+      bill.items.forEach((item, index) => {
+        let description = item.description
+
+        // Tach mo ta va thong tin khuyen mai neu co
+        const promotionMatch = description.match(/ \(Giam (\d+)% - (.*)\)$/)
+        if (promotionMatch) {
+          description = description.replace(/ \(Giam (\d+)% - (.*)\)$/, '')
+        }
+
+        // Gioi han do dai description
+        if (description.length > 17 && !description.includes('Phi dich vu thu am')) {
+          description = description.substring(0, 14) + '...'
+        }
+
+        // Dinh dang so tien
+        const formattedPrice = item.price >= 1000 ? `${Math.round(item.price / 1000)}K` : item.price.toString()
+
+        // Tinh ty le tu totalAmount thuc te
+        let itemTotalDisplay = 0
+        if (item.originalPrice) {
+          itemTotalDisplay = item.originalPrice
+        } else {
+          const rawTotal = rawItemTotals[index]
+          if (sumRawTotals > 0) {
+            const proportion = rawTotal / sumRawTotals
+            itemTotalDisplay = Math.round(bill.totalAmount * proportion)
+          } else {
+            itemTotalDisplay = 0
+          }
+        }
+
+        const formattedTotal =
+          itemTotalDisplay >= 1000 ? `${Math.round(itemTotalDisplay / 1000)}K` : itemTotalDisplay.toString()
+
+        // Format dong voi padding
+        const line = `${description.padEnd(17)} ${item.quantity.toString().padStart(2)} ${formattedPrice.padStart(8)} ${formattedTotal.padStart(7)}\n`
+        content += line
+      })
+
+      content += '--------------------------------------------\n'
+
+      // Hien thi thong tin giam gia tong neu co
+      if (bill.activePromotion) {
+        let subtotalAmount = 0
+        bill.items.forEach((item, index) => {
+          if (item.originalPrice) {
+            subtotalAmount += item.originalPrice
+          } else {
+            const rawTotal = rawItemTotals[index]
+            if (sumRawTotals > 0) {
+              const proportion = rawTotal / sumRawTotals
+              const itemTotalDisplay = Math.round(bill.totalAmount * proportion)
+              subtotalAmount += itemTotalDisplay
+            }
+          }
+        })
+
+        content += ESC + 'a' + '\x02' // Can phai
+        content += `Tong tien hang: ${subtotalAmount.toLocaleString('vi-VN')} VND\n`
+
+        const discountAmount = Math.floor((subtotalAmount * bill.activePromotion.discountPercentage) / 100)
+        content += `Giam gia ${bill.activePromotion.discountPercentage}% - ${bill.activePromotion.name}:\n`
+        content += `-${discountAmount.toLocaleString('vi-VN')} VND\n`
+      }
+
+      content += '--------------------------------------------\n'
+      content += ESC + 'a' + '\x02' // Can phai
+      content += ESC + '!' + '\x08' // Font dam
+      content += `TONG CONG: ${bill.totalAmount.toLocaleString('vi-VN')} VND\n`
+      content += ESC + '!' + '\x00' // Font binh thuong
+      content += ESC + 'a' + '\x00' // Can trai
+      content += '--------------------------------------------\n'
+      content += `Phuong thuc thanh toan: ${paymentMethodText}\n`
+      content += ESC + 'a' + '\x01' // Can giua
+      content += '--------------------------------------------\n'
+      content += 'Cam on quy khach da su dung dich vu cua Jozo\n'
+      content += 'Hen gap lai quy khach!\n'
+      content += '--------------------------------------------\n'
+      content += 'Dia chi: 247/5 Phan Trung, Tan Mai, Bien Hoa\n'
+      content += 'Website: jozo.com.vn\n'
+      content += 'Powered by Jozo\n'
+      content += '\n\n\n'
+
+      // Cut paper - ESC i (partial cut)
+      content += ESC + 'i'
+
+      // Su dung raw socket de gui du lieu voi retry mechanism
+      return new Promise((resolve, reject) => {
+        const net = require('net')
+        const maxRetries = 3 // Giảm số retry vì đã có queue
+        const retryDelay = 5000 // 5 giây - tăng lên để máy in có nhiều thời gian hơn
+        const connectionTimeout = 10000 // 10 giây - tăng timeout
+
+        const attemptConnection = async (attempt: number) => {
+          console.log(`Lan thu ket noi ${attempt}/${maxRetries} toi may in`)
+
+          // Kiem tra may in truoc khi thu ket noi
+          if (attempt === 1) {
+            console.log('Kiem tra may in co san sang...')
+
+            // Thử kiểm tra máy in nhiều lần
+            let isReady = false
+            for (let i = 0; i < 3; i++) {
+              isReady = await this.checkPrinterReady(printerIP, printerPort)
+              if (isReady) break
+
+              console.log(`May in chua san sang (lan ${i + 1}/3), cho 2 giay...`)
+              await new Promise((resolve) => setTimeout(resolve, 2000))
+            }
+
+            if (!isReady) {
+              console.log('May in van chua san sang sau 3 lan thu, bo qua lan nay...')
+              setTimeout(() => attemptConnection(attempt + 1).catch(reject), 5000)
+              return
+            }
+            console.log('May in da san sang!')
+          }
+
+          const socket = new net.Socket()
+          let isResolved = false
+
+          // Set timeout cho connection
+          socket.setTimeout(connectionTimeout)
+
+          // Gui wake-up signal truoc khi gui data chinh
+          socket.setKeepAlive(true)
+
+          socket.connect(printerPort, printerIP, () => {
+            if (isResolved) return
+            console.log(`Ket noi socket thanh cong toi may in (lan thu ${attempt})`)
+
+            // Cho may in san sang (100ms)
+            setTimeout(() => {
+              if (isResolved) return
+
+              // Gui du lieu
+              socket.write(content, (err: any) => {
+                if (isResolved) return
+                if (err) {
+                  console.error('Loi khi gui du lieu:', err)
+                  socket.destroy()
+                  if (attempt < maxRetries) {
+                    setTimeout(() => attemptConnection(attempt + 1).catch(reject), retryDelay)
+                  } else {
+                    isResolved = true
+                    reject(new Error('Loi gui du lieu sau ' + maxRetries + ' lan thu: ' + err.message))
+                  }
+                  return
+                }
+
+                console.log('Da gui du lieu in thanh cong')
+
+                // Dong socket sau khi gui xong
+                socket.destroy()
+
+                // Cho mot chut truoc khi resolve
+                setTimeout(() => {
+                  if (isResolved) return
+                  console.log('In hoa don qua raw socket thanh cong')
+                  this.transactionHistory.push(bill)
+                  isResolved = true
+                  resolve(bill)
+                }, 500)
+              })
+            }, 100)
+          })
+
+          socket.on('timeout', () => {
+            if (isResolved) return
+            console.error(`Timeout ket noi may in (lan thu ${attempt})`)
+            socket.destroy()
+            if (attempt < maxRetries) {
+              setTimeout(() => attemptConnection(attempt + 1).catch(reject), retryDelay)
+            } else {
+              isResolved = true
+              reject(new Error('Timeout ket noi may in sau ' + maxRetries + ' lan thu'))
+            }
+          })
+
+          socket.on('error', (err: any) => {
+            if (isResolved) return
+            console.error(`Loi socket (lan thu ${attempt}):`, err.message)
+            socket.destroy()
+
+            if (attempt < maxRetries) {
+              setTimeout(() => attemptConnection(attempt + 1).catch(reject), retryDelay)
+            } else {
+              isResolved = true
+              reject(new Error('Loi ket noi socket toi may in sau ' + maxRetries + ' lan thu: ' + err.message))
+            }
+          })
+
+          socket.on('close', () => {
+            if (!isResolved) {
+              console.log(`Socket da dong (lan thu ${attempt})`)
+            }
+          })
+        }
+
+        // Bat dau lan thu dau tien
+        attemptConnection(1).catch(reject)
+      })
+    } catch (error) {
+      console.error('Loi khi in hoa don qua raw socket:', error)
+      throw error
+    }
+  }
+
+  // In qua shared printer (fallback option)
+  async printBillShared(billData: IBill, printerName = 'Jozo_Printer'): Promise<IBill> {
+    try {
+      console.log(`In hoa don qua shared printer: ${printerName}`)
+
+      // Tạo nội dung hóa đơn text
+      const bill = billData
+      const content = this.generateBillText(bill)
+
+      // Ghi file tạm
+      const fs = require('fs')
+      const tempFile = `/tmp/bill_${Date.now()}.txt`
+      fs.writeFileSync(tempFile, content)
+
+      // In qua lpr command (Unix/Linux/macOS)
+      const { exec } = require('child_process')
+
+      return new Promise((resolve, reject) => {
+        exec(`lpr -P ${printerName} ${tempFile}`, (error: any, stdout: any, stderr: any) => {
+          // Xóa file tạm
+          try {
+            fs.unlinkSync(tempFile)
+          } catch {}
+
+          if (error) {
+            console.error('Loi khi in qua shared printer:', error)
+            reject(new Error('Loi in qua shared printer: ' + error.message))
+          } else {
+            console.log('In hoa don qua shared printer thanh cong')
+            this.transactionHistory.push(bill)
+            resolve(bill)
+          }
+        })
+      })
+    } catch (error) {
+      console.error('Loi khi in hoa don qua shared printer:', error)
+      throw error
+    }
+  }
+
+  // Tạo nội dung hóa đơn dạng text
+  private generateBillText(bill: IBill): string {
+    const room = { roomName: 'Unknown Room' } // Simplified for now
+
+    let content = ''
+    content += '=====================================\n'
+    content += '           Jozo Music Box\n'
+    content += '         HOA DON THANH TOAN\n'
+    content += '=====================================\n'
+    content += `Ma HD: ${bill.invoiceCode || 'N/A'}\n`
+    content += `Phong: ${room.roomName}\n`
+    content += `Ngay: ${new Date().toLocaleDateString('vi-VN')}\n`
+    content += `Gio: ${new Date().toLocaleTimeString('vi-VN')}\n`
+    content += '-------------------------------------\n'
+    content += '           CHI TIET DICH VU\n'
+    content += '-------------------------------------\n'
+    content += 'Dich vu              SL    Thanh tien\n'
+    content += '-------------------------------------\n'
+
+    bill.items.forEach((item) => {
+      const name = item.description.substring(0, 20).padEnd(20)
+      const qty = item.quantity.toString().padStart(3)
+      const total = (item.quantity * item.price).toLocaleString('vi-VN').padStart(10)
+      content += `${name} ${qty}  ${total}\n`
+    })
+
+    content += '-------------------------------------\n'
+    content += `TONG CONG:           ${bill.totalAmount.toLocaleString('vi-VN')} VND\n`
+    content += '=====================================\n'
+    content += '   Cam on quy khach da su dung dich vu!\n'
+    content += '=====================================\n\n\n'
+
+    return content
   }
 }
 
