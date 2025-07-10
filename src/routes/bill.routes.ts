@@ -1,26 +1,22 @@
 import { Router } from 'express'
+import { UserRole } from '~/constants/enum'
 import {
-  getBill,
-  printBill,
-  printBillWifi,
-  printBillWifiRaw,
-  printBillShared,
-  testPrintWifi,
-  testPrinterConnection,
-  getDailyRevenue,
-  getWeeklyRevenue,
-  getMonthlyRevenue,
-  getCustomRangeRevenue,
   cleanDuplicateBills,
   cleanUpNonFinishedBills,
-  testBillWithDiscount,
+  getAllBills,
+  getBill,
   getBillById,
   getBillsByRoomId,
-  getAllBills,
-  saveBill
+  getCustomRangeRevenue,
+  getDailyRevenue,
+  getMonthlyRevenue,
+  getWeeklyRevenue,
+  printBill,
+  saveBill,
+  testBillWithDiscount,
+  testPrinterConnection
 } from '~/controllers/bill.controller'
 import { protect } from '~/middlewares/auth.middleware'
-import { UserRole } from '~/constants/enum'
 import { wrapRequestHandler } from '~/utils/handlers'
 
 const billRouter = Router()
@@ -100,42 +96,6 @@ billRouter.get('/:scheduleId', protect([UserRole.Admin, UserRole.Staff]), wrapRe
  * @author: QuangDoo
  */
 billRouter.post('/:scheduleId', protect([UserRole.Admin, UserRole.Staff]), wrapRequestHandler(printBill))
-
-/**
- * @route POST /bill/:scheduleId/wifi
- * @description Print bill via WiFi by scheduleId
- * @access Private
- * @author: AI Assistant
- */
-billRouter.post('/:scheduleId/wifi', protect([UserRole.Admin, UserRole.Staff]), wrapRequestHandler(printBillWifi))
-
-/**
- * @route POST /bill/:scheduleId/wifi-raw
- * @description Print bill via WiFi using raw socket by scheduleId
- * @access Private
- * @author: AI Assistant
- */
-billRouter.post(
-  '/:scheduleId/wifi-raw',
-  protect([UserRole.Admin, UserRole.Staff]),
-  wrapRequestHandler(printBillWifiRaw)
-)
-
-/**
- * @route POST /bill/:scheduleId/shared
- * @description Print bill via shared printer by scheduleId
- * @access Private
- * @author: AI Assistant
- */
-billRouter.post('/:scheduleId/shared', protect([UserRole.Admin, UserRole.Staff]), wrapRequestHandler(printBillShared))
-
-/**
- * @route POST /bill/test-wifi
- * @description Test print via WiFi with different encodings
- * @access Private
- * @author: AI Assistant
- */
-billRouter.post('/test-wifi', protect([UserRole.Admin, UserRole.Staff]), wrapRequestHandler(testPrintWifi))
 
 /**
  * @route POST /bill/test-connection
