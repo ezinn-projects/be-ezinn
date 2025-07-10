@@ -1851,11 +1851,11 @@ export class BillService {
       .size(1, 1)
       .align('lt')
       .style('b')
-      .text(`Ngay: ${dayjs(bill.createdAt).format('DD/MM/YYYY')}`)
-      .text(`Gio bat dau: ${dayjs(bill.startTime).format('HH:mm')}`)
-      .text(`Gio ket thuc: ${dayjs(bill.endTime).format('HH:mm')}`)
+      .text(`Ngay: ${dayjs(ensureVNTimezone(bill.createdAt)).format('DD/MM/YYYY')}`)
+      .text(`Gio bat dau: ${dayjs(ensureVNTimezone(bill.startTime)).format('HH:mm')}`)
+      .text(`Gio ket thuc: ${dayjs(ensureVNTimezone(bill.endTime)).format('HH:mm')}`)
       .text(
-        `Tong thoi gian su dung: ${Math.floor(dayjs(bill.endTime).diff(dayjs(bill.startTime), 'minute') / 60)} gio ${dayjs(bill.endTime).diff(dayjs(bill.startTime), 'minute') % 60} phut`
+        `Tong thoi gian su dung: ${Math.floor(dayjs(ensureVNTimezone(bill.endTime)).diff(dayjs(ensureVNTimezone(bill.startTime)), 'minute') / 60)} gio ${dayjs(ensureVNTimezone(bill.endTime)).diff(dayjs(ensureVNTimezone(bill.startTime)), 'minute') % 60} phut`
       )
       .align('ct')
       .text('------------------------------------------------')
