@@ -771,7 +771,7 @@ export class BillService {
   private async printViaAPI(billData: IBill): Promise<any> {
     try {
       const billContent = await this.getBillText(billData)
-
+      console.log('process.env.HTTP_API_URL', process.env.HTTP_API_URL)
       // Gọi API in
       const response = await axios.post(
         `${process.env.HTTP_API_URL}/print`,
