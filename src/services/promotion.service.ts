@@ -135,7 +135,7 @@ class PromotionService {
    * @returns Modified bill item with applied discount
    */
   applyPromotionToItem(
-    item: { description: string; quantity: number; unitPrice: number; totalPrice: number },
+    item: { description: string; quantity: number; price: number; totalPrice: number },
     activePromotion: IPromotion,
     roomId?: ObjectId,
     roomTypeId?: ObjectId

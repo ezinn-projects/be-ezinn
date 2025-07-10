@@ -4,6 +4,7 @@ import { HTTP_STATUS_CODE } from '~/constants/httpStatus'
 import fnbMenuService from '~/services/fnbMenu.service'
 import { uploadImageToCloudinary, deleteImageFromCloudinary } from '~/services/cloudinary.service'
 import CloudinaryResponse from '~/models/CloudinaryResponse'
+import { Variant } from '~/models/schemas/FnBMenu.schema'
 
 /**
  * @description Get all menu items
@@ -39,6 +40,13 @@ export const getMenuItemById = async (req: Request, res: Response, next: NextFun
   }
 }
 
+// Thêm utility function để xử lý giá
+const processPrice = (price: string | number): number => {
+  if (typeof price === 'number') return price
+  // Xử lý chuỗi giá định dạng "15.000" hoặc "15,000"
+  return parseInt(price.replace(/[.,]/g, ''))
+}
+
 /**
  * @description Create new menu item
  * @path /fnb-menu
@@ -46,7 +54,7 @@ export const getMenuItemById = async (req: Request, res: Response, next: NextFun
  */
 export const createMenuItem = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { name, price, description, category, createdAt, inventory } = req.body
+    const { name, price, description, category, createdAt, inventory, hasVariants, variants } = req.body
     const file = req.file as Express.Multer.File | undefined
 
     // Kiểm tra nếu không có file hình ảnh
@@ -69,8 +77,58 @@ export const createMenuItem = async (req: Request, res: Response, next: NextFunc
       }
     }
 
-    // Chuyển đổi giá từ chuỗi "15.000" sang số
-    const numericPrice = parseFloat(price.replace('.', ''))
+    // Xử lý giá sản phẩm
+    const numericPrice = processPrice(price)
+
+    // Xử lý variants và inventory dựa trên hasVariants
+    let processedVariants: Variant[] | undefined
+    let processedInventory: any = undefined
+
+    if (hasVariants && variants) {
+      let variantsData = variants
+
+      // Kiểm tra nếu variants là chuỗi JSON (từ FormData)
+      if (typeof variants === 'string') {
+        try {
+          variantsData = JSON.parse(variants)
+        } catch (error) {
+          console.error('Lỗi khi parse variants JSON:', error)
+          variantsData = []
+        }
+      }
+
+      // Validate variants inventory
+      if (!variantsData.every((v: any) => v.inventory && typeof v.inventory.quantity === 'number')) {
+        throw new Error('Mỗi variant phải có thông tin inventory với số lượng')
+      }
+
+      processedVariants = variantsData.map((variant: any) => ({
+        name: variant.name,
+        price: variant.price ? processPrice(variant.price) : numericPrice,
+        isAvailable: variant.isAvailable ?? true,
+        inventory: {
+          quantity: variant.inventory?.quantity || 0,
+          unit: variant.inventory?.unit || 'piece',
+          minStock: variant.inventory?.minStock || 0,
+          maxStock: variant.inventory?.maxStock || 0,
+          lastUpdated: new Date()
+        }
+      }))
+    } else {
+      // Validate inventory cho sản phẩm không có variants
+      if (!inventory || typeof inventory.quantity !== 'number') {
+        throw new Error('Sản phẩm không có variants phải có thông tin inventory với số lượng')
+      }
+
+      // Xử lý inventory ở cấp độ sản phẩm
+      processedInventory = {
+        quantity: inventory.quantity,
+        unit: inventory.unit || 'piece',
+        minStock: inventory.minStock || 0,
+        maxStock: inventory.maxStock || 0,
+        lastUpdated: new Date()
+      }
+    }
 
     const menuItem = {
       name,
@@ -78,13 +136,9 @@ export const createMenuItem = async (req: Request, res: Response, next: NextFunc
       description: description || '',
       image: imageUrl,
       category,
-      inventory: {
-        quantity: inventory?.quantity || 0,
-        unit: inventory?.unit || 'piece',
-        minStock: inventory?.minStock || 0,
-        maxStock: inventory?.maxStock || 0,
-        lastUpdated: new Date()
-      },
+      hasVariants: hasVariants || false,
+      variants: processedVariants,
+      ...(processedInventory && { inventory: processedInventory }),
       createdAt: createdAt ? new Date(createdAt) : new Date()
     }
 
@@ -108,7 +162,7 @@ export const createMenuItem = async (req: Request, res: Response, next: NextFunc
  */
 export const updateMenuItem = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { name, price, description, image, category, inventory } = req.body
+    const { name, price, description, image, category, inventory, hasVariants, variants } = req.body
     const menuItem: any = {
       name,
       description,
@@ -118,46 +172,77 @@ export const updateMenuItem = async (req: Request, res: Response, next: NextFunc
 
     // Xử lý giá nếu được cung cấp
     if (price) {
-      // Chuyển đổi giá từ chuỗi "15.000" sang số nếu là chuỗi
-      const numericPrice = typeof price === 'string' ? parseFloat(price.replace('.', '')) : price
-      menuItem.price = numericPrice
+      menuItem.price = processPrice(price)
     }
 
-    // Xử lý inventory nếu được cung cấp
-    if (inventory) {
-      let inventoryData = inventory
+    // Xử lý variants và inventory dựa trên hasVariants
+    if (hasVariants !== undefined) {
+      menuItem.hasVariants = hasVariants
 
-      // Kiểm tra nếu inventory là chuỗi JSON (từ FormData)
-      if (typeof inventory === 'string') {
-        try {
-          inventoryData = JSON.parse(inventory)
-        } catch (error) {
-          console.error('Lỗi khi parse inventory JSON:', error)
-          // Sử dụng giá trị mặc định nếu parse thất bại
-          inventoryData = { quantity: 0, unit: 'piece', minStock: 0, maxStock: 0 }
+      if (hasVariants && variants) {
+        let variantsData = variants
+
+        // Kiểm tra nếu variants là chuỗi JSON (từ FormData)
+        if (typeof variants === 'string') {
+          try {
+            variantsData = JSON.parse(variants)
+          } catch (error) {
+            console.error('Lỗi khi parse variants JSON:', error)
+            variantsData = []
+          }
         }
-      }
 
-      menuItem.inventory = {
-        quantity: inventoryData.quantity !== undefined ? inventoryData.quantity : 0,
-        unit: inventoryData.unit || 'piece',
-        minStock: inventoryData.minStock !== undefined ? inventoryData.minStock : 0,
-        maxStock: inventoryData.maxStock !== undefined ? inventoryData.maxStock : 0,
-        lastUpdated: new Date()
+        menuItem.variants = variantsData.map((variant: any) => ({
+          name: variant.name,
+          price: variant.price ? processPrice(variant.price) : menuItem.price,
+          isAvailable: variant.isAvailable ?? true,
+          inventory: {
+            quantity: variant.inventory?.quantity || 0,
+            unit: variant.inventory?.unit || 'piece',
+            minStock: variant.inventory?.minStock || 0,
+            maxStock: variant.inventory?.maxStock || 0,
+            lastUpdated: new Date()
+          }
+        }))
+
+        // Xóa inventory ở cấp độ sản phẩm nếu có variants
+        menuItem.inventory = undefined
+      } else {
+        // Nếu chuyển từ có variants sang không có variants
+        menuItem.variants = []
+
+        // Xử lý inventory ở cấp độ sản phẩm
+        if (inventory) {
+          let inventoryData = inventory
+
+          if (typeof inventory === 'string') {
+            try {
+              inventoryData = JSON.parse(inventory)
+            } catch (error) {
+              console.error('Lỗi khi parse inventory JSON:', error)
+              inventoryData = { quantity: 0, unit: 'piece', minStock: 0, maxStock: 0 }
+            }
+          }
+
+          menuItem.inventory = {
+            quantity: inventoryData.quantity !== undefined ? inventoryData.quantity : 0,
+            unit: inventoryData.unit || 'piece',
+            minStock: inventoryData.minStock !== undefined ? inventoryData.minStock : 0,
+            maxStock: inventoryData.maxStock !== undefined ? inventoryData.maxStock : 0,
+            lastUpdated: new Date()
+          }
+        }
       }
     }
 
     const file = req.file as Express.Multer.File | undefined
 
-    // Chỉ cập nhật hình ảnh nếu có file mới được tải lên
     if (file) {
       const result = (await uploadImageToCloudinary(file.buffer, 'fnb-menu')) as CloudinaryResponse
       menuItem.image = result.url
     } else if (image) {
-      // Nếu không có file mới nhưng có image trong request body, sử dụng image đó
       menuItem.image = image
     }
-    // Nếu không có cả file và image trong request, giữ nguyên hình ảnh cũ
 
     const result = await fnbMenuService.updateFnbMenu(req.params.id, menuItem)
     return res.status(HTTP_STATUS_CODE.OK).json({

@@ -1,5 +1,20 @@
 import { ObjectId } from 'mongodb'
 
+export interface Inventory {
+  quantity: number
+  unit?: string
+  minStock: number
+  maxStock: number
+  lastUpdated: Date
+}
+
+export interface Variant {
+  name: string
+  price: number
+  isAvailable: boolean
+  inventory: Inventory
+}
+
 export interface FnbMenu {
   _id?: ObjectId
   name: string
@@ -7,65 +22,29 @@ export interface FnbMenu {
   description: string
   image: string
   category: string
-  inventory: {
-    quantity: number
-    unit: string
-    minStock: number
-    maxStock: number
-    lastUpdated: Date
-  }
+  hasVariants: boolean
+  variants?: Variant[] // Chỉ được sử dụng khi hasVariants = true
+  inventory?: Inventory // Optional trong schema, nhưng sẽ được validate trong controller
   createdAt: Date
-  updatedAt?: Date
   createdBy?: string
+  updatedAt?: Date
   updatedBy?: string
 }
 
-export class FnbMenuModel {
-  _id?: ObjectId
-  name: string
-  price: number
-  description: string
-  image: string
-  category: string
-  inventory: {
-    quantity: number
-    unit: string
-    minStock: number
-    maxStock: number
-    lastUpdated: Date
-  }
-  createdAt: Date
-  updatedAt?: Date
-  createdBy?: string
-  updatedBy?: string
-
+export class FnbMenuModel implements FnbMenu {
   constructor(
-    name: string,
-    price: number,
-    description: string,
-    image: string,
-    category: string,
-    inventory: {
-      quantity: number
-      unit: string
-      minStock: number
-      maxStock: number
-    },
-    createdBy?: string,
-    updatedBy?: string
-  ) {
-    this.name = name
-    this.price = price
-    this.description = description
-    this.image = image
-    this.category = category
-    this.inventory = {
-      ...inventory,
-      lastUpdated: new Date()
-    }
-    this.createdAt = new Date()
-    this.createdBy = createdBy || 'system'
-    this.updatedAt = new Date()
-    this.updatedBy = updatedBy || 'system'
-  }
+    public name: string,
+    public price: number,
+    public description: string,
+    public image: string,
+    public category: string,
+    public inventory: Inventory,
+    public createdBy?: string,
+    public updatedBy?: string,
+    public hasVariants: boolean = false,
+    public variants?: Variant[],
+    public _id?: ObjectId,
+    public createdAt: Date = new Date(),
+    public updatedAt?: Date
+  ) {}
 }

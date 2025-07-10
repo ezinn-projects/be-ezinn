@@ -11,11 +11,13 @@ import promotionService from './promotion.service'
 import { holidayService } from './holiday.service'
 import utc from 'dayjs/plugin/utc'
 import timezone from 'dayjs/plugin/timezone'
+import isBetween from 'dayjs/plugin/isBetween'
 import axios from 'axios'
 
-// Cấu hình timezone cho dayjs
+// Cấu hình timezone và plugins cho dayjs
 dayjs.extend(utc)
 dayjs.extend(timezone)
+dayjs.extend(isBetween)
 dayjs.tz.setDefault('Asia/Ho_Chi_Minh')
 
 // Ensure all date objects are using the correct timezone
@@ -232,9 +234,9 @@ export class BillService {
    * @returns Number of hours
    */
   calculateHours(start: Date | string, end: Date | string): number {
-    // Explicitly ensure both dates are in Vietnam timezone and reset seconds/milliseconds to 0
-    const startDate = dayjs(ensureVNTimezone(start)).tz('Asia/Ho_Chi_Minh').second(0).millisecond(0)
-    const endDate = dayjs(ensureVNTimezone(end)).tz('Asia/Ho_Chi_Minh').second(0).millisecond(0)
+    // Chuyển đổi thời gian về múi giờ Việt Nam và reset seconds/milliseconds
+    const startDate = dayjs(start).tz('Asia/Ho_Chi_Minh').second(0).millisecond(0)
+    const endDate = dayjs(end).tz('Asia/Ho_Chi_Minh').second(0).millisecond(0)
 
     // Check if end date is before start date, which would produce negative values
     if (endDate.isBefore(startDate)) {
@@ -248,7 +250,9 @@ export class BillService {
     // Convert to hours with 2 decimal places
     const diffHours = diffMinutes / 60
 
-    console.log(`Time calculation: ${startDate.format('HH:mm')} to ${endDate.format('HH:mm')}`)
+    console.log(`Time calculation in VN timezone:`)
+    console.log(`Start time: ${startDate.format('YYYY-MM-DD HH:mm')}`)
+    console.log(`End time: ${endDate.format('YYYY-MM-DD HH:mm')}`)
     console.log(`Difference in minutes: ${diffMinutes} minutes`)
     console.log(`Calculated hours: ${diffHours} hours`)
 
@@ -465,175 +469,228 @@ export class BillService {
 
     // Tạo ranh giới thời gian cho các khung giờ trong ngày
     const timeSlotBoundaries = []
+    const bookingDate = dayjs(startTime).tz('Asia/Ho_Chi_Minh').format('YYYY-MM-DD')
 
     for (const slot of sortedTimeSlots) {
-      // Use Vietnam timezone for all date calculations
-      const slotStartTime = dayjs(ensureVNTimezone(startTime)).format('YYYY-MM-DD') + ' ' + slot.start
+      // Tạo thời gian bắt đầu và kết thúc của khung giờ
+      const slotStartTime = dayjs.tz(`${bookingDate} ${slot.start}`, 'YYYY-MM-DD HH:mm', 'Asia/Ho_Chi_Minh')
       let slotEndTime
 
       // Xử lý khung giờ qua ngày
       if (slot.start > slot.end) {
-        slotEndTime = dayjs(ensureVNTimezone(startTime)).add(1, 'day').format('YYYY-MM-DD') + ' ' + slot.end
+        slotEndTime = dayjs.tz(`${bookingDate} ${slot.end}`, 'YYYY-MM-DD HH:mm', 'Asia/Ho_Chi_Minh').add(1, 'day')
       } else {
-        slotEndTime = dayjs(ensureVNTimezone(startTime)).format('YYYY-MM-DD') + ' ' + slot.end
+        slotEndTime = dayjs.tz(`${bookingDate} ${slot.end}`, 'YYYY-MM-DD HH:mm', 'Asia/Ho_Chi_Minh')
       }
 
       timeSlotBoundaries.push({
-        start: dayjs(slotStartTime).tz('Asia/Ho_Chi_Minh').toDate(),
-        end: dayjs(slotEndTime).tz('Asia/Ho_Chi_Minh').toDate(),
+        start: slotStartTime.toDate(),
+        end: slotEndTime.toDate(),
         prices: slot.prices
       })
     }
 
     // Kiểm tra và tính toán giờ sử dụng trong từng khung giờ
-    for (let i = 0; i < timeSlotBoundaries.length; i++) {
-      const slot = timeSlotBoundaries[i]
+    const transitionTime = '18:00' // Thời điểm chuyển tiếp giữa các khung giờ
+    const sessionStartVN = dayjs(startTime).tz('Asia/Ho_Chi_Minh')
+    const sessionEndVN = dayjs(validatedEndTime).tz('Asia/Ho_Chi_Minh')
+    const transitionPoint = dayjs.tz(
+      `${sessionStartVN.format('YYYY-MM-DD')} ${transitionTime}`,
+      'YYYY-MM-DD HH:mm',
+      'Asia/Ho_Chi_Minh'
+    )
 
-      // Tìm đơn giá cho loại phòng trong khung giờ này
-      const priceEntry = slot.prices.find((p: any) => p.room_type === room?.roomType)
-      if (!priceEntry) {
-        continue // Bỏ qua nếu không tìm thấy giá cho loại phòng
+    // Kiểm tra xem phiên có kéo dài qua điểm chuyển tiếp không
+    if (sessionStartVN.isBefore(transitionPoint) && sessionEndVN.isAfter(transitionPoint)) {
+      // Tính toán cho khoảng thời gian trước 18:00
+      const hoursBeforeTransition = this.calculateHours(sessionStartVN.toDate(), transitionPoint.toDate())
+      if (hoursBeforeTransition > 0) {
+        // Tìm giá cho khung giờ trước 18:00
+        const beforePrice = sortedTimeSlots.find((slot) => {
+          const slotStart = dayjs.tz(
+            `${sessionStartVN.format('YYYY-MM-DD')} ${slot.start}`,
+            'YYYY-MM-DD HH:mm',
+            'Asia/Ho_Chi_Minh'
+          )
+          const slotEnd = dayjs.tz(
+            `${sessionStartVN.format('YYYY-MM-DD')} ${slot.end}`,
+            'YYYY-MM-DD HH:mm',
+            'Asia/Ho_Chi_Minh'
+          )
+          return sessionStartVN.isBetween(slotStart, slotEnd, null, '[)')
+        })
+
+        if (beforePrice) {
+          const priceEntry = beforePrice.prices.find((p: any) => p.room_type === room?.roomType)
+          if (priceEntry) {
+            const slotServiceFee = Math.floor((hoursBeforeTransition * priceEntry.price) / 1000) * 1000
+            totalServiceFee += slotServiceFee
+            totalHoursUsed += hoursBeforeTransition
+
+            timeSlotItems.push({
+              description: `Phi dich vu thu am (${sessionStartVN.format('HH:mm')}-${transitionPoint.format('HH:mm')})`,
+              quantity: parseFloat(hoursBeforeTransition.toFixed(2)),
+              price: priceEntry.price,
+              totalPrice: slotServiceFee
+            })
+
+            console.log(
+              `Tính giờ cho khung trước 18h: ${sessionStartVN.format('HH:mm')}-${transitionPoint.format('HH:mm')}:`
+            )
+            console.log(`- Số giờ: ${hoursBeforeTransition}`)
+            console.log(`- Đơn giá: ${priceEntry.price}`)
+            console.log(`- Thành tiền: ${slotServiceFee}`)
+          }
+        }
       }
 
-      // Kiểm tra thời gian phiên có nằm trong khung giờ này không
-      const sessionStart = dayjs(startTime).tz('Asia/Ho_Chi_Minh').isAfter(dayjs(slot.start).tz('Asia/Ho_Chi_Minh'))
-        ? startTime
-        : slot.start
-      const sessionEnd = dayjs(validatedEndTime).tz('Asia/Ho_Chi_Minh').isBefore(dayjs(slot.end).tz('Asia/Ho_Chi_Minh'))
-        ? validatedEndTime
-        : slot.end
+      // Tính toán cho khoảng thời gian sau 18:00
+      const hoursAfterTransition = this.calculateHours(transitionPoint.toDate(), sessionEndVN.toDate())
+      if (hoursAfterTransition > 0) {
+        // Tìm giá cho khung giờ sau 18:00
+        const afterPrice = sortedTimeSlots.find((slot) => {
+          const slotStart = dayjs.tz(
+            `${sessionStartVN.format('YYYY-MM-DD')} ${slot.start}`,
+            'YYYY-MM-DD HH:mm',
+            'Asia/Ho_Chi_Minh'
+          )
+          const slotEnd =
+            slot.start > slot.end
+              ? dayjs
+                  .tz(`${sessionStartVN.format('YYYY-MM-DD')} ${slot.end}`, 'YYYY-MM-DD HH:mm', 'Asia/Ho_Chi_Minh')
+                  .add(1, 'day')
+              : dayjs.tz(`${sessionStartVN.format('YYYY-MM-DD')} ${slot.end}`, 'YYYY-MM-DD HH:mm', 'Asia/Ho_Chi_Minh')
+          return transitionPoint.isBetween(slotStart, slotEnd, null, '[)')
+        })
 
-      // Nếu có thời gian sử dụng trong khung giờ này
-      if (dayjs(sessionStart).tz('Asia/Ho_Chi_Minh').isBefore(dayjs(sessionEnd).tz('Asia/Ho_Chi_Minh'))) {
-        const hoursInSlot = this.calculateHours(sessionStart, sessionEnd)
+        if (afterPrice) {
+          const priceEntry = afterPrice.prices.find((p: any) => p.room_type === room?.roomType)
+          if (priceEntry) {
+            const slotServiceFee = Math.floor((hoursAfterTransition * priceEntry.price) / 1000) * 1000
+            totalServiceFee += slotServiceFee
+            totalHoursUsed += hoursAfterTransition
 
-        if (hoursInSlot > 0) {
-          // Làm tròn xuống phí dịch vụ (chia cho 1000 rồi nhân lại)
-          const slotServiceFee = Math.floor((hoursInSlot * priceEntry.price) / 1000) * 1000
+            timeSlotItems.push({
+              description: `Phi dich vu thu am (${transitionPoint.format('HH:mm')}-${sessionEndVN.format('HH:mm')})`,
+              quantity: parseFloat(hoursAfterTransition.toFixed(2)),
+              price: priceEntry.price,
+              totalPrice: slotServiceFee
+            })
 
-          totalServiceFee += slotServiceFee
-          totalHoursUsed += hoursInSlot
+            console.log(
+              `Tính giờ cho khung sau 18h: ${transitionPoint.format('HH:mm')}-${sessionEndVN.format('HH:mm')}:`
+            )
+            console.log(`- Số giờ: ${hoursAfterTransition}`)
+            console.log(`- Đơn giá: ${priceEntry.price}`)
+            console.log(`- Thành tiền: ${slotServiceFee}`)
+          }
+        }
+      }
+    } else {
+      // Nếu không kéo dài qua điểm chuyển tiếp, tính toán bình thường
+      const hoursInSlot = this.calculateHours(sessionStartVN.toDate(), sessionEndVN.toDate())
+      if (hoursInSlot > 0) {
+        // Tìm khung giờ phù hợp
+        const timeSlot = sortedTimeSlots.find((slot) => {
+          const slotStart = dayjs.tz(
+            `${sessionStartVN.format('YYYY-MM-DD')} ${slot.start}`,
+            'YYYY-MM-DD HH:mm',
+            'Asia/Ho_Chi_Minh'
+          )
+          const slotEnd =
+            slot.start > slot.end
+              ? dayjs
+                  .tz(`${sessionStartVN.format('YYYY-MM-DD')} ${slot.end}`, 'YYYY-MM-DD HH:mm', 'Asia/Ho_Chi_Minh')
+                  .add(1, 'day')
+              : dayjs.tz(`${sessionStartVN.format('YYYY-MM-DD')} ${slot.end}`, 'YYYY-MM-DD HH:mm', 'Asia/Ho_Chi_Minh')
+          return sessionStartVN.isBetween(slotStart, slotEnd, null, '[)')
+        })
 
-          // Thêm vào danh sách chi tiết theo khung giờ
-          timeSlotItems.push({
-            description: `Phi dich vu thu am (${dayjs(ensureVNTimezone(sessionStart)).format('HH:mm')}-${dayjs(ensureVNTimezone(sessionEnd)).format('HH:mm')})`,
-            quantity: parseFloat(hoursInSlot.toFixed(2)), // Đảm bảo hiển thị đúng 2 chữ số thập phân
-            unitPrice: priceEntry.price,
-            totalPrice: slotServiceFee
+        if (timeSlot) {
+          const priceEntry = timeSlot.prices.find((p: any) => p.room_type === room?.roomType)
+          if (priceEntry) {
+            const slotServiceFee = Math.floor((hoursInSlot * priceEntry.price) / 1000) * 1000
+            totalServiceFee += slotServiceFee
+            totalHoursUsed += hoursInSlot
+
+            timeSlotItems.push({
+              description: `Phi dich vu thu am (${sessionStartVN.format('HH:mm')}-${sessionEndVN.format('HH:mm')})`,
+              quantity: parseFloat(hoursInSlot.toFixed(2)),
+              price: priceEntry.price,
+              totalPrice: slotServiceFee
+            })
+
+            console.log(`Tính giờ cho khung ${sessionStartVN.format('HH:mm')}-${sessionEndVN.format('HH:mm')}:`)
+            console.log(`- Số giờ: ${hoursInSlot}`)
+            console.log(`- Đơn giá: ${priceEntry.price}`)
+            console.log(`- Thành tiền: ${slotServiceFee}`)
+          }
+        }
+      }
+    }
+
+    // Xử lý các đơn hàng F&B từ menu động
+    const items = [...timeSlotItems] as Array<{
+      description: string
+      quantity: number
+      price: number
+      totalPrice: number
+      originalPrice?: number
+      discountPercentage?: number
+      discountName?: string
+    }>
+    const order = orders[0]
+
+    // Thêm các mục F&B từ order vào items nếu có
+    if (order && order.order) {
+      // Xử lý đồ uống
+      for (const [menuId, quantity] of Object.entries(order.order.drinks)) {
+        const menuItem = menu.find((m) => m._id.toString() === menuId)
+        if (menuItem) {
+          // Đảm bảo price là number và được xử lý đúng định dạng
+          const price = this.parsePrice(menuItem.price)
+          if (price === 0) {
+            console.error(`Invalid price for menu item ${menuItem.name}: ${menuItem.price}`)
+            continue
+          }
+          const totalPrice = Math.floor((quantity * price) / 1000) * 1000
+          items.push({
+            description: menuItem.name,
+            quantity: quantity,
+            price: price,
+            totalPrice: totalPrice
+          })
+        }
+      }
+
+      // Xử lý đồ ăn
+      for (const [menuId, quantity] of Object.entries(order.order.snacks)) {
+        const menuItem = menu.find((m) => m._id.toString() === menuId)
+        if (menuItem) {
+          // Đảm bảo price là number và được xử lý đúng định dạng
+          const price = this.parsePrice(menuItem.price)
+          if (price === 0) {
+            console.error(`Invalid price for menu item ${menuItem.name}: ${menuItem.price}`)
+            continue
+          }
+          const totalPrice = Math.floor((quantity * price) / 1000) * 1000
+          items.push({
+            description: menuItem.name,
+            quantity: quantity,
+            price: price,
+            totalPrice: totalPrice
           })
         }
       }
     }
 
-    // Nếu không có khung giờ nào phù hợp, sử dụng phương pháp cũ
-    if (timeSlotItems.length === 0) {
-      console.log('Không tìm thấy khung giờ phù hợp, sử dụng giá theo thời gian bắt đầu')
-      const serviceFeeUnitPrice = await this.getServiceUnitPrice(startTime, dayType, room?.roomType || '')
-      const hoursUsed = this.calculateHours(startTime, validatedEndTime)
-
-      // Làm tròn xuống phí dịch vụ (chia cho 1000 rồi nhân lại)
-      const roundedServiceFeeTotal = Math.floor((hoursUsed * serviceFeeUnitPrice) / 1000) * 1000
-
-      timeSlotItems.push({
-        description: `Phi dich vu thu am`,
-        quantity: parseFloat(hoursUsed.toFixed(2)), // Đảm bảo hiển thị đúng 2 chữ số thập phân
-        unitPrice: serviceFeeUnitPrice,
-        totalPrice: roundedServiceFeeTotal
-      })
-
-      totalServiceFee = roundedServiceFeeTotal
-      totalHoursUsed = hoursUsed
-    }
-
-    // Log để debug
-
-    const items: {
-      description: string
-      quantity: number
-      unitPrice: number
-      totalPrice: number
-      originalPrice?: number
-      discountPercentage?: number
-      discountName?: string
-    }[] = [...timeSlotItems]
-
-    const order = orders[0]
-
-    // Xử lý các đơn hàng F&B từ menu động
-    if (order && order.order) {
-      // Xử lý snacks từ đơn hàng
-      if (order.order.snacks) {
-        const snackIds = Object.keys(order.order.snacks)
-
-        for (const snackId of snackIds) {
-          const quantity = order.order.snacks[snackId]
-          const menuItem = menu.find((item) => item._id.toString() === snackId)
-
-          if (menuItem) {
-            // Chuyển đổi giá từ chuỗi sang số nếu cần
-            const price =
-              typeof menuItem.price === 'string'
-                ? parseFloat((menuItem.price as string).replace(/\./g, ''))
-                : typeof menuItem.price === 'number'
-                  ? menuItem.price
-                  : 0
-
-            // Làm tròn xuống tổng giá (chia cho 1000 rồi nhân lại)
-            const roundedTotalPrice = Math.floor((price * quantity) / 1000) * 1000
-
-            items.push({
-              description: menuItem.name,
-              quantity: quantity,
-              unitPrice: price,
-              totalPrice: roundedTotalPrice
-            })
-          }
-        }
-      }
-
-      // Xử lý drinks từ đơn hàng (tương tự như snacks)
-      if (order.order.drinks) {
-        const drinkIds = Object.keys(order.order.drinks)
-
-        for (const drinkId of drinkIds) {
-          const quantity = order.order.drinks[drinkId]
-          const menuItem = menu.find((item) => item._id.toString() === drinkId)
-
-          if (menuItem) {
-            const price =
-              typeof menuItem.price === 'string'
-                ? parseFloat((menuItem.price as string).replace(/\./g, ''))
-                : typeof menuItem.price === 'number'
-                  ? menuItem.price
-                  : 0
-
-            // Làm tròn xuống tổng giá (chia cho 1000 rồi nhân lại)
-            const roundedTotalPrice = Math.floor((price * quantity) / 1000) * 1000
-
-            items.push({
-              description: menuItem.name,
-              quantity: quantity,
-              unitPrice: price,
-              totalPrice: roundedTotalPrice
-            })
-          }
-        }
-      }
-    }
-
-    // Lấy khuyến mãi đang hoạt động
-    let activePromotion = null
-
-    // If a specific promotionId is provided, use that instead of the active promotion
+    // Lấy thông tin promotion nếu có promotionId
+    let activePromotion = undefined
     if (promotionId) {
-      if (promotionId !== 'null') {
-        activePromotion = await promotionService.getPromotionById(promotionId)
-      } else {
-        // Nếu promotionId là 'null', không áp dụng khuyến mãi
-        console.log('Không áp dụng khuyến mãi (promotionId = null)')
+      const promotion = await databaseService.promotions.findOne({ _id: new ObjectId(promotionId) })
+      if (promotion) {
+        activePromotion = promotion
       }
-    } else {
-      activePromotion = await promotionService.getActivePromotion()
     }
 
     // Áp dụng khuyến mãi nếu có
@@ -649,7 +706,7 @@ export class BillService {
           {
             description: item.description,
             quantity: item.quantity,
-            unitPrice: item.unitPrice,
+            price: item.price,
             totalPrice: item.totalPrice
           },
           activePromotion,
@@ -682,7 +739,7 @@ export class BillService {
       note: schedule.note,
       items: items.map((item) => ({
         description: item.description,
-        price: item.unitPrice,
+        price: item.price,
         quantity: typeof item.quantity === 'number' ? parseFloat(item.quantity.toFixed(2)) : item.quantity, // Đảm bảo hiển thị đúng 2 chữ số thập phân
         originalPrice: item.originalPrice,
         discountPercentage: item.discountPercentage,
@@ -1827,24 +1884,27 @@ export class BillService {
 
       // Xử lý đặc biệt cho phí dịch vụ thu âm
       if (description.includes('Phi dich vu thu am')) {
-        const startTime = dayjs(bill.startTime).format('HH:mm')
-        const endTime = dayjs(bill.endTime).format('HH:mm')
+        // Tách description thành tên dịch vụ và thời gian
+        const [serviceName, timeRange] = description.split('(')
+        const timeStr = timeRange ? `(${timeRange}` : ''
 
-        // In dòng đầu tiên với tên dịch vụ
+        // In dòng đầu với tên dịch vụ
         printer.style('b').tableCustom([
           { text: 'Phi dich vu thu am', width: 0.45, align: 'left' },
           { text: quantity.toString(), width: 0.15, align: 'center' },
           { text: item.price.toLocaleString('vi-VN'), width: 0.2, align: 'right' },
-          { text: (item.quantity * item.price).toLocaleString('vi-VN'), width: 0.2, align: 'right' }
+          { text: (quantity * item.price).toLocaleString('vi-VN'), width: 0.2, align: 'right' }
         ])
 
         // In dòng thứ hai với thời gian
-        printer.style('b').tableCustom([
-          { text: `(${startTime}-${endTime})`, width: 0.45, align: 'left' },
-          { text: '', width: 0.15, align: 'center' },
-          { text: '', width: 0.2, align: 'right' },
-          { text: '', width: 0.2, align: 'right' }
-        ])
+        if (timeStr) {
+          printer.style('b').tableCustom([
+            { text: timeStr, width: 0.45, align: 'left' },
+            { text: '', width: 0.15, align: 'center' },
+            { text: '', width: 0.2, align: 'right' },
+            { text: '', width: 0.2, align: 'right' }
+          ])
+        }
 
         // Nếu có thông tin khuyến mãi, thêm vào dòng mới
         if (item.discountPercentage) {
@@ -1863,15 +1923,16 @@ export class BillService {
         }
       }
 
-      // Định dạng số tiền để hiển thị gọn hơn
-      const formattedPrice = item.price >= 1000 ? `${Math.round(item.price / 1000)}K` : item.price.toString()
-      const total = (item.quantity * item.price).toLocaleString('vi-VN')
+      // Định dạng số tiền để hiển thị với đơn vị nghìn
+      const formattedPrice = item.price.toLocaleString('vi-VN')
+      const total = Math.floor((item.quantity * item.price) / 1000) * 1000 // Làm tròn xuống đến 1000
+      const formattedTotal = total.toLocaleString('vi-VN')
 
       printer.style('b').tableCustom([
         { text: description, width: 0.45, align: 'left' },
         { text: quantity.toString(), width: 0.15, align: 'center' },
         { text: formattedPrice, width: 0.2, align: 'right' },
-        { text: total, width: 0.2, align: 'right' }
+        { text: formattedTotal, width: 0.2, align: 'right' }
       ])
     })
 
@@ -1917,6 +1978,36 @@ export class BillService {
       .feed(2)
 
     return printer.getText()
+  }
+
+  /**
+   * Chuyển đổi giá tiền từ nhiều định dạng khác nhau sang số
+   * Ví dụ: "10.000" -> 10000, "10,000" -> 10000, 10 -> 10000
+   */
+  private parsePrice(price: string | number): number {
+    if (typeof price === 'number') {
+      // Nếu giá là số nhỏ (ví dụ: 10), nhân với 1000
+      if (price < 1000) {
+        return price * 1000
+      }
+      return price
+    }
+
+    // Xóa tất cả dấu chấm và phẩy, sau đó chuyển thành số
+    const cleanPrice = price.replace(/[.,]/g, '')
+    const numericPrice = Number(cleanPrice)
+
+    if (isNaN(numericPrice)) {
+      console.error(`Invalid price format: ${price}`)
+      return 0
+    }
+
+    // Nếu giá là số nhỏ (ví dụ: 10), nhân với 1000
+    if (numericPrice < 1000) {
+      return numericPrice * 1000
+    }
+
+    return numericPrice
   }
 }
 
