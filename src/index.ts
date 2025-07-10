@@ -16,6 +16,7 @@ import fnbMenuRouter from '~/routes/fnbMenu.routes'
 import fnbOrderRouter from '~/routes/fnbOrder.route'
 import holidayRouter from '~/routes/holiday.routes'
 import priceRouter from '~/routes/price.routes'
+import printRouter from '~/routes/print.routes'
 import promotionRouter from '~/routes/promotion.routes'
 import roomRouter from '~/routes/room.routes'
 import roomMusicRouter from '~/routes/roomMusic.routes'
@@ -134,6 +135,7 @@ app.use('/promotions', promotionRouter)
 app.use('/bookings', bookingRouter)
 app.use('/holidays', holidayRouter)
 app.use('/client/fnb', clientFnbRouter)
+app.use('/print', printRouter)
 
 // Error handler
 app.use(defaultErrorHandler)

@@ -3,6 +3,7 @@ import express, { Express } from 'express'
 import { createServer, Server as HttpServer } from 'http'
 import { Server as SocketIOServer } from 'socket.io'
 import roomRoutes from '~/routes/room.routes'
+import { PrintSocket } from '~/sockets/print.socket'
 import { RoomSocket } from '~/sockets/room.socket'
 
 // Cấu hình CORS cho cả Express và Socket.IO
@@ -127,6 +128,7 @@ class Server {
     })
 
     RoomSocket(this.io)
+    PrintSocket(this.io)
   }
 
   // Chạy server
