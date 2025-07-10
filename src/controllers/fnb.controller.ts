@@ -27,6 +27,7 @@ export const createFnbOrder = async (
       category,
       createdBy,
       createdAt: new Date(),
+      hasVariants: false, // Thêm thuộc tính này
       inventory: {
         quantity: inventory.quantity,
         unit: inventory.unit,

@@ -26,7 +26,8 @@ class FnbMenuService {
         quantity: inventory.quantity,
         unit: inventory.unit,
         minStock: inventory.minStock,
-        maxStock: inventory.maxStock
+        maxStock: inventory.maxStock,
+        lastUpdated: new Date() // Thêm thuộc tính này
       },
       menu.createdBy,
       menu.updatedBy
@@ -35,7 +36,30 @@ class FnbMenuService {
 
   async getAllFnbMenu(): Promise<FnbMenuModel[]> {
     const menus = await databaseService.fnbMenu.find({}).toArray()
-    return menus
+    return menus.map((menu) => {
+      const inventory = menu.inventory || {
+        quantity: 0,
+        unit: 'piece',
+        minStock: 0,
+        maxStock: 0,
+        lastUpdated: new Date()
+      }
+      return new FnbMenuModel(
+        menu.name,
+        menu.price,
+        menu.description,
+        menu.image,
+        menu.category,
+        inventory,
+        menu.createdBy,
+        menu.updatedBy,
+        menu.hasVariants,
+        menu.variants,
+        menu._id,
+        menu.createdAt,
+        menu.updatedAt
+      )
+    })
   }
 
   async deleteFnbMenu(id: string): Promise<FnbMenu | null> {

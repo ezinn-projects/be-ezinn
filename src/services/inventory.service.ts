@@ -6,6 +6,9 @@ class InventoryService {
   async updateStock(itemId: string, quantity: number, operation: 'add' | 'subtract'): Promise<FnbMenu | null> {
     const item = await databaseService.fnbMenu.findOne({ _id: new ObjectId(itemId) })
     if (!item) return null
+    if (!item.inventory) {
+      throw new Error('Item has no inventory')
+    }
 
     const currentQuantity = item.inventory.quantity
     let newQuantity = currentQuantity
