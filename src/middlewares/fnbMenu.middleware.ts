@@ -11,6 +11,8 @@
 
 import { checkSchema } from 'express-validator'
 import { validate } from '~/utils/validation'
+import { Request, Response, NextFunction } from 'express'
+import { HTTP_STATUS_CODE } from '~/constants/httpStatus'
 
 export const createFNBMenuValidator = validate(
   checkSchema({
@@ -80,6 +82,49 @@ export const createFNBMenuValidator = validate(
     }
   })
 )
+
+/**
+ * @description Validate files upload cho FNB Menu
+ */
+export const validateFnBMenuFiles = (req: Request, res: Response, next: NextFunction) => {
+  const files = req.files as Express.Multer.File[]
+
+  if (files && files.length > 10) {
+    return res.status(HTTP_STATUS_CODE.BAD_REQUEST).json({
+      message: 'Maximum 10 files allowed'
+    })
+  }
+
+  if (files && !files.every((file) => file.mimetype.startsWith('image/'))) {
+    return res.status(HTTP_STATUS_CODE.BAD_REQUEST).json({
+      message: 'All files must be images'
+    })
+  }
+
+  // Kiểm tra kích thước file (tối đa 5MB mỗi file)
+  const maxSize = 5 * 1024 * 1024 // 5MB
+  if (files && files.some((file) => file.size > maxSize)) {
+    return res.status(HTTP_STATUS_CODE.BAD_REQUEST).json({
+      message: 'File size must not exceed 5MB'
+    })
+  }
+
+  // Kiểm tra tên field của file (chỉ cho phép các pattern hợp lệ)
+  if (
+    files &&
+    files.some((file) => {
+      const fieldName = file.fieldname
+      // Cho phép: images, file, variantFile_*, hoặc các tên field khác bắt đầu bằng variantFile
+      return !fieldName.match(/^(images|file|variantFile_\d+)$/)
+    })
+  ) {
+    return res.status(HTTP_STATUS_CODE.BAD_REQUEST).json({
+      message: 'Invalid file field names. Only "images", "file" and "variantFile_X" are allowed'
+    })
+  }
+
+  next()
+}
 
 export const updateFNBMenuValidator = validate(
   checkSchema({

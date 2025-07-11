@@ -763,8 +763,8 @@ export class BillService {
 
     // Thêm mã hóa đơn nếu chưa có
     if (!bill.invoiceCode) {
-      const now = new Date()
-      bill.invoiceCode = `#${now.getDate().toString().padStart(2, '0')}${(now.getMonth() + 1).toString().padStart(2, '0')}${now.getHours().toString().padStart(2, '0')}${now.getMinutes().toString().padStart(2, '0')}`
+      const now = dayjs().tz('Asia/Ho_Chi_Minh')
+      bill.invoiceCode = `#${now.date().toString().padStart(2, '0')}${(now.month() + 1).toString().padStart(2, '0')}${now.hour().toString().padStart(2, '0')}${now.minute().toString().padStart(2, '0')}`
     }
 
     return bill
@@ -866,8 +866,8 @@ export class BillService {
       )
 
       // Tạo mã hóa đơn theo định dạng #DDMMHHMM (ngày, tháng, giờ, phút)
-      const now = new Date()
-      const invoiceCode = `#${now.getDate().toString().padStart(2, '0')}${(now.getMonth() + 1).toString().padStart(2, '0')}${now.getHours().toString().padStart(2, '0')}${now.getMinutes().toString().padStart(2, '0')}`
+      const now = dayjs().tz('Asia/Ho_Chi_Minh')
+      const invoiceCode = `#${now.date().toString().padStart(2, '0')}${(now.month() + 1).toString().padStart(2, '0')}${now.hour().toString().padStart(2, '0')}${now.minute().toString().padStart(2, '0')}`
 
       // SỬ DỤNG TRỰC TIẾP billData thay vì tạo bill object mới
       const bill: IBill = {
@@ -915,11 +915,11 @@ export class BillService {
         })
       }
 
-      console.log(`[DOANH THU] Lấy doanh thu ngày ${dayjs(date).format('DD/MM/YYYY')}`)
+      console.log(`[DOANH THU] Lấy doanh thu ngày ${dayjs(date).tz('Asia/Ho_Chi_Minh').format('DD/MM/YYYY')}`)
 
-      // Use same date logic as getAllBills endpoint
-      const startDateObj = dayjs(date).startOf('day').toDate()
-      const endDateObj = dayjs(date).endOf('day').toDate()
+      // Use same date logic as getAllBills endpoint - sử dụng múi giờ Việt Nam
+      const startDateObj = dayjs(date).tz('Asia/Ho_Chi_Minh').startOf('day').toDate()
+      const endDateObj = dayjs(date).tz('Asia/Ho_Chi_Minh').endOf('day').toDate()
 
       console.log(`[DOANH THU] Query range: ${startDateObj.toISOString()} to ${endDateObj.toISOString()}`)
 
@@ -1852,8 +1852,8 @@ export class BillService {
       .align('lt')
       .style('b')
       .text(`Ngay: ${dayjs(ensureVNTimezone(bill.createdAt)).format('DD/MM/YYYY')}`)
-      .text(`Gio bat dau: ${dayjs(ensureVNTimezone(bill.startTime)).format('HH:mm')}`)
-      .text(`Gio ket thuc: ${dayjs(ensureVNTimezone(bill.endTime)).format('HH:mm')}`)
+      .text(`Gio bat dau: ${dayjs(bill.startTime).tz('Asia/Ho_Chi_Minh').format('HH:mm')}`)
+      .text(`Gio ket thuc: ${dayjs(bill.endTime).tz('Asia/Ho_Chi_Minh').format('HH:mm')}`)
       .text(
         `Tong thoi gian su dung: ${Math.floor(dayjs(ensureVNTimezone(bill.endTime)).diff(dayjs(ensureVNTimezone(bill.startTime)), 'minute') / 60)} gio ${dayjs(ensureVNTimezone(bill.endTime)).diff(dayjs(ensureVNTimezone(bill.startTime)), 'minute') % 60} phut`
       )

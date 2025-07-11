@@ -13,6 +13,7 @@ export interface Variant {
   price: number
   isAvailable: boolean
   inventory: Inventory
+  image?: string // Thêm trường hình ảnh cho variant
 }
 
 export interface FnbMenu {

@@ -55,25 +55,26 @@ const processPrice = (price: string | number): number => {
 export const createMenuItem = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { name, price, description, category, createdAt, inventory, hasVariants, variants } = req.body
-    const file = req.file as Express.Multer.File | undefined
+    const files = req.files as Express.Multer.File[] | undefined
 
     // Kiểm tra nếu không có file hình ảnh
-    if (!file) {
+    if (!files || files.length === 0) {
       console.log('Không có hình ảnh được cung cấp')
     }
 
     let imageUrl = ''
 
-    // Xử lý upload hình ảnh nếu có file
-    if (file) {
+    // Xử lý upload hình ảnh chính nếu có file với fieldname 'images' hoặc 'file'
+    const mainImageFile = files?.find((file) => file.fieldname === 'images' || file.fieldname === 'file')
+    if (mainImageFile) {
       try {
-        console.log('Đang upload hình ảnh...')
-        const result = (await uploadImageToCloudinary(file.buffer, 'fnb-menu')) as CloudinaryResponse
+        console.log('Đang upload hình ảnh chính...')
+        const result = (await uploadImageToCloudinary(mainImageFile.buffer, 'fnb-menu')) as CloudinaryResponse
         imageUrl = result.url
         console.log('Upload thành công, URL:', imageUrl)
       } catch (error) {
-        console.error('Lỗi khi upload hình ảnh:', error)
-        throw new Error(`Failed to upload image: ${(error as Error).message}`)
+        console.error('Lỗi khi upload hình ảnh chính:', error)
+        throw new Error(`Failed to upload main image: ${(error as Error).message}`)
       }
     }
 
@@ -102,18 +103,50 @@ export const createMenuItem = async (req: Request, res: Response, next: NextFunc
         throw new Error('Mỗi variant phải có thông tin inventory với số lượng')
       }
 
-      processedVariants = variantsData.map((variant: any) => ({
-        name: variant.name,
-        price: variant.price ? processPrice(variant.price) : numericPrice,
-        isAvailable: variant.isAvailable ?? true,
-        inventory: {
-          quantity: variant.inventory?.quantity || 0,
-          unit: variant.inventory?.unit || 'piece',
-          minStock: variant.inventory?.minStock || 0,
-          maxStock: variant.inventory?.maxStock || 0,
-          lastUpdated: new Date()
-        }
-      }))
+      // Tạo map để lưu trữ file theo tên
+      const fileMap = new Map<string, Express.Multer.File>()
+      if (files) {
+        files.forEach((file) => {
+          fileMap.set(file.fieldname, file)
+        })
+      }
+
+      // Xử lý upload hình ảnh cho variants
+      processedVariants = await Promise.all(
+        variantsData.map(async (variant: any, index: number) => {
+          let variantImageUrl = undefined
+
+          // Kiểm tra nếu variant có yêu cầu upload hình ảnh
+          if (variant.image && variant.image.startsWith('variantFile_')) {
+            const file = fileMap.get(variant.image)
+            if (file) {
+              try {
+                console.log(`Đang upload hình ảnh cho variant ${variant.name}...`)
+                const result = (await uploadImageToCloudinary(file.buffer, 'fnb-menu-variants')) as CloudinaryResponse
+                variantImageUrl = result.url
+                console.log(`Upload hình ảnh variant ${variant.name} thành công`)
+              } catch (error) {
+                console.error(`Lỗi khi upload hình ảnh variant ${variant.name}:`, error)
+                throw new Error(`Failed to upload image for variant ${variant.name}: ${(error as Error).message}`)
+              }
+            }
+          }
+
+          return {
+            name: variant.name,
+            price: variant.price ? processPrice(variant.price) : numericPrice,
+            isAvailable: variant.isAvailable ?? true,
+            image: variantImageUrl,
+            inventory: {
+              quantity: variant.inventory?.quantity || 0,
+              unit: variant.inventory?.unit || 'piece',
+              minStock: variant.inventory?.minStock || 0,
+              maxStock: variant.inventory?.maxStock || 0,
+              lastUpdated: new Date()
+            }
+          }
+        })
+      )
     } else {
       // Validate inventory cho sản phẩm không có variants
       if (!inventory || typeof inventory.quantity !== 'number') {
@@ -163,6 +196,7 @@ export const createMenuItem = async (req: Request, res: Response, next: NextFunc
 export const updateMenuItem = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { name, price, description, image, category, inventory, hasVariants, variants } = req.body
+    const files = req.files as Express.Multer.File[] | undefined
     const menuItem: any = {
       name,
       description,
@@ -192,18 +226,50 @@ export const updateMenuItem = async (req: Request, res: Response, next: NextFunc
           }
         }
 
-        menuItem.variants = variantsData.map((variant: any) => ({
-          name: variant.name,
-          price: variant.price ? processPrice(variant.price) : menuItem.price,
-          isAvailable: variant.isAvailable ?? true,
-          inventory: {
-            quantity: variant.inventory?.quantity || 0,
-            unit: variant.inventory?.unit || 'piece',
-            minStock: variant.inventory?.minStock || 0,
-            maxStock: variant.inventory?.maxStock || 0,
-            lastUpdated: new Date()
-          }
-        }))
+        // Tạo map để lưu trữ file theo tên
+        const fileMap = new Map<string, Express.Multer.File>()
+        if (files) {
+          files.forEach((file) => {
+            fileMap.set(file.fieldname, file)
+          })
+        }
+
+        // Xử lý upload hình ảnh cho variants
+        menuItem.variants = await Promise.all(
+          variantsData.map(async (variant: any, index: number) => {
+            let variantImageUrl = variant.image || undefined
+
+            // Kiểm tra nếu variant có yêu cầu upload hình ảnh mới
+            if (variant.image && variant.image.startsWith('variantFile_')) {
+              const file = fileMap.get(variant.image)
+              if (file) {
+                try {
+                  console.log(`Đang upload hình ảnh cho variant ${variant.name}...`)
+                  const result = (await uploadImageToCloudinary(file.buffer, 'fnb-menu-variants')) as CloudinaryResponse
+                  variantImageUrl = result.url
+                  console.log(`Upload hình ảnh variant ${variant.name} thành công`)
+                } catch (error) {
+                  console.error(`Lỗi khi upload hình ảnh variant ${variant.name}:`, error)
+                  throw new Error(`Failed to upload image for variant ${variant.name}: ${(error as Error).message}`)
+                }
+              }
+            }
+
+            return {
+              name: variant.name,
+              price: variant.price ? processPrice(variant.price) : menuItem.price,
+              isAvailable: variant.isAvailable ?? true,
+              image: variantImageUrl,
+              inventory: {
+                quantity: variant.inventory?.quantity || 0,
+                unit: variant.inventory?.unit || 'piece',
+                minStock: variant.inventory?.minStock || 0,
+                maxStock: variant.inventory?.maxStock || 0,
+                lastUpdated: new Date()
+              }
+            }
+          })
+        )
 
         // Xóa inventory ở cấp độ sản phẩm nếu có variants
         menuItem.inventory = undefined
@@ -235,11 +301,16 @@ export const updateMenuItem = async (req: Request, res: Response, next: NextFunc
       }
     }
 
-    const file = req.file as Express.Multer.File | undefined
-
-    if (file) {
-      const result = (await uploadImageToCloudinary(file.buffer, 'fnb-menu')) as CloudinaryResponse
-      menuItem.image = result.url
+    // Xử lý upload hình ảnh chính
+    const mainImageFile = files?.find((file) => file.fieldname === 'images' || file.fieldname === 'file')
+    if (mainImageFile) {
+      try {
+        const result = (await uploadImageToCloudinary(mainImageFile.buffer, 'fnb-menu')) as CloudinaryResponse
+        menuItem.image = result.url
+      } catch (error) {
+        console.error('Lỗi khi upload hình ảnh chính:', error)
+        throw new Error(`Failed to upload main image: ${(error as Error).message}`)
+      }
     } else if (image) {
       menuItem.image = image
     }
