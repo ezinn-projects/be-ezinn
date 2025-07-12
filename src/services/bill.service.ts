@@ -400,11 +400,66 @@ export class BillService {
       }
     } else {
       // Nếu không có actualStartTime, sử dụng schedule.startTime và reset giây/millisecond
-      validatedStartTime = dayjs(ensureVNTimezone(schedule.startTime)).second(0).millisecond(0).toDate()
+      // Đảm bảo thời gian được xử lý đúng múi giờ
+      const rawStartTime = schedule.startTime
+      console.log('Raw startTime from DB:', rawStartTime)
+
+      // Nếu thời gian từ DB có vẻ là UTC (ví dụ: 10:05:00.000Z), chuyển đổi về VN time
+      let processedStartTime
+      const startTimeStr = String(rawStartTime)
+      if (startTimeStr.includes('Z')) {
+        // Nếu là UTC string, parse và chuyển về VN time
+        processedStartTime = dayjs.utc(startTimeStr).tz('Asia/Ho_Chi_Minh').toDate()
+        console.log(
+          'Converted UTC to VN time:',
+          dayjs(processedStartTime).tz('Asia/Ho_Chi_Minh').format('YYYY-MM-DD HH:mm:ss')
+        )
+      } else {
+        // Nếu không phải UTC, sử dụng ensureVNTimezone
+        processedStartTime = ensureVNTimezone(rawStartTime)
+      }
+
+      // FIX TẠM THỜI: Nếu thời gian quá sớm (trước 6h sáng), có thể đây là UTC time
+      const vnTime = dayjs(processedStartTime).tz('Asia/Ho_Chi_Minh')
+      if (vnTime.hour() < 6) {
+        console.log('WARNING: Thời gian quá sớm, có thể là UTC. Chuyển đổi lại...')
+        processedStartTime = dayjs.utc(rawStartTime).tz('Asia/Ho_Chi_Minh').toDate()
+        console.log(
+          'Fixed startTime (VN):',
+          dayjs(processedStartTime).tz('Asia/Ho_Chi_Minh').format('YYYY-MM-DD HH:mm:ss')
+        )
+      }
+
+      // FIX CHÍNH: Luôn xử lý như UTC nếu có 'Z' trong string
+      if (startTimeStr.includes('Z')) {
+        console.log('FIX: Luôn xử lý như UTC vì có Z suffix')
+        processedStartTime = dayjs.utc(rawStartTime).tz('Asia/Ho_Chi_Minh').toDate()
+        console.log(
+          'Final startTime (VN):',
+          dayjs(processedStartTime).tz('Asia/Ho_Chi_Minh').format('YYYY-MM-DD HH:mm:ss')
+        )
+      }
+
+      validatedStartTime = dayjs(processedStartTime).second(0).millisecond(0).toDate()
     }
 
     // Convert times to Vietnam timezone
     const startTime = validatedStartTime
+
+    // Debug log để kiểm tra thời gian
+    console.log('=== DEBUG THỜI GIAN ===')
+    console.log('Schedule startTime (raw):', schedule.startTime)
+    console.log('Schedule endTime (raw):', schedule.endTime)
+    console.log('Schedule startTime (as UTC):', dayjs.utc(schedule.startTime).format('YYYY-MM-DD HH:mm:ss'))
+    console.log('Schedule startTime (as local):', dayjs(schedule.startTime).format('YYYY-MM-DD HH:mm:ss'))
+    console.log(
+      'Schedule startTime (as VN):',
+      dayjs(schedule.startTime).tz('Asia/Ho_Chi_Minh').format('YYYY-MM-DD HH:mm:ss')
+    )
+    console.log('Validated startTime (VN):', dayjs(startTime).tz('Asia/Ho_Chi_Minh').format('YYYY-MM-DD HH:mm:ss'))
+    console.log('Current server time (VN):', dayjs().tz('Asia/Ho_Chi_Minh').format('YYYY-MM-DD HH:mm:ss'))
+    console.log('Current server time (UTC):', dayjs().utc().format('YYYY-MM-DD HH:mm:ss'))
+    console.log('========================')
 
     // Kiểm tra và xử lý actualEndTime
     let validatedEndTime: Date
@@ -443,10 +498,56 @@ export class BillService {
       console.log('Validated end time (from datetime):', dayjs(validatedEndTime).format('YYYY-MM-DD HH:mm:ss'))
     } else {
       // Nếu không có actualEndTime, sử dụng schedule.endTime và reset giây/millisecond
-      validatedEndTime = schedule.endTime
-        ? dayjs(ensureVNTimezone(schedule.endTime)).second(0).millisecond(0).toDate()
-        : dayjs(ensureVNTimezone(startTime)).add(1, 'hour').second(0).millisecond(0).toDate() // Nếu không có endTime, mặc định là startTime + 1 giờ
+      if (schedule.endTime) {
+        const rawEndTime = schedule.endTime
+        console.log('Raw endTime from DB:', rawEndTime)
+
+        // Xử lý tương tự như startTime
+        let processedEndTime
+        const endTimeStr = String(rawEndTime)
+        if (endTimeStr.includes('Z')) {
+          // Nếu là UTC string, parse và chuyển về VN time
+          processedEndTime = dayjs.utc(endTimeStr).tz('Asia/Ho_Chi_Minh').toDate()
+          console.log(
+            'Converted UTC endTime to VN time:',
+            dayjs(processedEndTime).tz('Asia/Ho_Chi_Minh').format('YYYY-MM-DD HH:mm:ss')
+          )
+        } else {
+          // Nếu không phải UTC, sử dụng ensureVNTimezone
+          processedEndTime = ensureVNTimezone(rawEndTime)
+        }
+
+        // FIX TẠM THỜI: Nếu thời gian quá sớm (trước 6h sáng), có thể đây là UTC time
+        const vnEndTime = dayjs(processedEndTime).tz('Asia/Ho_Chi_Minh')
+        if (vnEndTime.hour() < 6) {
+          console.log('WARNING: End time quá sớm, có thể là UTC. Chuyển đổi lại...')
+          processedEndTime = dayjs.utc(rawEndTime).tz('Asia/Ho_Chi_Minh').toDate()
+          console.log(
+            'Fixed endTime (VN):',
+            dayjs(processedEndTime).tz('Asia/Ho_Chi_Minh').format('YYYY-MM-DD HH:mm:ss')
+          )
+        }
+
+        // FIX CHÍNH: Luôn xử lý như UTC nếu có 'Z' trong string
+        if (endTimeStr.includes('Z')) {
+          console.log('FIX: Luôn xử lý endTime như UTC vì có Z suffix')
+          processedEndTime = dayjs.utc(rawEndTime).tz('Asia/Ho_Chi_Minh').toDate()
+          console.log(
+            'Final endTime (VN):',
+            dayjs(processedEndTime).tz('Asia/Ho_Chi_Minh').format('YYYY-MM-DD HH:mm:ss')
+          )
+        }
+
+        validatedEndTime = dayjs(processedEndTime).second(0).millisecond(0).toDate()
+      } else {
+        // Nếu không có endTime, mặc định là startTime + 1 giờ
+        validatedEndTime = dayjs(ensureVNTimezone(startTime)).add(1, 'hour').second(0).millisecond(0).toDate()
+      }
     }
+
+    // Debug log cho endTime
+    console.log('Validated endTime (VN):', dayjs(validatedEndTime).tz('Asia/Ho_Chi_Minh').format('YYYY-MM-DD HH:mm:ss'))
+    console.log('========================')
 
     // Lấy thông tin bảng giá cho loại ngày (weekday/weekend)
     const priceDoc = await databaseService.price.findOne({ day_type: dayType })
@@ -499,6 +600,15 @@ export class BillService {
       'YYYY-MM-DD HH:mm',
       'Asia/Ho_Chi_Minh'
     )
+
+    // Debug log cho tính toán khung giờ
+    console.log('=== TÍNH TOÁN KHUNG GIỜ ===')
+    console.log('Session start (VN):', sessionStartVN.format('YYYY-MM-DD HH:mm:ss'))
+    console.log('Session end (VN):', sessionEndVN.format('YYYY-MM-DD HH:mm:ss'))
+    console.log('Transition point (18:00):', transitionPoint.format('YYYY-MM-DD HH:mm:ss'))
+    console.log('Is before transition?', sessionStartVN.isBefore(transitionPoint))
+    console.log('Is after transition?', sessionEndVN.isAfter(transitionPoint))
+    console.log('==========================')
 
     // Kiểm tra xem phiên có kéo dài qua điểm chuyển tiếp không
     if (sessionStartVN.isBefore(transitionPoint) && sessionEndVN.isAfter(transitionPoint)) {
@@ -687,10 +797,16 @@ export class BillService {
     // Lấy thông tin promotion nếu có promotionId
     let activePromotion = undefined
     if (promotionId) {
+      console.log('Tìm promotion với ID:', promotionId)
       const promotion = await databaseService.promotions.findOne({ _id: new ObjectId(promotionId) })
       if (promotion) {
         activePromotion = promotion
+        console.log('Tìm thấy promotion:', promotion.name, 'discount:', promotion.discountPercentage + '%')
+      } else {
+        console.log('Không tìm thấy promotion với ID:', promotionId)
       }
+    } else {
+      console.log('Không có promotionId được truyền')
     }
 
     // Áp dụng khuyến mãi nếu có
@@ -719,10 +835,7 @@ export class BillService {
           items[i].totalPrice = itemWithPromotion.totalPrice
           items[i].discountPercentage = itemWithPromotion.discountPercentage
           items[i].discountName = itemWithPromotion.discountName
-
-          // Cập nhật mô tả để bao gồm thông tin khuyến mãi
-          items[i].description =
-            `${item.description} (Giam ${itemWithPromotion.discountPercentage}% - ${itemWithPromotion.discountName || 'KM'})`
+          // Không thay đổi description - giữ nguyên tên dịch vụ
         }
       }
     }
@@ -1837,35 +1950,27 @@ export class BillService {
       .font('a')
       .align('ct')
       .style('b')
-      .size(2, 2) // Tăng kích thước gấp đôi cho tên quán
+      .size(1, 1)
       .text('Jozo Music Box')
-      .size(1, 1)
-      .style('b')
-      .size(1, 2) // Tăng chiều cao cho tiêu đề hóa đơn
       .text('HOA DON THANH TOAN')
-      .size(1, 1)
-      .text('------------------------------------------------')
-      .size(1, 2) // Tăng kích thước cho mã HD và tên phòng
+      .style('b')
+      .size(0, 0)
+      .text('--------------------------------------------')
       .text(`Ma HD: ${bill.invoiceCode || 'N/A'}`)
       .text(`${room?.roomName || 'Khong xac dinh'}`)
-      .size(1, 1)
       .align('lt')
-      .style('b')
       .text(`Ngay: ${dayjs(ensureVNTimezone(bill.createdAt)).format('DD/MM/YYYY')}`)
       .text(`Gio bat dau: ${dayjs(bill.startTime).tz('Asia/Ho_Chi_Minh').format('HH:mm')}`)
       .text(`Gio ket thuc: ${dayjs(bill.endTime).tz('Asia/Ho_Chi_Minh').format('HH:mm')}`)
       .text(
-        `Tong thoi gian su dung: ${Math.floor(dayjs(ensureVNTimezone(bill.endTime)).diff(dayjs(ensureVNTimezone(bill.startTime)), 'minute') / 60)} gio ${dayjs(ensureVNTimezone(bill.endTime)).diff(dayjs(ensureVNTimezone(bill.startTime)), 'minute') % 60} phut`
+        `Tong gio su dung: ${dayjs(bill.endTime).diff(dayjs(bill.startTime), 'hour')} gio ${dayjs(bill.endTime).diff(dayjs(bill.startTime), 'minute') % 60} phut`
       )
       .align('ct')
-      .text('------------------------------------------------')
-      .align('ct')
+      .text('--------------------------------------------')
       .style('b')
-      .size(1, 2) // Tăng kích thước cho tiêu đề chi tiết
       .text('CHI TIET DICH VU')
-      .size(1, 1)
-      .align('ct')
-      .text('------------------------------------------------')
+      .style('b')
+      .text('--------------------------------------------')
 
     // Tạo header cho bảng với khoảng cách đều hơn
     const tableHeader = [
@@ -1877,7 +1982,7 @@ export class BillService {
 
     printer.style('b').tableCustom(tableHeader)
 
-    // In chi tiết từng mục với định dạng cải thiện
+    // In chi tiết từng mục với định dạng tương tự printBill
     bill.items.forEach((item) => {
       let description = item.description
       let quantity = item.quantity
@@ -1888,12 +1993,17 @@ export class BillService {
         const [serviceName, timeRange] = description.split('(')
         const timeStr = timeRange ? `(${timeRange}` : ''
 
+        // Định dạng số tiền để hiển thị gọn hơn
+        const formattedPrice = item.price >= 1000 ? `${Math.round(item.price / 1000)}K` : item.price.toString()
+        const currentTotal = quantity * item.price
+        const formattedTotal = currentTotal >= 1000 ? `${Math.round(currentTotal / 1000)}K` : currentTotal.toString()
+
         // In dòng đầu với tên dịch vụ
         printer.style('b').tableCustom([
           { text: 'Phi dich vu thu am', width: 0.45, align: 'left' },
           { text: quantity.toString(), width: 0.15, align: 'center' },
-          { text: item.price.toLocaleString('vi-VN'), width: 0.2, align: 'right' },
-          { text: (quantity * item.price).toLocaleString('vi-VN'), width: 0.2, align: 'right' }
+          { text: formattedPrice, width: 0.2, align: 'right' },
+          { text: formattedTotal, width: 0.2, align: 'right' }
         ])
 
         // In dòng thứ hai với thời gian
@@ -1906,29 +2016,39 @@ export class BillService {
           ])
         }
 
-        // Nếu có thông tin khuyến mãi, thêm vào dòng mới
-        if (item.discountPercentage) {
-          printer.style('b').tableCustom([
-            { text: `Giam ${item.discountPercentage}% - ${item.discountName || 'KM'}`, width: 0.45, align: 'left' },
-            { text: '', width: 0.15, align: 'center' },
-            { text: '', width: 0.2, align: 'right' },
-            { text: '', width: 0.2, align: 'right' }
-          ])
-        }
         return
-      } else {
-        // Giới hạn độ dài của description cho các mục khác
-        if (description.length > 20) {
-          description = description.substring(0, 17) + '...'
-        }
       }
 
-      // Định dạng số tiền để hiển thị với đơn vị nghìn
-      const formattedPrice = item.price.toLocaleString('vi-VN')
-      const total = Math.floor((item.quantity * item.price) / 1000) * 1000 // Làm tròn xuống đến 1000
-      const formattedTotal = total.toLocaleString('vi-VN')
+      // Tách mô tả và thông tin khuyến mãi nếu mô tả có chứa thông tin khuyến mãi
+      const promotionMatch = description.match(/ \(Giam (\d+)% - (.*)\)$/)
+      if (promotionMatch) {
+        // Tách phần mô tả gốc và phần khuyến mãi
+        description = description.replace(/ \(Giam (\d+)% - (.*)\)$/, '')
+      }
 
-      printer.style('b').tableCustom([
+      // Giới hạn độ dài của description để tránh bị tràn
+      if (description.length > 20) {
+        description = description.substring(0, 17) + '...'
+      }
+
+      // Định dạng số tiền để hiển thị gọn hơn
+      const formattedPrice = item.price >= 1000 ? `${Math.round(item.price / 1000)}K` : item.price.toString()
+
+      // Tính tổng tiền hiển thị
+      let itemTotalDisplay = 0
+      if (item.originalPrice) {
+        // Nếu có khuyến mãi, sử dụng originalPrice
+        itemTotalDisplay = item.originalPrice
+      } else {
+        // Sử dụng giá hiện tại
+        itemTotalDisplay = item.quantity * item.price
+      }
+
+      const formattedTotal =
+        itemTotalDisplay >= 1000 ? `${Math.round(itemTotalDisplay / 1000)}K` : itemTotalDisplay.toString()
+
+      // In thông tin item
+      printer.tableCustom([
         { text: description, width: 0.45, align: 'left' },
         { text: quantity.toString(), width: 0.15, align: 'center' },
         { text: formattedPrice, width: 0.2, align: 'right' },
@@ -1936,15 +2056,46 @@ export class BillService {
       ])
     })
 
+    printer.text('------------------------------------------------')
+
+    // Sử dụng logic tương tự như printBill - hiển thị discount từ activePromotion
+    if (bill.activePromotion) {
+      // Tính tổng tiền gốc (subtotal)
+      let subtotalAmount = 0
+      bill.items.forEach((item) => {
+        if (item.originalPrice) {
+          subtotalAmount += item.originalPrice
+        } else {
+          subtotalAmount += item.quantity * item.price
+        }
+      })
+
+      // Hiển thị tổng tiền hàng
+      printer
+        .align('rt')
+        .style('b')
+        .size(1, 1)
+        .text(`Tong tien hang: ${subtotalAmount.toLocaleString('vi-VN')} VND`)
+
+      // Hiển thị discount
+      const discountAmount = Math.floor((subtotalAmount * bill.activePromotion.discountPercentage) / 100)
+      printer
+        .align('lt')
+        .style('b')
+        .size(1, 1)
+        .text(`Discount ${bill.activePromotion.discountPercentage}%:`)
+        .align('rt')
+        .text(`-${discountAmount.toLocaleString('vi-VN')} VND`)
+    }
+
     printer
-      .text('------------------------------------------------')
+      .text('--------------------------------------------')
       .align('rt')
       .style('b')
-      .size(2, 2) // Tăng kích thước gấp đôi cho tổng tiền
       .text(`TONG CONG: ${bill.totalAmount.toLocaleString('vi-VN')} VND`)
-      .size(1, 1)
       .align('lt')
-      .style('b')
+      .style('normal')
+      .text('--------------------------------------------')
 
     if (bill.paymentMethod) {
       const paymentMethods: { [key: string]: string } = {
@@ -1957,24 +2108,21 @@ export class BillService {
         mastercard: 'Mastercard'
       }
       const paymentMethodText = paymentMethods[bill.paymentMethod] || bill.paymentMethod
-      printer
-        .size(1, 2) // Tăng kích thước cho phương thức thanh toán
-        .text(`Phuong thuc thanh toan: ${paymentMethodText}`)
-        .size(1, 1)
+      printer.text(`Phuong thuc thanh toan: ${paymentMethodText}`)
     }
 
     printer
-      .text('------------------------------------------------')
       .align('ct')
-      .style('b')
-      .text('Cam on quy khach da su dung dich vu')
+      .text('--------------------------------------------')
+      .text('Cam on quy khach da su dung dich vu cua Jozo')
       .text('Hen gap lai quy khach!')
-      .size(1, 2) // Tăng kích thước cho địa chỉ và website
+      .text('--------------------------------------------')
+      .align('ct')
       .text('Dia chi: 247/5 Phan Trung, Tam Hiep, Bien Hoa')
       .text('Website: jozo.com.vn')
-      .size(1, 1)
-      .style('b')
+      .style('i')
       .text('Powered by Jozo')
+      .style('normal')
       .feed(2)
 
     return printer.getText()

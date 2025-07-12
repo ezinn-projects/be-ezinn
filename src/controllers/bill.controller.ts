@@ -332,18 +332,10 @@ export const cleanUpNonFinishedBills = async (req: Request, res: Response) => {
  */
 export const testBillWithDiscount = async (req: Request, res: Response) => {
   const { scheduleId } = req.params
-  const { actualEndTime, actualStartTime, discountPercentage = 0 } = req.body
-
-  // // Validate ObjectId format for scheduleId
-  // if (!ObjectId.isValid(scheduleId)) {
-  //   return res.status(HTTP_STATUS_CODE.BAD_REQUEST).json({
-  //     message: 'Invalid scheduleId format - must be a valid 24 character hex string'
-  //   })
-  // }
+  const { actualEndTime, actualStartTime, discountPercentage = 10 } = req.body
 
   try {
     // Get bill data using the regular method but without specifying a promotionId
-    // This will either use no promotion or the default active one
     const bill = await billService.getBill(
       scheduleId,
       actualEndTime as string,
@@ -365,59 +357,39 @@ export const testBillWithDiscount = async (req: Request, res: Response) => {
       createdAt: new Date()
     }
 
-    // Check if bill has negative values due to endTime before startTime
-    let needsTimeCorrection = false
-    if (new Date(bill.endTime) < new Date(bill.startTime)) {
-      needsTimeCorrection = true
-      console.warn('Warning: End time is before start time in the schedule, adjusting for test purposes')
-    }
-
-    // Apply the test discount to each item in the bill (ignoring any existing discounts)
+    // Apply the test discount to each item in the bill
     const discountedItems = bill.items.map((item) => {
-      // Ensure positive quantity and price
       const fixedQuantity = Math.abs(item.quantity)
-      // Use the original price if available, otherwise calculate from price * quantity
-      const basePrice = item.originalPrice || item.price * fixedQuantity
+      const basePrice = item.price * fixedQuantity
       const discountAmount = Math.floor((basePrice * Number(discountPercentage)) / 100)
-
-      // Make sure description doesn't already include a discount from soft opening
-      const baseDescription = item.description.includes('(Giam')
-        ? item.description.split('(Giam')[0].trim()
-        : item.description
 
       return {
         price: item.price,
         quantity: fixedQuantity,
-        description: `${baseDescription} (Test -${discountPercentage}%)`,
-        // Keep track of the original price
+        description: item.description, // Giữ nguyên description
         originalPrice: basePrice,
-        // Discount percentage for this test
         discountPercentage: Number(discountPercentage),
-        // Discount name for this test
-        discountName: `Test ${discountPercentage}%`,
-        // Calculate the final discounted price
-        discountedTotalPrice: basePrice - discountAmount
+        discountName: `Test ${discountPercentage}%`
       }
     })
 
     // Calculate new total amount
-    const totalAmount = discountedItems.reduce((acc, item) => acc + item.discountedTotalPrice, 0)
+    const totalAmount = discountedItems.reduce((acc, item) => {
+      const itemTotal = item.quantity * item.price
+      return acc + itemTotal
+    }, 0)
 
     // Create the test bill response
     const testBill = {
       ...bill,
       items: discountedItems,
       totalAmount,
-      // Replace any existing promotion with our test one
       activePromotion: {
         name: testPromotion.name,
         discountPercentage: testPromotion.discountPercentage,
         appliesTo: testPromotion.appliesTo
       },
-      isTestMode: true,
-      timeWarning: needsTimeCorrection
-        ? 'Warning: End time is earlier than start time in this schedule. Values have been adjusted for testing.'
-        : undefined
+      isTestMode: true
     }
 
     return res.status(HTTP_STATUS_CODE.OK).json({
