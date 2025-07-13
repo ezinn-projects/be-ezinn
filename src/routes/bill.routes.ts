@@ -11,6 +11,7 @@ import {
   getDailyRevenue,
   getMonthlyRevenue,
   getWeeklyRevenue,
+  getRevenueFromBills,
   printBill,
   saveBill,
   testBillWithDiscount,
@@ -52,6 +53,14 @@ billRouter.get('/revenue/monthly', protect([UserRole.Admin]), wrapRequestHandler
  * @author: AI Assistant
  */
 billRouter.get('/revenue/custom', protect([UserRole.Admin]), wrapRequestHandler(getCustomRangeRevenue))
+
+/**
+ * @route GET /bill/revenue/bills
+ * @description Get total revenue directly from bills collection with better timezone handling
+ * @access Private
+ * @author: AI Assistant
+ */
+billRouter.get('/revenue/bills', protect([UserRole.Admin]), wrapRequestHandler(getRevenueFromBills))
 
 /**
  * @route GET /bill/details/:billId

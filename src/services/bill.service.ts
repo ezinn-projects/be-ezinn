@@ -26,6 +26,15 @@ function ensureVNTimezone(date: Date | string | null | undefined): Date {
     // Return current date as fallback if date is null or undefined
     return dayjs().tz('Asia/Ho_Chi_Minh').toDate()
   }
+
+  // FIX: Luôn xử lý như UTC nếu có 'Z' trong string hoặc là Date object
+  const dateStr = String(date)
+  if (dateStr.includes('Z') || date instanceof Date) {
+    // Nếu là UTC string hoặc Date object, parse như UTC rồi chuyển về VN time
+    return dayjs.utc(date).tz('Asia/Ho_Chi_Minh').toDate()
+  }
+
+  // Nếu không phải UTC, sử dụng timezone hiện tại
   return dayjs(date).tz('Asia/Ho_Chi_Minh').toDate()
 }
 
@@ -284,7 +293,7 @@ export class BillService {
     }
 
     // Lấy thời gian bắt đầu dưới dạng HH:mm để so sánh với khung giờ, sử dụng múi giờ Việt Nam
-    const time = dayjs(ensureVNTimezone(startTime)).format('HH:mm')
+    const time = dayjs(startTime).tz('Asia/Ho_Chi_Minh').format('HH:mm')
     console.log('Thời gian bắt đầu (Asia/Ho_Chi_Minh):', time, 'Loại ngày:', dayType, 'Loại phòng:', roomType)
 
     // Log tất cả các khung giờ để debug
@@ -369,7 +378,7 @@ export class BillService {
         status: HTTP_STATUS_CODE.NOT_FOUND
       })
     }
-    const dayType = await this.determineDayType(ensureVNTimezone(schedule.startTime))
+    const dayType = await this.determineDayType(dayjs.utc(schedule.startTime).tz('Asia/Ho_Chi_Minh').toDate())
 
     // Xử lý actualStartTime nếu được cung cấp
     let validatedStartTime: Date
@@ -379,12 +388,9 @@ export class BillService {
       if (/^\d{2}:\d{2}$/.test(actualStartTime)) {
         // Nếu là định dạng HH:mm
         const [hours, minutes] = actualStartTime.split(':')
-        validatedStartTime = dayjs(ensureVNTimezone(schedule.startTime))
-          .hour(parseInt(hours))
-          .minute(parseInt(minutes))
-          .second(0)
-          .millisecond(0)
-          .toDate()
+        // Sử dụng schedule.startTime đã được xử lý múi giờ đúng
+        const baseDate = dayjs.utc(schedule.startTime).tz('Asia/Ho_Chi_Minh')
+        validatedStartTime = baseDate.hour(parseInt(hours)).minute(parseInt(minutes)).second(0).millisecond(0).toDate()
         console.log('Validated start time:', dayjs(validatedStartTime).format('YYYY-MM-DD HH:mm:ss'))
       } else {
         // Nếu là định dạng datetime đầy đủ - reset giây và millisecond về 0
@@ -400,66 +406,23 @@ export class BillService {
       }
     } else {
       // Nếu không có actualStartTime, sử dụng schedule.startTime và reset giây/millisecond
-      // Đảm bảo thời gian được xử lý đúng múi giờ
+      // FIX: Luôn xử lý thời gian từ DB như UTC và chuyển về VN time
       const rawStartTime = schedule.startTime
       console.log('Raw startTime from DB:', rawStartTime)
 
-      // Nếu thời gian từ DB có vẻ là UTC (ví dụ: 10:05:00.000Z), chuyển đổi về VN time
-      let processedStartTime
-      const startTimeStr = String(rawStartTime)
-      if (startTimeStr.includes('Z')) {
-        // Nếu là UTC string, parse và chuyển về VN time
-        processedStartTime = dayjs.utc(startTimeStr).tz('Asia/Ho_Chi_Minh').toDate()
-        console.log(
-          'Converted UTC to VN time:',
-          dayjs(processedStartTime).tz('Asia/Ho_Chi_Minh').format('YYYY-MM-DD HH:mm:ss')
-        )
-      } else {
-        // Nếu không phải UTC, sử dụng ensureVNTimezone
-        processedStartTime = ensureVNTimezone(rawStartTime)
-      }
-
-      // FIX TẠM THỜI: Nếu thời gian quá sớm (trước 6h sáng), có thể đây là UTC time
-      const vnTime = dayjs(processedStartTime).tz('Asia/Ho_Chi_Minh')
-      if (vnTime.hour() < 6) {
-        console.log('WARNING: Thời gian quá sớm, có thể là UTC. Chuyển đổi lại...')
-        processedStartTime = dayjs.utc(rawStartTime).tz('Asia/Ho_Chi_Minh').toDate()
-        console.log(
-          'Fixed startTime (VN):',
-          dayjs(processedStartTime).tz('Asia/Ho_Chi_Minh').format('YYYY-MM-DD HH:mm:ss')
-        )
-      }
-
-      // FIX CHÍNH: Luôn xử lý như UTC nếu có 'Z' trong string
-      if (startTimeStr.includes('Z')) {
-        console.log('FIX: Luôn xử lý như UTC vì có Z suffix')
-        processedStartTime = dayjs.utc(rawStartTime).tz('Asia/Ho_Chi_Minh').toDate()
-        console.log(
-          'Final startTime (VN):',
-          dayjs(processedStartTime).tz('Asia/Ho_Chi_Minh').format('YYYY-MM-DD HH:mm:ss')
-        )
-      }
+      // Luôn xử lý như UTC vì thời gian từ DB luôn là UTC
+      // FIXED: Trước đây có thể xử lý sai múi giờ trong production
+      const processedStartTime = dayjs.utc(rawStartTime).tz('Asia/Ho_Chi_Minh').toDate()
+      console.log(
+        'Processed startTime (UTC -> VN):',
+        dayjs(processedStartTime).tz('Asia/Ho_Chi_Minh').format('YYYY-MM-DD HH:mm:ss')
+      )
 
       validatedStartTime = dayjs(processedStartTime).second(0).millisecond(0).toDate()
     }
 
     // Convert times to Vietnam timezone
     const startTime = validatedStartTime
-
-    // Debug log để kiểm tra thời gian
-    console.log('=== DEBUG THỜI GIAN ===')
-    console.log('Schedule startTime (raw):', schedule.startTime)
-    console.log('Schedule endTime (raw):', schedule.endTime)
-    console.log('Schedule startTime (as UTC):', dayjs.utc(schedule.startTime).format('YYYY-MM-DD HH:mm:ss'))
-    console.log('Schedule startTime (as local):', dayjs(schedule.startTime).format('YYYY-MM-DD HH:mm:ss'))
-    console.log(
-      'Schedule startTime (as VN):',
-      dayjs(schedule.startTime).tz('Asia/Ho_Chi_Minh').format('YYYY-MM-DD HH:mm:ss')
-    )
-    console.log('Validated startTime (VN):', dayjs(startTime).tz('Asia/Ho_Chi_Minh').format('YYYY-MM-DD HH:mm:ss'))
-    console.log('Current server time (VN):', dayjs().tz('Asia/Ho_Chi_Minh').format('YYYY-MM-DD HH:mm:ss'))
-    console.log('Current server time (UTC):', dayjs().utc().format('YYYY-MM-DD HH:mm:ss'))
-    console.log('========================')
 
     // Kiểm tra và xử lý actualEndTime
     let validatedEndTime: Date
@@ -468,7 +431,7 @@ export class BillService {
     if (actualEndTime && /^\d{2}:\d{2}$/.test(actualEndTime)) {
       // Nếu là định dạng HH:mm
       const [hours, minutes] = actualEndTime.split(':')
-      validatedEndTime = dayjs(ensureVNTimezone(startTime))
+      validatedEndTime = dayjs(startTime)
         .hour(parseInt(hours))
         .minute(parseInt(minutes))
         .second(0)
@@ -478,10 +441,10 @@ export class BillService {
       // Kiểm tra nếu actualEndTime trước startTime (điều này không hợp lý)
       if (dayjs(validatedEndTime).isBefore(dayjs(startTime))) {
         console.warn(
-          `Warning: Actual end time (${actualEndTime}) is before start time (${dayjs(ensureVNTimezone(startTime)).format('HH:mm')})`
+          `Warning: Actual end time (${actualEndTime}) is before start time (${dayjs(startTime).format('HH:mm')})`
         )
         // Đặt giá trị mặc định là startTime + 1 giờ
-        validatedEndTime = dayjs(ensureVNTimezone(startTime)).add(1, 'hour').second(0).millisecond(0).toDate()
+        validatedEndTime = dayjs(startTime).add(1, 'hour').second(0).millisecond(0).toDate()
       }
 
       console.log('Validated end time:', dayjs(validatedEndTime).format('YYYY-MM-DD HH:mm:ss'))
@@ -499,54 +462,43 @@ export class BillService {
     } else {
       // Nếu không có actualEndTime, sử dụng schedule.endTime và reset giây/millisecond
       if (schedule.endTime) {
+        // FIX: Luôn xử lý thời gian từ DB như UTC và chuyển về VN time
         const rawEndTime = schedule.endTime
         console.log('Raw endTime from DB:', rawEndTime)
 
-        // Xử lý tương tự như startTime
-        let processedEndTime
-        const endTimeStr = String(rawEndTime)
-        if (endTimeStr.includes('Z')) {
-          // Nếu là UTC string, parse và chuyển về VN time
-          processedEndTime = dayjs.utc(endTimeStr).tz('Asia/Ho_Chi_Minh').toDate()
-          console.log(
-            'Converted UTC endTime to VN time:',
-            dayjs(processedEndTime).tz('Asia/Ho_Chi_Minh').format('YYYY-MM-DD HH:mm:ss')
-          )
-        } else {
-          // Nếu không phải UTC, sử dụng ensureVNTimezone
-          processedEndTime = ensureVNTimezone(rawEndTime)
-        }
-
-        // FIX TẠM THỜI: Nếu thời gian quá sớm (trước 6h sáng), có thể đây là UTC time
-        const vnEndTime = dayjs(processedEndTime).tz('Asia/Ho_Chi_Minh')
-        if (vnEndTime.hour() < 6) {
-          console.log('WARNING: End time quá sớm, có thể là UTC. Chuyển đổi lại...')
-          processedEndTime = dayjs.utc(rawEndTime).tz('Asia/Ho_Chi_Minh').toDate()
-          console.log(
-            'Fixed endTime (VN):',
-            dayjs(processedEndTime).tz('Asia/Ho_Chi_Minh').format('YYYY-MM-DD HH:mm:ss')
-          )
-        }
-
-        // FIX CHÍNH: Luôn xử lý như UTC nếu có 'Z' trong string
-        if (endTimeStr.includes('Z')) {
-          console.log('FIX: Luôn xử lý endTime như UTC vì có Z suffix')
-          processedEndTime = dayjs.utc(rawEndTime).tz('Asia/Ho_Chi_Minh').toDate()
-          console.log(
-            'Final endTime (VN):',
-            dayjs(processedEndTime).tz('Asia/Ho_Chi_Minh').format('YYYY-MM-DD HH:mm:ss')
-          )
-        }
+        // Luôn xử lý như UTC vì thời gian từ DB luôn là UTC
+        // FIXED: Trước đây có thể xử lý sai múi giờ trong production
+        const processedEndTime = dayjs.utc(rawEndTime).tz('Asia/Ho_Chi_Minh').toDate()
+        console.log(
+          'Processed endTime (UTC -> VN):',
+          dayjs(processedEndTime).tz('Asia/Ho_Chi_Minh').format('YYYY-MM-DD HH:mm:ss')
+        )
 
         validatedEndTime = dayjs(processedEndTime).second(0).millisecond(0).toDate()
       } else {
         // Nếu không có endTime, mặc định là startTime + 1 giờ
-        validatedEndTime = dayjs(ensureVNTimezone(startTime)).add(1, 'hour').second(0).millisecond(0).toDate()
+        validatedEndTime = dayjs(startTime).add(1, 'hour').second(0).millisecond(0).toDate()
       }
     }
 
     // Debug log cho endTime
     console.log('Validated endTime (VN):', dayjs(validatedEndTime).tz('Asia/Ho_Chi_Minh').format('YYYY-MM-DD HH:mm:ss'))
+
+    // Debug log để kiểm tra thời gian
+    console.log('=== DEBUG THỜI GIAN ===')
+    console.log('Schedule startTime (raw):', schedule.startTime)
+    console.log('Schedule endTime (raw):', schedule.endTime)
+    console.log('Schedule startTime (as UTC):', dayjs.utc(schedule.startTime).format('YYYY-MM-DD HH:mm:ss'))
+    console.log(
+      'Schedule startTime (as VN):',
+      dayjs.utc(schedule.startTime).tz('Asia/Ho_Chi_Minh').format('YYYY-MM-DD HH:mm:ss')
+    )
+    console.log('Validated startTime (VN):', dayjs(startTime).tz('Asia/Ho_Chi_Minh').format('YYYY-MM-DD HH:mm:ss'))
+    console.log('Validated endTime (VN):', dayjs(validatedEndTime).tz('Asia/Ho_Chi_Minh').format('YYYY-MM-DD HH:mm:ss'))
+    console.log('Current server time (VN):', dayjs().tz('Asia/Ho_Chi_Minh').format('YYYY-MM-DD HH:mm:ss'))
+    console.log('Current server time (UTC):', dayjs().utc().format('YYYY-MM-DD HH:mm:ss'))
+    console.log('========================')
+
     console.log('========================')
 
     // Lấy thông tin bảng giá cho loại ngày (weekday/weekend)
@@ -608,6 +560,7 @@ export class BillService {
     console.log('Transition point (18:00):', transitionPoint.format('YYYY-MM-DD HH:mm:ss'))
     console.log('Is before transition?', sessionStartVN.isBefore(transitionPoint))
     console.log('Is after transition?', sessionEndVN.isAfter(transitionPoint))
+    console.log('Session duration (hours):', sessionEndVN.diff(sessionStartVN, 'hour', true))
     console.log('==========================')
 
     // Kiểm tra xem phiên có kéo dài qua điểm chuyển tiếp không
@@ -841,7 +794,19 @@ export class BillService {
     }
 
     // Tính tổng tiền từ các mục đã được làm tròn và có thể đã áp dụng khuyến mãi
-    const totalAmount = items.reduce((acc, item) => acc + item.totalPrice, 0)
+    // Đảm bảo tính toán nhất quán với logic làm tròn trong getBillText()
+    const totalAmount = items.reduce((acc, item) => {
+      let itemTotal = 0
+      if (item.originalPrice) {
+        // Nếu có khuyến mãi, sử dụng originalPrice (đã được làm tròn)
+        itemTotal = item.originalPrice
+      } else {
+        // Tính lại tổng tiền cho item này và làm tròn xuống 1000 VND
+        const rawTotal = item.quantity * item.price
+        itemTotal = Math.floor(rawTotal / 1000) * 1000
+      }
+      return acc + itemTotal
+    }, 0)
 
     const bill: IBill = {
       scheduleId: schedule._id,
@@ -871,8 +836,8 @@ export class BillService {
       actualStartTime: actualStartTime ? new Date(actualStartTime) : undefined
     }
 
-    // Làm tròn tổng tiền xuống đến 1000 VND để đảm bảo nhất quán
-    bill.totalAmount = Math.floor(bill.totalAmount / 1000) * 1000
+    // Không cần làm tròn nữa vì đã làm tròn từng item rồi
+    // bill.totalAmount = Math.floor(bill.totalAmount / 1000) * 1000
 
     // Thêm mã hóa đơn nếu chưa có
     if (!bill.invoiceCode) {
@@ -1028,26 +993,41 @@ export class BillService {
         })
       }
 
-      console.log(`[DOANH THU] Lấy doanh thu ngày ${dayjs(date).tz('Asia/Ho_Chi_Minh').format('DD/MM/YYYY')}`)
+      // FIX: Xử lý múi giờ nhất quán - chuyển đổi ngày về múi giờ Việt Nam trước khi tạo khoảng thời gian
+      const targetDate = dayjs(date).tz('Asia/Ho_Chi_Minh')
+      console.log(`[DOANH THU] Ngày được chọn: ${targetDate.format('DD/MM/YYYY')}`)
+      console.log(`[DOANH THU] Ngày được chọn (ISO): ${targetDate.toISOString()}`)
 
-      // Use same date logic as getAllBills endpoint - sử dụng múi giờ Việt Nam
-      const startDateObj = dayjs(date).tz('Asia/Ho_Chi_Minh').startOf('day').toDate()
-      const endDateObj = dayjs(date).tz('Asia/Ho_Chi_Minh').endOf('day').toDate()
+      // Tạo khoảng thời gian cho ngày đó trong múi giờ Việt Nam
+      const startDateObj = targetDate.startOf('day').toDate()
+      const endDateObj = targetDate.endOf('day').toDate()
 
-      console.log(`[DOANH THU] Query range: ${startDateObj.toISOString()} to ${endDateObj.toISOString()}`)
+      console.log(`[DOANH THU] Khoảng thời gian tìm kiếm (VN):`)
+      console.log(`  - Bắt đầu: ${dayjs(startDateObj).tz('Asia/Ho_Chi_Minh').format('DD/MM/YYYY HH:mm:ss')}`)
+      console.log(`  - Kết thúc: ${dayjs(endDateObj).tz('Asia/Ho_Chi_Minh').format('DD/MM/YYYY HH:mm:ss')}`)
+      console.log(`[DOANH THU] Query range (ISO): ${startDateObj.toISOString()} to ${endDateObj.toISOString()}`)
 
-      // Simple query - get all bills for the date
+      // FIX: Sử dụng createdAt thay vì endTime để tránh vấn đề múi giờ
+      // vì createdAt thường được lưu chính xác hơn về thời điểm tạo hóa đơn
       const bills = await databaseService.bills
         .find({
-          endTime: {
+          createdAt: {
             $gte: startDateObj,
             $lte: endDateObj
           }
         })
-        .sort({ endTime: -1 })
+        .sort({ createdAt: -1 })
         .toArray()
 
       console.log(`[DOANH THU] Tìm thấy ${bills.length} hóa đơn (bao gồm trùng lặp)`)
+
+      // Log thông tin từng hóa đơn để debug
+      bills.forEach((bill, index) => {
+        const billDate = dayjs(bill.createdAt).tz('Asia/Ho_Chi_Minh')
+        console.log(
+          `[DOANH THU] Bill ${index + 1}: ID=${bill._id}, ScheduleId=${bill.scheduleId}, CreatedAt=${billDate.format('DD/MM/YYYY HH:mm:ss')}, Amount=${bill.totalAmount}`
+        )
+      })
 
       // Remove duplicates by scheduleId - keep paid bills or latest bill
       const uniqueBills = new Map<string, IBill>()
@@ -1102,8 +1082,9 @@ export class BillService {
 
       // Log final bills
       finalBills.forEach((bill, index) => {
+        const billDate = dayjs(bill.createdAt).tz('Asia/Ho_Chi_Minh')
         console.log(
-          `[DOANH THU] Final Bill ${index + 1}: ID=${bill._id}, ScheduleId=${bill.scheduleId}, Amount=${bill.totalAmount}, PaymentMethod=${bill.paymentMethod || 'null'}`
+          `[DOANH THU] Final Bill ${index + 1}: ID=${bill._id}, ScheduleId=${bill.scheduleId}, CreatedAt=${billDate.format('DD/MM/YYYY HH:mm:ss')}, Amount=${bill.totalAmount}, PaymentMethod=${bill.paymentMethod || 'null'}`
         )
       })
 
@@ -1824,16 +1805,27 @@ export class BillService {
       const startDateObj = start.toDate()
       const endDateObj = end.toDate()
 
-      // Truy vấn trực tiếp từ collection bills mà không thông qua roomSchedule
+      // FIX: Sử dụng createdAt thay vì endTime để tránh vấn đề múi giờ
+      // vì createdAt thường được lưu chính xác hơn về thời điểm tạo hóa đơn
       const bills = await databaseService.bills
         .find({
-          // Sử dụng endTime để lọc vì đó là thời điểm kết thúc phiên và tạo hóa đơn
-          endTime: {
+          createdAt: {
             $gte: startDateObj,
             $lte: endDateObj
           }
         })
+        .sort({ createdAt: -1 })
         .toArray()
+
+      console.log(`[DOANH THU MỚI] Tìm thấy ${bills.length} hóa đơn trong khoảng thời gian ${timeRangeDescription}`)
+
+      // Log thông tin từng hóa đơn để debug
+      bills.forEach((bill, index) => {
+        const billDate = dayjs(bill.createdAt).tz('Asia/Ho_Chi_Minh')
+        console.log(
+          `[DOANH THU MỚI] Bill ${index + 1}: ID=${bill._id}, ScheduleId=${bill.scheduleId}, CreatedAt=${billDate.format('DD/MM/YYYY HH:mm:ss')}, Amount=${bill.totalAmount}`
+        )
+      })
 
       if (bills.length === 0) {
         return {
@@ -1898,7 +1890,10 @@ export class BillService {
         bill.totalAmount = Math.floor(bill.totalAmount / 1000) * 1000
 
         // Log thông tin chi tiết về hóa đơn và khuyến mãi nếu có
-        console.log(`- Bill ID: ${bill._id}, Tổng tiền: ${bill.totalAmount.toLocaleString('vi-VN')} VND`)
+        const billDate = dayjs(bill.createdAt).tz('Asia/Ho_Chi_Minh')
+        console.log(
+          `- Bill ID: ${bill._id}, CreatedAt: ${billDate.format('DD/MM/YYYY HH:mm:ss')}, Tổng tiền: ${bill.totalAmount.toLocaleString('vi-VN')} VND`
+        )
         if (bill.activePromotion) {
           console.log(
             `  + Khuyến mãi đã áp dụng: ${bill.activePromotion.name} (${bill.activePromotion.discountPercentage}%)`
@@ -1994,9 +1989,11 @@ export class BillService {
         const timeStr = timeRange ? `(${timeRange}` : ''
 
         // Định dạng số tiền để hiển thị gọn hơn
-        const formattedPrice = item.price >= 1000 ? `${Math.round(item.price / 1000)}K` : item.price.toString()
-        const currentTotal = quantity * item.price
-        const formattedTotal = currentTotal >= 1000 ? `${Math.round(currentTotal / 1000)}K` : currentTotal.toString()
+        const formattedPrice = item.price >= 1000 ? `${Math.round(item.price / 1000)}000` : item.price.toString()
+        // Tính tổng tiền và làm tròn xuống 1000 VND để nhất quán
+        const rawTotal = quantity * item.price
+        const currentTotal = Math.floor(rawTotal / 1000) * 1000
+        const formattedTotal = currentTotal >= 1000 ? `${Math.round(currentTotal / 1000)}000` : currentTotal.toString()
 
         // In dòng đầu với tên dịch vụ
         printer.style('b').tableCustom([
@@ -2032,20 +2029,21 @@ export class BillService {
       }
 
       // Định dạng số tiền để hiển thị gọn hơn
-      const formattedPrice = item.price >= 1000 ? `${Math.round(item.price / 1000)}K` : item.price.toString()
+      const formattedPrice = item.price >= 1000 ? `${Math.round(item.price / 1000)}000` : item.price.toString()
 
-      // Tính tổng tiền hiển thị
+      // Tính tổng tiền hiển thị - làm tròn xuống 1000 VND để nhất quán với logic tính toán
       let itemTotalDisplay = 0
       if (item.originalPrice) {
-        // Nếu có khuyến mãi, sử dụng originalPrice
+        // Nếu có khuyến mãi, sử dụng originalPrice (đã được làm tròn)
         itemTotalDisplay = item.originalPrice
       } else {
-        // Sử dụng giá hiện tại
-        itemTotalDisplay = item.quantity * item.price
+        // Tính lại tổng tiền cho item này và làm tròn xuống 1000 VND
+        const rawTotal = item.quantity * item.price
+        itemTotalDisplay = Math.floor(rawTotal / 1000) * 1000
       }
 
       const formattedTotal =
-        itemTotalDisplay >= 1000 ? `${Math.round(itemTotalDisplay / 1000)}K` : itemTotalDisplay.toString()
+        itemTotalDisplay >= 1000 ? `${Math.round(itemTotalDisplay / 1000)}000` : itemTotalDisplay.toString()
 
       // In thông tin item
       printer.tableCustom([
@@ -2060,13 +2058,14 @@ export class BillService {
 
     // Sử dụng logic tương tự như printBill - hiển thị discount từ activePromotion
     if (bill.activePromotion) {
-      // Tính tổng tiền gốc (subtotal)
+      // Tính tổng tiền gốc (subtotal) - làm tròn xuống 1000 VND để nhất quán
       let subtotalAmount = 0
       bill.items.forEach((item) => {
         if (item.originalPrice) {
           subtotalAmount += item.originalPrice
         } else {
-          subtotalAmount += item.quantity * item.price
+          const rawTotal = item.quantity * item.price
+          subtotalAmount += Math.floor(rawTotal / 1000) * 1000
         }
       })
 

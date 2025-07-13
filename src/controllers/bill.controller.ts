@@ -105,6 +105,15 @@ export const getDailyRevenue = async (req: Request, res: Response) => {
       })
     }
 
+    // FIX: Thêm log để debug múi giờ
+    console.log(`[CONTROLLER] Ngày được truyền vào: ${date}`)
+    console.log(`[CONTROLLER] Ngày được parse (UTC): ${dayjs(date as string).format('YYYY-MM-DD HH:mm:ss')}`)
+    console.log(
+      `[CONTROLLER] Ngày được parse (VN): ${dayjs(date as string)
+        .tz('Asia/Ho_Chi_Minh')
+        .format('YYYY-MM-DD HH:mm:ss')}`
+    )
+
     const revenueData = await billService.getDailyRevenue(date as string)
 
     return res.status(HTTP_STATUS_CODE.OK).json({
@@ -256,6 +265,77 @@ export const getCustomRangeRevenue = async (req: Request, res: Response) => {
       message: 'Lấy dữ liệu doanh thu thành công',
       result: {
         dateRange: `${startDateFormatted} - ${endDateFormatted}`,
+        startDate: revenueData.startDate,
+        endDate: revenueData.endDate,
+        totalRevenue: revenueData.totalRevenue,
+        billCount: revenueData.bills.length,
+        bills: revenueData.bills
+      }
+    })
+  } catch (error: any) {
+    return res.status(error.status || HTTP_STATUS_CODE.INTERNAL_SERVER_ERROR).json({
+      message: error.message || 'Lỗi khi lấy dữ liệu doanh thu',
+      error: error.message || 'Unknown error'
+    })
+  }
+}
+
+/**
+ * Get total revenue directly from bills collection (new method with better timezone handling)
+ * @param req Request object containing dateType, startDate, and optional endDate in query params
+ * @param res Response object
+ * @returns Total revenue and bill details for the specified time range
+ */
+export const getRevenueFromBills = async (req: Request, res: Response) => {
+  const { dateType, startDate, endDate } = req.query
+
+  if (!dateType || !startDate) {
+    return res.status(HTTP_STATUS_CODE.BAD_REQUEST).json({
+      message: 'dateType và startDate là bắt buộc. endDate chỉ cần thiết cho dateType "custom"'
+    })
+  }
+
+  if (dateType === 'custom' && !endDate) {
+    return res.status(HTTP_STATUS_CODE.BAD_REQUEST).json({
+      message: 'endDate là bắt buộc cho dateType "custom"'
+    })
+  }
+
+  try {
+    // Validate date format
+    if (!dayjs(startDate as string).isValid() || (endDate && !dayjs(endDate as string).isValid())) {
+      return res.status(HTTP_STATUS_CODE.BAD_REQUEST).json({
+        message: 'Định dạng ngày không hợp lệ. Vui lòng sử dụng định dạng ISO date string'
+      })
+    }
+
+    // FIX: Thêm log để debug múi giờ
+    console.log(`[CONTROLLER MỚI] dateType: ${dateType}`)
+    console.log(`[CONTROLLER MỚI] startDate: ${startDate}`)
+    console.log(`[CONTROLLER MỚI] endDate: ${endDate}`)
+    console.log(
+      `[CONTROLLER MỚI] startDate (VN): ${dayjs(startDate as string)
+        .tz('Asia/Ho_Chi_Minh')
+        .format('YYYY-MM-DD HH:mm:ss')}`
+    )
+    if (endDate) {
+      console.log(
+        `[CONTROLLER MỚI] endDate (VN): ${dayjs(endDate as string)
+          .tz('Asia/Ho_Chi_Minh')
+          .format('YYYY-MM-DD HH:mm:ss')}`
+      )
+    }
+
+    const revenueData = await billService.getRevenueFromBillsCollection(
+      dateType as 'day' | 'week' | 'month' | 'custom',
+      startDate as string,
+      endDate as string
+    )
+
+    return res.status(HTTP_STATUS_CODE.OK).json({
+      message: 'Lấy dữ liệu doanh thu thành công',
+      result: {
+        timeRange: revenueData.timeRange,
         startDate: revenueData.startDate,
         endDate: revenueData.endDate,
         totalRevenue: revenueData.totalRevenue,
