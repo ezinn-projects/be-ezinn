@@ -12,12 +12,14 @@ import { holidayService } from './holiday.service'
 import utc from 'dayjs/plugin/utc'
 import timezone from 'dayjs/plugin/timezone'
 import isBetween from 'dayjs/plugin/isBetween'
+import isSameOrBefore from 'dayjs/plugin/isSameOrBefore'
 import axios from 'axios'
 
 // Cấu hình timezone và plugins cho dayjs
 dayjs.extend(utc)
 dayjs.extend(timezone)
 dayjs.extend(isBetween)
+dayjs.extend(isSameOrBefore)
 dayjs.tz.setDefault('Asia/Ho_Chi_Minh')
 
 // Ensure all date objects are using the correct timezone
@@ -438,13 +440,16 @@ export class BillService {
         .millisecond(0)
         .toDate()
 
-      // Kiểm tra nếu actualEndTime trước startTime (điều này không hợp lý)
-      if (dayjs(validatedEndTime).isBefore(dayjs(startTime))) {
+      // Kiểm tra nếu actualEndTime trước hoặc bằng startTime (điều này không hợp lý)
+      if (dayjs(validatedEndTime).isSameOrBefore(dayjs(startTime))) {
         console.warn(
-          `Warning: Actual end time (${actualEndTime}) is before start time (${dayjs(startTime).format('HH:mm')})`
+          `Warning: Actual end time (${actualEndTime}) is before or equal to start time (${dayjs(startTime).format('HH:mm')})`
         )
+        console.warn(`Start time: ${dayjs(startTime).format('YYYY-MM-DD HH:mm:ss')}`)
+        console.warn(`End time: ${dayjs(validatedEndTime).format('YYYY-MM-DD HH:mm:ss')}`)
         // Đặt giá trị mặc định là startTime + 1 giờ
         validatedEndTime = dayjs(startTime).add(1, 'hour').second(0).millisecond(0).toDate()
+        console.warn(`Adjusted end time: ${dayjs(validatedEndTime).format('YYYY-MM-DD HH:mm:ss')}`)
       }
 
       console.log('Validated end time:', dayjs(validatedEndTime).format('YYYY-MM-DD HH:mm:ss'))
@@ -567,6 +572,7 @@ export class BillService {
     if (sessionStartVN.isBefore(transitionPoint) && sessionEndVN.isAfter(transitionPoint)) {
       // Tính toán cho khoảng thời gian trước 18:00
       const hoursBeforeTransition = this.calculateHours(sessionStartVN.toDate(), transitionPoint.toDate())
+      console.log(`Tính toán giờ trước 18h: ${hoursBeforeTransition} giờ`)
       if (hoursBeforeTransition > 0) {
         // Tìm giá cho khung giờ trước 18:00
         const beforePrice = sortedTimeSlots.find((slot) => {
@@ -609,6 +615,7 @@ export class BillService {
 
       // Tính toán cho khoảng thời gian sau 18:00
       const hoursAfterTransition = this.calculateHours(transitionPoint.toDate(), sessionEndVN.toDate())
+      console.log(`Tính toán giờ sau 18h: ${hoursAfterTransition} giờ`)
       if (hoursAfterTransition > 0) {
         // Tìm giá cho khung giờ sau 18:00
         const afterPrice = sortedTimeSlots.find((slot) => {
@@ -649,9 +656,18 @@ export class BillService {
           }
         }
       }
+
+      // Kiểm tra nếu cả hai khoảng thời gian đều = 0
+      if (hoursBeforeTransition <= 0 && hoursAfterTransition <= 0) {
+        console.log(
+          `Không tính phí dịch vụ vì tổng thời gian sử dụng = ${hoursBeforeTransition + hoursAfterTransition} giờ`
+        )
+      }
     } else {
       // Nếu không kéo dài qua điểm chuyển tiếp, tính toán bình thường
       const hoursInSlot = this.calculateHours(sessionStartVN.toDate(), sessionEndVN.toDate())
+      console.log(`Tính toán giờ sử dụng: ${hoursInSlot} giờ`)
+
       if (hoursInSlot > 0) {
         // Tìm khung giờ phù hợp
         const timeSlot = sortedTimeSlots.find((slot) => {
@@ -689,6 +705,8 @@ export class BillService {
             console.log(`- Thành tiền: ${slotServiceFee}`)
           }
         }
+      } else {
+        console.log(`Không tính phí dịch vụ vì thời gian sử dụng = ${hoursInSlot} giờ`)
       }
     }
 
@@ -702,6 +720,12 @@ export class BillService {
       discountPercentage?: number
       discountName?: string
     }>
+
+    console.log(`Tổng số items từ timeSlotItems: ${timeSlotItems.length}`)
+    timeSlotItems.forEach((item, index) => {
+      console.log(`Item ${index + 1}: ${item.description} - ${item.quantity} giờ - ${item.price} VND`)
+    })
+
     const order = orders[0]
 
     // Thêm các mục F&B từ order vào items nếu có
@@ -792,6 +816,11 @@ export class BillService {
         }
       }
     }
+
+    console.log(`Tổng số items cuối cùng: ${items.length}`)
+    items.forEach((item, index) => {
+      console.log(`Final Item ${index + 1}: ${item.description} - ${item.quantity} - ${item.price} VND`)
+    })
 
     // Tính tổng tiền từ các mục đã được làm tròn và có thể đã áp dụng khuyến mãi
     // Đảm bảo tính toán nhất quán với logic làm tròn trong getBillText()
