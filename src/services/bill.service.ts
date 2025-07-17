@@ -370,7 +370,71 @@ export class BillService {
 
     const id = new ObjectId(scheduleId)
     const schedule = await databaseService.roomSchedule.findOne({ _id: id })
-    const orders = await databaseService.fnbOrder.find({ roomScheduleId: id }).toArray()
+
+    // Debug log để kiểm tra việc truy vấn FNB orders
+    console.log('=== DEBUG TRUY VẤN FNB ORDERS ===')
+    console.log('ScheduleId:', scheduleId)
+    console.log('ObjectId:', id)
+    console.log('ObjectId.toString():', id.toString())
+
+    // Thử truy vấn bằng ObjectId
+    let orders = await databaseService.fnbOrder.find({ roomScheduleId: id }).toArray()
+    console.log('FNB Orders query result (by ObjectId):', orders)
+    console.log('Số lượng FNB orders tìm thấy (by ObjectId):', orders.length)
+
+    // Thử truy vấn bằng string nếu không tìm thấy
+    if (orders.length === 0) {
+      const ordersByString = await databaseService.fnbOrder.find({ roomScheduleId: scheduleId } as any).toArray()
+      console.log('FNB Orders query result (by string):', ordersByString)
+      console.log('Số lượng FNB orders tìm thấy (by string):', ordersByString.length)
+
+      if (ordersByString.length > 0) {
+        // Sử dụng kết quả từ string query
+        orders = ordersByString
+      }
+    }
+
+    // Thử truy vấn bằng ObjectId string nếu vẫn không tìm thấy
+    if (orders.length === 0) {
+      const ordersByObjectIdString = await databaseService.fnbOrder
+        .find({ roomScheduleId: id.toString() } as any)
+        .toArray()
+      console.log('FNB Orders query result (by ObjectId string):', ordersByObjectIdString)
+      console.log('Số lượng FNB orders tìm thấy (by ObjectId string):', ordersByObjectIdString.length)
+
+      if (ordersByObjectIdString.length > 0) {
+        orders = ordersByObjectIdString
+      }
+    }
+
+    // Debug: Kiểm tra tất cả FNB orders trong database
+    const allOrders = await databaseService.fnbOrder.find({}).toArray()
+    console.log('Tất cả FNB orders trong database:', allOrders.length)
+    allOrders.forEach((order, index) => {
+      console.log(`Order ${index + 1}:`, {
+        _id: order._id,
+        roomScheduleId: order.roomScheduleId,
+        roomScheduleIdString: order.roomScheduleId?.toString(),
+        targetIdString: id.toString(),
+        isMatch: order.roomScheduleId?.toString() === id.toString(),
+        order: order.order,
+        createdAt: order.createdAt
+      })
+    })
+
+    // Debug: Kiểm tra order cuối cùng được tìm thấy
+    if (orders.length > 0) {
+      const order = orders[0]
+      console.log('=== ORDER ĐƯỢC TÌM THẤY ===')
+      console.log('Order ID:', order._id)
+      console.log('RoomScheduleId:', order.roomScheduleId)
+      console.log('Order data:', JSON.stringify(order.order, null, 2))
+      console.log('Drinks:', order.order?.drinks)
+      console.log('Snacks:', order.order?.snacks)
+    } else {
+      console.log('=== KHÔNG TÌM THẤY ORDER ===')
+    }
+
     const room = await databaseService.rooms.findOne({ _id: schedule?.roomId })
     const menu = await databaseService.fnbMenu.find({}).toArray()
 
@@ -728,47 +792,174 @@ export class BillService {
 
     const order = orders[0]
 
+    // Debug log để kiểm tra FNB orders
+    console.log('=== DEBUG FNB ORDERS ===')
+    console.log('Số lượng orders tìm thấy:', orders.length)
+    console.log('Order đầu tiên:', order)
+    if (order) {
+      console.log('Order structure:', JSON.stringify(order, null, 2))
+      console.log('Order.order:', order.order)
+      if (order.order) {
+        console.log('Order.order.drinks:', order.order.drinks)
+        console.log('Order.order.snacks:', order.order.snacks)
+        console.log('Type of order.order.drinks:', typeof order.order.drinks)
+        console.log('Type of order.order.snacks:', typeof order.order.snacks)
+        console.log('Is drinks object?', order.order.drinks && typeof order.order.drinks === 'object')
+        console.log('Is snacks object?', order.order.snacks && typeof order.order.snacks === 'object')
+      }
+    }
+    console.log('Số lượng menu items:', menu.length)
+    console.log(
+      'Menu items:',
+      menu.map((m) => ({ id: m._id, name: m.name, price: m.price }))
+    )
+    console.log('========================')
+
     // Thêm các mục F&B từ order vào items nếu có
     if (order && order.order) {
+      console.log('=== XỬ LÝ FNB ITEMS ===')
+      console.log('Order found:', !!order)
+      console.log('Order.order exists:', !!order.order)
+      console.log('Menu items count:', menu.length)
+
       // Xử lý đồ uống
-      for (const [menuId, quantity] of Object.entries(order.order.drinks)) {
-        const menuItem = menu.find((m) => m._id.toString() === menuId)
-        if (menuItem) {
-          // Đảm bảo price là number và được xử lý đúng định dạng
-          const price = this.parsePrice(menuItem.price)
-          if (price === 0) {
-            console.error(`Invalid price for menu item ${menuItem.name}: ${menuItem.price}`)
-            continue
+      if (order.order.drinks && typeof order.order.drinks === 'object' && Object.keys(order.order.drinks).length > 0) {
+        console.log('Xử lý đồ uống...')
+        console.log('Drinks object:', JSON.stringify(order.order.drinks, null, 2))
+        for (const [menuId, quantity] of Object.entries(order.order.drinks)) {
+          console.log(`Tìm menu item với ID: ${menuId}, quantity: ${quantity}`)
+
+          // Tìm menu item chính trước
+          let menuItem = menu.find((m) => m._id.toString() === menuId)
+          let itemName = ''
+          let itemPrice = 0
+
+          if (menuItem) {
+            // Nếu tìm thấy menu chính
+            itemName = menuItem.name
+            itemPrice = menuItem.price
+            console.log(`Tìm thấy menu item chính: ${itemName}, price: ${itemPrice}`)
+          } else {
+            // Nếu không tìm thấy menu chính, tìm trong variants
+            console.log(`Không tìm thấy menu chính, tìm trong variants...`)
+            for (const menuItem of menu) {
+              if (menuItem.variants && Array.isArray(menuItem.variants)) {
+                const variant = menuItem.variants.find((v: any) => v.id === menuId)
+                if (variant) {
+                  // Lấy tên product cha và tên variant
+                  itemName = `${menuItem.name} - ${variant.name}`
+                  itemPrice = variant.price
+                  console.log(`Tìm thấy variant: ${itemName}, price: ${itemPrice}`)
+                  break
+                }
+              }
+            }
           }
-          const totalPrice = Math.floor((quantity * price) / 1000) * 1000
-          items.push({
-            description: menuItem.name,
-            quantity: quantity,
-            price: price,
-            totalPrice: totalPrice
-          })
+
+          if (itemName && itemPrice > 0) {
+            // Đảm bảo price là number và được xử lý đúng định dạng
+            const price = this.parsePrice(itemPrice)
+            console.log(`Parsed price: ${price}`)
+            if (price === 0) {
+              console.error(`Invalid price for menu item ${itemName}: ${itemPrice}`)
+              continue
+            }
+            const totalPrice = Math.floor((quantity * price) / 1000) * 1000
+            console.log(`Thêm item: ${itemName}, quantity: ${quantity}, price: ${price}, totalPrice: ${totalPrice}`)
+            items.push({
+              description: itemName,
+              quantity: quantity,
+              price: price,
+              totalPrice: totalPrice
+            })
+          } else {
+            console.log(`KHÔNG TÌM THẤY menu item hoặc variant với ID: ${menuId}`)
+            console.log(
+              'Available menu IDs:',
+              menu.map((m) => m._id.toString())
+            )
+            console.log(
+              'Available variant IDs:',
+              menu.flatMap((m) => (m.variants ? m.variants.map((v: any) => v.id) : []))
+            )
+          }
         }
+      } else {
+        console.log('Không có đồ uống trong order hoặc cấu trúc không đúng')
+        console.log('Drinks object:', order.order.drinks)
       }
 
       // Xử lý đồ ăn
-      for (const [menuId, quantity] of Object.entries(order.order.snacks)) {
-        const menuItem = menu.find((m) => m._id.toString() === menuId)
-        if (menuItem) {
-          // Đảm bảo price là number và được xử lý đúng định dạng
-          const price = this.parsePrice(menuItem.price)
-          if (price === 0) {
-            console.error(`Invalid price for menu item ${menuItem.name}: ${menuItem.price}`)
-            continue
+      if (order.order.snacks && typeof order.order.snacks === 'object' && Object.keys(order.order.snacks).length > 0) {
+        console.log('Xử lý đồ ăn...')
+        console.log('Snacks object:', JSON.stringify(order.order.snacks, null, 2))
+        for (const [menuId, quantity] of Object.entries(order.order.snacks)) {
+          console.log(`Tìm menu item với ID: ${menuId}, quantity: ${quantity}`)
+
+          // Tìm menu item chính trước
+          let menuItem = menu.find((m) => m._id.toString() === menuId)
+          let itemName = ''
+          let itemPrice = 0
+
+          if (menuItem) {
+            // Nếu tìm thấy menu chính
+            itemName = menuItem.name
+            itemPrice = menuItem.price
+            console.log(`Tìm thấy menu item chính: ${itemName}, price: ${itemPrice}`)
+          } else {
+            // Nếu không tìm thấy menu chính, tìm trong variants
+            console.log(`Không tìm thấy menu chính, tìm trong variants...`)
+            for (const menuItem of menu) {
+              if (menuItem.variants && Array.isArray(menuItem.variants)) {
+                const variant = menuItem.variants.find((v: any) => v.id === menuId)
+                if (variant) {
+                  // Lấy tên product cha và tên variant
+                  itemName = `${menuItem.name} - ${variant.name}`
+                  itemPrice = variant.price
+                  console.log(`Tìm thấy variant: ${itemName}, price: ${itemPrice}`)
+                  break
+                }
+              }
+            }
           }
-          const totalPrice = Math.floor((quantity * price) / 1000) * 1000
-          items.push({
-            description: menuItem.name,
-            quantity: quantity,
-            price: price,
-            totalPrice: totalPrice
-          })
+
+          if (itemName && itemPrice > 0) {
+            // Đảm bảo price là number và được xử lý đúng định dạng
+            const price = this.parsePrice(itemPrice)
+            console.log(`Parsed price: ${price}`)
+            if (price === 0) {
+              console.error(`Invalid price for menu item ${itemName}: ${itemPrice}`)
+              continue
+            }
+            const totalPrice = Math.floor((quantity * price) / 1000) * 1000
+            console.log(`Thêm item: ${itemName}, quantity: ${quantity}, price: ${price}, totalPrice: ${totalPrice}`)
+            items.push({
+              description: itemName,
+              quantity: quantity,
+              price: price,
+              totalPrice: totalPrice
+            })
+          } else {
+            console.log(`KHÔNG TÌM THẤY menu item hoặc variant với ID: ${menuId}`)
+            console.log(
+              'Available menu IDs:',
+              menu.map((m) => m._id.toString())
+            )
+            console.log(
+              'Available variant IDs:',
+              menu.flatMap((m) => (m.variants ? m.variants.map((v: any) => v.id) : []))
+            )
+          }
         }
+      } else {
+        console.log('Không có đồ ăn trong order hoặc cấu trúc không đúng')
+        console.log('Snacks object:', order.order.snacks)
       }
+      console.log('=== KẾT THÚC XỬ LÝ FNB ITEMS ===')
+      console.log('Tổng số items sau khi xử lý FNB:', items.length)
+    } else {
+      console.log('Không có order hoặc order.order không tồn tại')
+      console.log('Order object:', order)
     }
 
     // Lấy thông tin promotion nếu có promotionId
@@ -824,18 +1015,20 @@ export class BillService {
 
     // Tính tổng tiền từ các mục đã được làm tròn và có thể đã áp dụng khuyến mãi
     // Đảm bảo tính toán nhất quán với logic làm tròn trong getBillText()
-    const totalAmount = items.reduce((acc, item) => {
-      let itemTotal = 0
+    // --- SỬA ĐOẠN NÀY: TÍNH SUBTOTAL, DISCOUNT, TOTALAMOUNT ---
+    let subtotal = items.reduce((acc, item) => {
       if (item.originalPrice) {
-        // Nếu có khuyến mãi, sử dụng originalPrice (đã được làm tròn)
-        itemTotal = item.originalPrice
-      } else {
-        // Tính lại tổng tiền cho item này và làm tròn xuống 1000 VND
-        const rawTotal = item.quantity * item.price
-        itemTotal = Math.floor(rawTotal / 1000) * 1000
+        return acc + item.originalPrice
       }
-      return acc + itemTotal
+      return acc + item.totalPrice
     }, 0)
+
+    let discountAmount = 0
+    if (activePromotion) {
+      discountAmount = Math.floor((subtotal * activePromotion.discountPercentage) / 100)
+    }
+
+    const totalAmount = Math.floor((subtotal - discountAmount) / 1000) * 1000
 
     const bill: IBill = {
       scheduleId: schedule._id,
@@ -852,7 +1045,7 @@ export class BillService {
         discountPercentage: item.discountPercentage,
         discountName: item.discountName
       })),
-      totalAmount,
+      totalAmount, // ĐÃ SỬA: tổng tiền đã trừ discount
       paymentMethod,
       activePromotion: activePromotion
         ? {
@@ -2018,11 +2211,11 @@ export class BillService {
         const timeStr = timeRange ? `(${timeRange}` : ''
 
         // Định dạng số tiền để hiển thị gọn hơn
-        const formattedPrice = item.price >= 1000 ? `${Math.round(item.price / 1000)}000` : item.price.toString()
+        const formattedPrice = item.price.toLocaleString('vi-VN')
         // Tính tổng tiền và làm tròn xuống 1000 VND để nhất quán
         const rawTotal = quantity * item.price
         const currentTotal = Math.floor(rawTotal / 1000) * 1000
-        const formattedTotal = currentTotal >= 1000 ? `${Math.round(currentTotal / 1000)}000` : currentTotal.toString()
+        const formattedTotal = currentTotal.toLocaleString('vi-VN')
 
         // In dòng đầu với tên dịch vụ
         printer.style('b').tableCustom([
@@ -2052,14 +2245,18 @@ export class BillService {
         description = description.replace(/ \(Giam (\d+)% - (.*)\)$/, '')
       }
 
-      // Giới hạn độ dài của description để tránh bị tràn
-      if (description.length > 20) {
-        description = description.substring(0, 17) + '...'
+      // Định nghĩa độ rộng tối đa cho cột tên (45% của 48 ký tự ~ 21 ký tự)
+      const maxNameLength = 21
+      // Tách description thành các dòng nhỏ hơn maxNameLength
+      const nameLines = []
+      let desc = description
+      while (desc.length > 0) {
+        nameLines.push(desc.substring(0, maxNameLength))
+        desc = desc.substring(maxNameLength)
       }
 
       // Định dạng số tiền để hiển thị gọn hơn
-      const formattedPrice = item.price >= 1000 ? `${Math.round(item.price / 1000)}000` : item.price.toString()
-
+      const formattedPrice = item.price.toLocaleString('vi-VN')
       // Tính tổng tiền hiển thị - làm tròn xuống 1000 VND để nhất quán với logic tính toán
       let itemTotalDisplay = 0
       if (item.originalPrice) {
@@ -2070,17 +2267,24 @@ export class BillService {
         const rawTotal = item.quantity * item.price
         itemTotalDisplay = Math.floor(rawTotal / 1000) * 1000
       }
+      const formattedTotal = itemTotalDisplay.toLocaleString('vi-VN')
 
-      const formattedTotal =
-        itemTotalDisplay >= 1000 ? `${Math.round(itemTotalDisplay / 1000)}000` : itemTotalDisplay.toString()
-
-      // In thông tin item
+      // In dòng đầu tiên với tên (phần đầu), SL, Đơn giá, Thành tiền
       printer.tableCustom([
-        { text: description, width: 0.45, align: 'left' },
+        { text: nameLines[0], width: 0.45, align: 'left' },
         { text: quantity.toString(), width: 0.15, align: 'center' },
         { text: formattedPrice, width: 0.2, align: 'right' },
         { text: formattedTotal, width: 0.2, align: 'right' }
       ])
+      // Nếu có nhiều dòng, in các dòng tiếp theo chỉ với tên, các cột còn lại để trống
+      for (let i = 1; i < nameLines.length; i++) {
+        printer.tableCustom([
+          { text: nameLines[i], width: 0.45, align: 'left' },
+          { text: '', width: 0.15, align: 'center' },
+          { text: '', width: 0.2, align: 'right' },
+          { text: '', width: 0.2, align: 'right' }
+        ])
+      }
     })
 
     printer.text('------------------------------------------------')
