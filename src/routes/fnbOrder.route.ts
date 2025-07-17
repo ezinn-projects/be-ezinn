@@ -4,17 +4,13 @@ import {
   deleteFnbOrder,
   getFnbOrderById,
   getFnbOrdersByRoomSchedule,
-  upsertFnbOrder,
-  addItemToOrder,
-  removeItemFromOrder
+  upsertFnbOrder
 } from '~/controllers/fnbOrder.controller'
 import { protect } from '~/middlewares/auth.middleware'
 import {
   checkFNBOrderIdValidator,
   checkFNBOrderNotExists,
-  createFNBOrderValidator,
-  addItemToOrderValidator,
-  removeItemFromOrderValidator
+  createFNBOrderValidator
 } from '~/middlewares/fnbOrder.middleware'
 import { wrapRequestHandler } from '~/utils/handlers'
 
@@ -67,23 +63,5 @@ fnbOrderRouter.delete(
  * @method GET
  */
 fnbOrderRouter.get('/fnb-order/:roomScheduleId', wrapRequestHandler(getFnbOrdersByRoomSchedule))
-
-/**
- * @description Add item to FNB Order
- * @path /fnb-orders/:roomScheduleId/add-item
- * @method POST
- */
-fnbOrderRouter.post('/:roomScheduleId/add-item', addItemToOrderValidator, wrapRequestHandler(addItemToOrder))
-
-/**
- * @description Remove item from FNB Order
- * @path /fnb-orders/:roomScheduleId/remove-item
- * @method POST
- */
-fnbOrderRouter.post(
-  '/:roomScheduleId/remove-item',
-  removeItemFromOrderValidator,
-  wrapRequestHandler(removeItemFromOrder)
-)
 
 export default fnbOrderRouter

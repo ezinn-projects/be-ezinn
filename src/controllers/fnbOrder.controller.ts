@@ -2,7 +2,7 @@ import { NextFunction, Request, Response } from 'express'
 import { type ParamsDictionary } from 'express-serve-static-core'
 import { HTTP_STATUS_CODE } from '~/constants/httpStatus'
 import { FNB_MESSAGES } from '~/constants/messages'
-import { ICreateFNBOrderRequestBody, IUpdateFNBOrderRequestBody } from '~/models/requests/FNB.request'
+import { ICreateFNBOrderRequestBody } from '~/models/requests/FNB.request'
 import fnbOrderService from '~/services/fnbOrder.service'
 
 /**
