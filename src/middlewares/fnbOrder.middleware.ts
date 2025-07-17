@@ -102,3 +102,71 @@ export const checkFNBOrderNotExists = async (req: Request, res: Response, next: 
     next(error)
   }
 }
+
+export const addItemToOrderValidator = validate(
+  checkSchema({
+    itemId: {
+      notEmpty: {
+        errorMessage: 'Item ID is required'
+      },
+      isString: {
+        errorMessage: 'Item ID must be a string'
+      }
+    },
+    quantity: {
+      notEmpty: {
+        errorMessage: 'Quantity is required'
+      },
+      isNumeric: {
+        errorMessage: 'Quantity must be a number'
+      },
+      custom: {
+        options: (value: number) => value > 0,
+        errorMessage: 'Quantity must be greater than 0'
+      }
+    },
+    category: {
+      notEmpty: {
+        errorMessage: 'Category is required'
+      },
+      isIn: {
+        options: [['drinks', 'snacks']],
+        errorMessage: 'Category must be either "drinks" or "snacks"'
+      }
+    }
+  })
+)
+
+export const removeItemFromOrderValidator = validate(
+  checkSchema({
+    itemId: {
+      notEmpty: {
+        errorMessage: 'Item ID is required'
+      },
+      isString: {
+        errorMessage: 'Item ID must be a string'
+      }
+    },
+    quantity: {
+      notEmpty: {
+        errorMessage: 'Quantity is required'
+      },
+      isNumeric: {
+        errorMessage: 'Quantity must be a number'
+      },
+      custom: {
+        options: (value: number) => value > 0,
+        errorMessage: 'Quantity must be greater than 0'
+      }
+    },
+    category: {
+      notEmpty: {
+        errorMessage: 'Category is required'
+      },
+      isIn: {
+        options: [['drinks', 'snacks']],
+        errorMessage: 'Category must be either "drinks" or "snacks"'
+      }
+    }
+  })
+)
