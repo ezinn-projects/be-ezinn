@@ -53,39 +53,22 @@ export const createMenuItem = async (req: Request, res: Response, next: NextFunc
       const variants = []
       const variantsData = typeof body.variants === 'string' ? JSON.parse(body.variants) : body.variants
 
-      console.log('Variants data:', JSON.stringify(variantsData, null, 2))
-      console.log('Number of files uploaded:', files?.length || 0)
-      console.log(
-        'File fieldnames:',
-        files?.map((f) => f.fieldname)
-      )
-
       for (let i = 0; i < variantsData.length; i++) {
         const variant = variantsData[i]
-        console.log(`=== Processing variant ${i} ===`)
-        console.log(`Variant ${i}:`, JSON.stringify(variant, null, 2))
+
         let variantImageUrl = ''
 
         // Tìm ảnh cho variant (variantFile_0, variantFile_1, ...)
-        console.log(`Looking for variantFile_${i}`)
         const variantFile = files?.find((file) => file.fieldname === `variantFile_${i}`)
-        console.log(`Found file for variantFile_${i}:`, variantFile ? variantFile.fieldname : 'NOT FOUND')
 
         if (variantFile) {
-          console.log(`Found variant file: ${variantFile.fieldname}`)
           const uploadResult = (await uploadImageToCloudinary(variantFile.buffer, 'menu-items/variants')) as {
             url: string
             publicId: string
           }
           variantImageUrl = uploadResult.url
-          console.log(`Uploaded variant image URL: ${variantImageUrl}`)
         } else {
           console.log(`No variant file found for variantFile_${i}`)
-          // Kiểm tra xem có file nào có tên khác không
-          console.log(
-            'Available files:',
-            files?.map((f) => f.fieldname)
-          )
         }
 
         const variantItem: FnBMenuItem = {
@@ -103,8 +86,6 @@ export const createMenuItem = async (req: Request, res: Response, next: NextFunc
           createdAt: new Date(),
           updatedAt: new Date()
         }
-
-        console.log('Variant item to create:', JSON.stringify(variantItem, null, 2))
 
         const variantResult = await fnBMenuItemService.createMenuItem(variantItem)
         variants.push(variantResult)
