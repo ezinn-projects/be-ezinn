@@ -1,4 +1,4 @@
-import { Collection, Db, MongoClient } from 'mongodb'
+import { Collection, Db, MongoClient, Document } from 'mongodb'
 import { User } from '~/models/schemas/User.schema'
 import dotenv from 'dotenv'
 import RoomType from '~/models/schemas/RoomType.schema'
@@ -109,6 +109,11 @@ class DatabaseService {
 
   get holidays(): Collection<IHoliday> {
     return this.db.collection('holidays')
+  }
+
+  // Cho phép lấy collection bất kỳ
+  public getCollection<T extends Document>(name: string): Collection<T> {
+    return this.db.collection<T>(name)
   }
 }
 
