@@ -1,5 +1,4 @@
 import cors from 'cors'
-import type { CorsOptions } from 'cors'
 import dayjs from 'dayjs'
 import timezone from 'dayjs/plugin/timezone'
 import utc from 'dayjs/plugin/utc'
@@ -41,30 +40,21 @@ serverService.start()
 export const app = express()
 const port = 4000
 
-// Danh sách các origin được phép
-const allowedOrigins = [
-  'http://localhost:3001',
-  'http://localhost:3000',
-  'http://localhost:5137',
-  'https://video.jozo.com.vn',
-  'https://control.jozo.com.vn',
-  'https://jozo.com.vn',
-  'https://admin.jozo.com.vn',
-  'http://video.jozo.com.vn',
-  'http://control.jozo.com.vn',
-  'http://jozo.com.vn',
-  'http://admin.jozo.com.vn'
-]
-
 // CORS: echo lại Origin, cho phép credentials, headers và methods cần thiết
-const corsOptions: CorsOptions = {
-  origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
-    if (!origin) return callback(null, false)
-    if (allowedOrigins.includes(origin)) {
-      return callback(null, true)
-    }
-    return callback(new Error('Not allowed by CORS'))
-  },
+const corsOptions = {
+  origin: [
+    'http://localhost:3001',
+    'http://localhost:3000',
+    'http://localhost:5137',
+    'https://video.jozo.com.vn',
+    'https://control.jozo.com.vn',
+    'https://jozo.com.vn',
+    'https://admin.jozo.com.vn',
+    'http://video.jozo.com.vn',
+    'http://control.jozo.com.vn',
+    'http://jozo.com.vn',
+    'http://admin.jozo.com.vn'
+  ], // Chỉ định các origin được phép
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
   allowedHeaders: [
@@ -83,10 +73,50 @@ const corsOptions: CorsOptions = {
   optionsSuccessStatus: 204
 }
 
-// 1. Gắn cors lên đầu, trước mọi middleware khác
+// (Tuỳ chọn) Debug log Origin mỗi request
+app.use((req, res, next) => {
+  console.log('[CORS] Origin:', req.headers.origin)
+
+  // Tạo danh sách các domain được phép
+  const allowedOrigins = [
+    'http://localhost:3001',
+    'http://localhost:3000',
+    'http://localhost:5137',
+    'https://video.jozo.com.vn',
+    'https://control.jozo.com.vn',
+    'https://jozo.com.vn',
+    'https://admin.jozo.com.vn',
+    'http://video.jozo.com.vn',
+    'http://control.jozo.com.vn',
+    'http://jozo.com.vn',
+    'http://admin.jozo.com.vn'
+  ]
+
+  // Thêm headers cho mọi response
+  const origin = req.headers.origin
+  if (origin && allowedOrigins.includes(origin)) {
+    res.header('Access-Control-Allow-Origin', origin)
+  } else {
+    res.header('Access-Control-Allow-Origin', '*')
+  }
+
+  res.header('Access-Control-Allow-Credentials', 'true')
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH')
+  res.header(
+    'Access-Control-Allow-Headers',
+    'Origin, X-Requested-With, Content-Type, Accept, Authorization, Cache-Control, Pragma, Expires'
+  )
+
+  // Xử lý preflight request
+  if (req.method === 'OPTIONS') {
+    return res.status(204).end()
+  }
+
+  next()
+})
+
+// Load CORS middleware ngay đầu
 app.use(cors(corsOptions))
-// 2. Cho phép preflight OPTIONS cho tất cả route
-app.options('*', cors(corsOptions))
 
 // Body parser
 app.use(express.json())

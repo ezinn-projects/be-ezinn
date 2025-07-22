@@ -127,6 +127,13 @@ billRouter.post(
   wrapRequestHandler(testBillWithDiscount)
 )
 
+/**
+ * @route GET /bill/:scheduleId
+ * @description Get bill details by scheduleId (tính toán động, không lấy từ collection bills)
+ * @access Private
+ */
+billRouter.get('/:scheduleId', protect([UserRole.Admin, UserRole.Staff]), wrapRequestHandler(getBill))
+
 // /**
 //  * @route POST /bill/:scheduleId/generate
 //  * @description Generate bill by scheduleId
