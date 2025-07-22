@@ -15,10 +15,7 @@ import {
   printBill,
   saveBill,
   testBillWithDiscount,
-  testPrinterConnection,
-  testPrintThermalPrinter,
-  testPrintThermalText,
-  testPrintEscposUnicode
+  testPrinterConnection
 } from '~/controllers/bill.controller'
 import { protect } from '~/middlewares/auth.middleware'
 import { wrapRequestHandler } from '~/utils/handlers'
@@ -92,40 +89,6 @@ billRouter.get('/all', protect([UserRole.Admin, UserRole.Staff]), wrapRequestHan
  * @access Private
  */
 billRouter.post('/save', protect([UserRole.Admin, UserRole.Staff]), wrapRequestHandler(saveBill))
-
-/**
- * @route POST /bill/test-thermal-printer
- * @description Test in thử text tiếng Việt ra máy in nhiệt qua USB
- * @access Public
- */
-billRouter.post(
-  '/test-thermal-printer',
-  // Không cần protect
-  wrapRequestHandler(testPrintThermalText)
-)
-
-/**
- * @route POST /bill/test-escpos-unicode
- * @description Test in Unicode (tiếng Việt, Pháp...) bằng escpos gốc + iconv-lite qua USB
- * @access Public
- */
-billRouter.post('/test-escpos-unicode', wrapRequestHandler(testPrintEscposUnicode))
-
-/**
- * @route GET /bill/:scheduleId
- * @description Get bill by scheduleId
- * @access Private
- * @author: QuangDoo
- */
-billRouter.get('/:scheduleId', protect([UserRole.Admin, UserRole.Staff]), wrapRequestHandler(getBill))
-
-/**
- * @route POST /bill/:scheduleId
- * @description Print bill by scheduleId
- * @access Private
- * @author: QuangDoo
- */
-billRouter.post('/:scheduleId', protect([UserRole.Admin, UserRole.Staff]), wrapRequestHandler(printBill))
 
 /**
  * @route POST /bill/test-connection
