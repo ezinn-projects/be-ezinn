@@ -11,10 +11,9 @@ import { HTTP_STATUS_CODE } from '~/constants/httpStatus'
 import { ErrorWithStatus } from '~/models/Error'
 import { IBill } from '~/models/schemas/Bill.schema'
 import databaseService from './database.service'
-import fnbOrderService from './fnbOrder.service'
 import fnbMenuItemService from './fnbMenuItem.service'
+import fnbOrderService from './fnbOrder.service'
 import { holidayService } from './holiday.service'
-const { ThermalPrinter, PrinterTypes } = require('node-thermal-printer')
 
 // Cấu hình timezone và plugins cho dayjs
 dayjs.extend(utc)
@@ -2376,54 +2375,6 @@ export class BillService {
     }
 
     return numericPrice
-  }
-
-  /**
-   * In hóa đơn bằng node-thermal-printer (USB, tiếng Việt)
-   */
-  async printBillWithThermalPrinter(billData: IBill): Promise<void> {
-    try {
-      // Khởi tạo printer
-      const printer = new ThermalPrinter({
-        type: PrinterTypes.EPSON, // hoặc PrinterTypes.STAR tùy máy in
-        interface: 'usb',
-        options: {
-          encoding: 'CP858' // Đảm bảo in được tiếng Việt
-        },
-        width: 48, // số ký tự mỗi dòng (tùy máy in)
-        characterSet: 'PC858', // hoặc "SLOVENIA" nếu máy in không hỗ trợ
-        removeSpecialCharacters: false,
-        lineCharacter: '-'
-      })
-
-      // Lấy nội dung hóa đơn dạng text (có thể dùng lại getBillText)
-      const billText = await this.getBillText(billData)
-
-      // In từng dòng (đảm bảo không bị lỗi encoding)
-      billText.split('\n').forEach((line) => {
-        printer.println(line)
-      })
-
-      // Cắt giấy
-      printer.cut()
-
-      // Kiểm tra kết nối máy in
-      const isConnected = await printer.isPrinterConnected()
-      if (!isConnected) {
-        throw new Error('Không kết nối được với máy in qua USB')
-      }
-
-      // Gửi lệnh in
-      const printResult = await printer.execute()
-      if (printResult) {
-        console.log('In hóa đơn thành công bằng node-thermal-printer')
-      } else {
-        throw new Error('Lỗi khi in hóa đơn bằng node-thermal-printer')
-      }
-    } catch (error) {
-      console.error('Lỗi khi in hóa đơn bằng node-thermal-printer:', error)
-      throw error
-    }
   }
 }
 
