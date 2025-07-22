@@ -129,10 +129,21 @@ billRouter.post(
 
 /**
  * @route GET /bill/:scheduleId
- * @description Get bill details by scheduleId (tính toán động, không lấy từ collection bills)
+ * @description Get bill by scheduleId
  * @access Private
+ * @author: QuangDoo
  */
 billRouter.get('/:scheduleId', protect([UserRole.Admin, UserRole.Staff]), wrapRequestHandler(getBill))
+
+/**
+ * @route POST /bill/:scheduleId
+ * @description Print bill by scheduleId
+ * @access Private
+ * @author: QuangDoo
+ */
+billRouter.post('/:scheduleId', protect([UserRole.Admin, UserRole.Staff]), wrapRequestHandler(printBill))
+
+/**
 
 // /**
 //  * @route POST /bill/:scheduleId/generate
