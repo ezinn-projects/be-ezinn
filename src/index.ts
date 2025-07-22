@@ -14,7 +14,7 @@ import clientFnbRouter from '~/routes/clientFnb.routes'
 import fileRouter from '~/routes/file.routes'
 import fnbMenuRouter from '~/routes/fnbMenu.routes'
 import fnbMenuItemRouter from '~/routes/fnbMenuItem.routes'
-import fnbOrderRouter from '~/routes/fnbOrder.route'
+import fnbOrderRouter from '~/routes/fnbOrder.routes'
 import holidayRouter from '~/routes/holiday.routes'
 import priceRouter from '~/routes/price.routes'
 import printRouter from '~/routes/print.routes'
@@ -129,7 +129,7 @@ app.use('/room-music', roomMusicRouter)
 app.use('/price', priceRouter)
 app.use('/file', fileRouter)
 app.use('/room-schedule', roomScheduleRouter)
-app.use('/fnb-order', fnbOrderRouter)
+app.use('/fnb-orders', fnbOrderRouter)
 app.use('/bill', billRouter)
 app.use('/fnb-menu', fnbMenuRouter)
 app.use('/promotions', promotionRouter)

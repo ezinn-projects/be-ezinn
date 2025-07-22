@@ -15,7 +15,10 @@ import {
   printBill,
   saveBill,
   testBillWithDiscount,
-  testPrinterConnection
+  testPrinterConnection,
+  testPrintThermalPrinter,
+  testPrintThermalText,
+  testPrintEscposUnicode
 } from '~/controllers/bill.controller'
 import { protect } from '~/middlewares/auth.middleware'
 import { wrapRequestHandler } from '~/utils/handlers'
@@ -89,6 +92,24 @@ billRouter.get('/all', protect([UserRole.Admin, UserRole.Staff]), wrapRequestHan
  * @access Private
  */
 billRouter.post('/save', protect([UserRole.Admin, UserRole.Staff]), wrapRequestHandler(saveBill))
+
+/**
+ * @route POST /bill/test-thermal-printer
+ * @description Test in thử text tiếng Việt ra máy in nhiệt qua USB
+ * @access Public
+ */
+billRouter.post(
+  '/test-thermal-printer',
+  // Không cần protect
+  wrapRequestHandler(testPrintThermalText)
+)
+
+/**
+ * @route POST /bill/test-escpos-unicode
+ * @description Test in Unicode (tiếng Việt, Pháp...) bằng escpos gốc + iconv-lite qua USB
+ * @access Public
+ */
+billRouter.post('/test-escpos-unicode', wrapRequestHandler(testPrintEscposUnicode))
 
 /**
  * @route GET /bill/:scheduleId

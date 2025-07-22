@@ -27,6 +27,12 @@ export interface IBill {
   actualEndTime?: Date
   actualStartTime?: Date
   invoiceCode?: string // Mã hóa đơn với format #DDMMHHMM
+  fnbOrder?: {
+    drinks: Record<string, number>
+    snacks: Record<string, number>
+    completedAt?: Date
+    completedBy?: string
+  }
 }
 
 /**

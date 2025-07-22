@@ -5,6 +5,7 @@ import { HTTP_STATUS_CODE } from '~/constants/httpStatus'
 import { FNB_MESSAGES } from '~/constants/messages'
 import { ErrorWithStatus } from '~/models/Error'
 import databaseService from '~/services/database.service'
+import fnbMenuItemService from '~/services/fnbMenuItem.service'
 import { validate } from '~/utils/validation'
 
 /**
@@ -121,8 +122,8 @@ export const addItemToOrderValidator = validate(
         errorMessage: 'Quantity must be a number'
       },
       custom: {
-        options: (value: number) => value > 0,
-        errorMessage: 'Quantity must be greater than 0'
+        options: (value: number) => value >= 0,
+        errorMessage: 'Quantity must be greater than or equal to 0'
       }
     },
     category: {
@@ -155,8 +156,8 @@ export const removeItemFromOrderValidator = validate(
         errorMessage: 'Quantity must be a number'
       },
       custom: {
-        options: (value: number) => value > 0,
-        errorMessage: 'Quantity must be greater than 0'
+        options: (value: number) => value >= 0,
+        errorMessage: 'Quantity must be greater than or equal to 0'
       }
     },
     category: {
@@ -169,4 +170,268 @@ export const removeItemFromOrderValidator = validate(
       }
     }
   })
+)
+
+/**
+ * @description Validate request body cho addItemsToOrder
+ */
+export const addItemsToOrderValidator = validate(
+  checkSchema({
+    roomScheduleId: {
+      notEmpty: {
+        errorMessage: 'Room schedule id is required'
+      },
+      isMongoId: {
+        errorMessage: 'Invalid room schedule id'
+      }
+    },
+    items: {
+      notEmpty: {
+        errorMessage: 'Items array is required'
+      },
+      isArray: {
+        errorMessage: 'Items must be an array'
+      },
+      custom: {
+        options: (items: any[]) => {
+          if (items.length === 0) {
+            throw new Error('Items array cannot be empty')
+          }
+
+          for (const item of items) {
+            if (!item.itemId || typeof item.itemId !== 'string') {
+              throw new Error('Each item must have a valid itemId')
+            }
+            if (!item.quantity || typeof item.quantity !== 'number' || item.quantity < 0) {
+              throw new Error('Each item must have quantity >= 0')
+            }
+          }
+          return true
+        }
+      }
+    },
+    createdBy: {
+      optional: true,
+      isString: {
+        errorMessage: 'createdBy must be a string'
+      }
+    }
+  })
+)
+
+/**
+ * @description Validate request body cho completeOrder
+ */
+export const completeOrderValidator = validate(
+  checkSchema({
+    roomScheduleId: {
+      notEmpty: {
+        errorMessage: 'Room schedule id is required'
+      },
+      isMongoId: {
+        errorMessage: 'Invalid room schedule id'
+      }
+    },
+    items: {
+      notEmpty: {
+        errorMessage: 'Items array is required'
+      },
+      isArray: {
+        errorMessage: 'Items must be an array'
+      },
+      custom: {
+        options: (items: any[]) => {
+          if (items.length === 0) {
+            throw new Error('Items array cannot be empty')
+          }
+
+          for (const item of items) {
+            if (!item.itemId || typeof item.itemId !== 'string') {
+              throw new Error('Each item must have a valid itemId')
+            }
+            if (!item.quantity || typeof item.quantity !== 'number' || item.quantity < 0) {
+              throw new Error('Each item must have quantity >= 0')
+            }
+          }
+          return true
+        }
+      }
+    },
+    createdBy: {
+      optional: true,
+      isString: {
+        errorMessage: 'createdBy must be a string'
+      }
+    }
+  })
+)
+
+/**
+ * @description Validate request body cho upsertOrderItem
+ */
+export const upsertOrderItemValidator = validate(
+  checkSchema({
+    roomScheduleId: {
+      notEmpty: {
+        errorMessage: 'Room schedule id is required'
+      },
+      isMongoId: {
+        errorMessage: 'Invalid room schedule id'
+      }
+    },
+    itemId: {
+      notEmpty: {
+        errorMessage: 'Item ID is required'
+      },
+      isString: {
+        errorMessage: 'Item ID must be a string'
+      }
+    },
+    quantity: {
+      notEmpty: {
+        errorMessage: 'Quantity is required'
+      },
+      isNumeric: {
+        errorMessage: 'Quantity must be a number'
+      },
+      custom: {
+        options: (value: number) => value >= 0,
+        errorMessage: 'Quantity must be greater than or equal to 0'
+      }
+    },
+    category: {
+      notEmpty: {
+        errorMessage: 'Category is required'
+      },
+      isIn: {
+        options: [['drink', 'snack']],
+        errorMessage: 'Category must be either "drink" or "snack"'
+      }
+    },
+    createdBy: {
+      optional: true,
+      isString: {
+        errorMessage: 'createdBy must be a string'
+      }
+    }
+  })
+)
+
+/**
+ * @description Validate request body cho upsertFnbOrder
+ */
+export const upsertFnbOrderValidator = validate(
+  checkSchema({
+    roomScheduleId: {
+      notEmpty: {
+        errorMessage: 'Room schedule id is required'
+      },
+      isMongoId: {
+        errorMessage: 'Invalid room schedule id'
+      }
+    },
+    order: {
+      notEmpty: {
+        errorMessage: 'Order is required'
+      },
+      custom: {
+        options: (order: any) => {
+          if (typeof order !== 'object' || order === null) {
+            throw new Error('Order must be an object')
+          }
+          if (!order.drinks || typeof order.drinks !== 'object') {
+            throw new Error('Order must have a drinks object')
+          }
+          if (!order.snacks || typeof order.snacks !== 'object') {
+            throw new Error('Order must have a snacks object')
+          }
+          // Kiểm tra mỗi value trong drinks và snacks phải là số
+          for (const key in order.drinks) {
+            if (typeof order.drinks[key] !== 'number') {
+              throw new Error(`Drink quantity for "${key}" must be a number`)
+            }
+          }
+          for (const key in order.snacks) {
+            if (typeof order.snacks[key] !== 'number') {
+              throw new Error(`Snack quantity for "${key}" must be a number`)
+            }
+          }
+          return true
+        }
+      }
+    },
+    createdBy: {
+      optional: true,
+      isString: {
+        errorMessage: 'createdBy must be a string'
+      }
+    }
+  })
+)
+
+/**
+ * @description Kiểm tra item có tồn tại trong menu không
+ */
+export const checkMenuItemExists = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { itemId } = req.body
+
+    // Tìm trong menu chính (fnb_menu collection) trước
+    let item = await databaseService.fnbMenu.findOne({ _id: new ObjectId(itemId) })
+
+    // Nếu không tìm thấy, tìm trong menu items (fnb_menu_item collection)
+    if (!item) {
+      const menuItem = await fnbMenuItemService.getMenuItemById(itemId)
+      if (!menuItem) {
+        throw new ErrorWithStatus({
+          message: `Item ${itemId} không tồn tại trong menu`,
+          status: HTTP_STATUS_CODE.NOT_FOUND
+        })
+      }
+    }
+
+    next()
+  } catch (error) {
+    next(error)
+  }
+}
+
+/**
+ * @description Kiểm tra Room Schedule có tồn tại không
+ */
+export const checkRoomScheduleExists = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { roomScheduleId } = req.params
+    const roomSchedule = await databaseService.roomSchedule.findOne({ _id: new ObjectId(roomScheduleId) })
+
+    if (!roomSchedule) {
+      throw new ErrorWithStatus({
+        message: 'Room schedule không tồn tại',
+        status: HTTP_STATUS_CODE.NOT_FOUND
+      })
+    }
+
+    next()
+  } catch (error) {
+    next(error)
+  }
+}
+
+/**
+ * @description Validate roomScheduleId trong params
+ */
+export const checkRoomScheduleIdValidator = validate(
+  checkSchema(
+    {
+      roomScheduleId: {
+        notEmpty: {
+          errorMessage: 'Room schedule id is required'
+        },
+        isMongoId: {
+          errorMessage: 'Invalid room schedule id'
+        }
+      }
+    },
+    ['params']
+  )
 )

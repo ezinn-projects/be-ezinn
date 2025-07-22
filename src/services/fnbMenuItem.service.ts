@@ -1,6 +1,7 @@
 import { FnBMenuItem } from '~/models/schemas/FnBMenuItem.schema'
 import databaseService from './database.service'
 import { ObjectId, Collection } from 'mongodb'
+import { FnBCategory } from '~/constants/enum'
 
 const COLLECTION_NAME = 'fnb_menu_item'
 
@@ -41,6 +42,15 @@ class FnBMenuItemService {
     const variants = await this.collection.find({ parentId: parentId }).toArray()
     console.log('Found variants in service:', JSON.stringify(variants, null, 2))
     return variants
+  }
+
+  async getVariantByNameAndParentId(name: string, parentId: string): Promise<FnBMenuItem | null> {
+    const variant = await this.collection.findOne({ name: name, parentId: parentId })
+    return variant || null
+  }
+
+  async getMenuItemsByCategory(category: FnBCategory): Promise<FnBMenuItem[]> {
+    return await this.collection.find({ category: category }).toArray()
   }
 }
 

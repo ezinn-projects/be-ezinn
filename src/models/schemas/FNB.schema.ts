@@ -38,3 +38,21 @@ export class RoomScheduleFNBOrder {
     this.history = history || []
   }
 }
+
+// Schema mới cho FNB Order History khi complete
+export class FNBOrderHistoryRecord {
+  _id?: ObjectId
+  roomScheduleId: ObjectId // Khóa ngoại tham chiếu đến RoomSchedule._id
+  order: FNBOrder
+  completedAt: Date
+  completedBy?: string
+  billId?: ObjectId // Tham chiếu đến bill nếu có
+
+  constructor(roomScheduleId: string, order: FNBOrder, completedBy?: string, billId?: string) {
+    this.roomScheduleId = new ObjectId(roomScheduleId)
+    this.order = order
+    this.completedAt = new Date()
+    this.completedBy = completedBy || 'system'
+    this.billId = billId ? new ObjectId(billId) : undefined
+  }
+}

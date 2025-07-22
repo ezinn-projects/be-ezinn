@@ -141,11 +141,7 @@ class PromotionService {
     roomTypeId?: ObjectId
   ) {
     console.log('Áp dụng promotion cho item:', item.description)
-    console.log('Promotion:', activePromotion)
-
-    if (roomId) console.log('Room ID:', roomId)
-    if (roomTypeId) console.log('Room Type ID:', roomTypeId)
-
+    console.log('activePromotion', activePromotion)
     // Chuẩn hóa appliesTo (có thể là string hoặc array)
     const appliesTo = Array.isArray(activePromotion.appliesTo)
       ? activePromotion.appliesTo[0]?.toLowerCase()

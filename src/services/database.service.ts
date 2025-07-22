@@ -7,7 +7,7 @@ import { SongHistory } from '~/models/schemas/SongHistiry.schema'
 import { Price } from '~/models/schemas/Price.schema'
 import { RoomCategory } from '~/models/schemas/RoomCategory.schema'
 import { RoomSchedule } from '~/models/schemas/RoomSchdedule.schema'
-import { RoomScheduleFNBOrder } from '~/models/schemas/FNB.schema'
+import { RoomScheduleFNBOrder, FNBOrderHistoryRecord } from '~/models/schemas/FNB.schema'
 import { FnbMenu } from '~/models/schemas/FnBMenu.schema'
 import { IPromotion } from '~/models/schemas/Promotion.schema'
 import { IBill } from '~/models/schemas/Bill.schema'
@@ -89,6 +89,10 @@ class DatabaseService {
 
   get fnbOrder(): Collection<RoomScheduleFNBOrder> {
     return this.db.collection('fnb_orders')
+  }
+
+  get fnbOrderHistory(): Collection<FNBOrderHistoryRecord> {
+    return this.db.collection('fnb_order_history')
   }
 
   get fnbMenu(): Collection<FnbMenu> {

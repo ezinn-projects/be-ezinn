@@ -1,5 +1,9 @@
+import axios from 'axios'
 import dayjs from 'dayjs'
-import * as escpos from 'escpos'
+import isBetween from 'dayjs/plugin/isBetween'
+import isSameOrBefore from 'dayjs/plugin/isSameOrBefore'
+import timezone from 'dayjs/plugin/timezone'
+import utc from 'dayjs/plugin/utc'
 import iconv from 'iconv-lite'
 import { ObjectId } from 'mongodb'
 import { DayType, RoomScheduleStatus } from '~/constants/enum'
@@ -7,13 +11,10 @@ import { HTTP_STATUS_CODE } from '~/constants/httpStatus'
 import { ErrorWithStatus } from '~/models/Error'
 import { IBill } from '~/models/schemas/Bill.schema'
 import databaseService from './database.service'
-import promotionService from './promotion.service'
+import fnbOrderService from './fnbOrder.service'
+import fnbMenuItemService from './fnbMenuItem.service'
 import { holidayService } from './holiday.service'
-import utc from 'dayjs/plugin/utc'
-import timezone from 'dayjs/plugin/timezone'
-import isBetween from 'dayjs/plugin/isBetween'
-import isSameOrBefore from 'dayjs/plugin/isSameOrBefore'
-import axios from 'axios'
+const { ThermalPrinter, PrinterTypes } = require('node-thermal-printer')
 
 // Cấu hình timezone và plugins cho dayjs
 dayjs.extend(utc)
@@ -66,9 +67,6 @@ function encodeVietnameseText(text: string, encoding = 'windows-1258') {
 function formatDate(date: Date): string {
   return dayjs(ensureVNTimezone(date)).format('DD/MM/YYYY HH:mm')
 }
-
-const dynamicText = 'Xin chào, đây là hóa đơn của bạn!'
-const encodedText = encodeVietnameseText(dynamicText)
 
 // TextPrinter class để giả lập printer
 class TextPrinter {
@@ -371,68 +369,35 @@ export class BillService {
     const id = new ObjectId(scheduleId)
     const schedule = await databaseService.roomSchedule.findOne({ _id: id })
 
-    // Debug log để kiểm tra việc truy vấn FNB orders
-    console.log('=== DEBUG TRUY VẤN FNB ORDERS ===')
+    // Lấy FNB orders từ collection hiện tại trước
+    console.log('=== LẤY FNB ORDERS TỪ COLLECTION HIỆN TẠI ===')
     console.log('ScheduleId:', scheduleId)
-    console.log('ObjectId:', id)
-    console.log('ObjectId.toString():', id.toString())
 
-    // Thử truy vấn bằng ObjectId
-    let orders = await databaseService.fnbOrder.find({ roomScheduleId: id }).toArray()
-    console.log('FNB Orders query result (by ObjectId):', orders)
-    console.log('Số lượng FNB orders tìm thấy (by ObjectId):', orders.length)
+    const currentOrders = await fnbOrderService.getFnbOrdersByRoomSchedule(scheduleId)
+    console.log('Số lượng orders hiện tại tìm thấy:', currentOrders.length)
 
-    // Thử truy vấn bằng string nếu không tìm thấy
-    if (orders.length === 0) {
-      const ordersByString = await databaseService.fnbOrder.find({ roomScheduleId: scheduleId } as any).toArray()
-      console.log('FNB Orders query result (by string):', ordersByString)
-      console.log('Số lượng FNB orders tìm thấy (by string):', ordersByString.length)
-
-      if (ordersByString.length > 0) {
-        // Sử dụng kết quả từ string query
-        orders = ordersByString
-      }
-    }
-
-    // Thử truy vấn bằng ObjectId string nếu vẫn không tìm thấy
-    if (orders.length === 0) {
-      const ordersByObjectIdString = await databaseService.fnbOrder
-        .find({ roomScheduleId: id.toString() } as any)
-        .toArray()
-      console.log('FNB Orders query result (by ObjectId string):', ordersByObjectIdString)
-      console.log('Số lượng FNB orders tìm thấy (by ObjectId string):', ordersByObjectIdString.length)
-
-      if (ordersByObjectIdString.length > 0) {
-        orders = ordersByObjectIdString
-      }
-    }
-
-    // Debug: Kiểm tra tất cả FNB orders trong database
-    const allOrders = await databaseService.fnbOrder.find({}).toArray()
-    console.log('Tất cả FNB orders trong database:', allOrders.length)
-    allOrders.forEach((order, index) => {
-      console.log(`Order ${index + 1}:`, {
-        _id: order._id,
-        roomScheduleId: order.roomScheduleId,
-        roomScheduleIdString: order.roomScheduleId?.toString(),
-        targetIdString: id.toString(),
-        isMatch: order.roomScheduleId?.toString() === id.toString(),
-        order: order.order,
-        createdAt: order.createdAt
-      })
-    })
-
-    // Debug: Kiểm tra order cuối cùng được tìm thấy
-    if (orders.length > 0) {
-      const order = orders[0]
-      console.log('=== ORDER ĐƯỢC TÌM THẤY ===')
+    let order = null
+    if (currentOrders.length > 0) {
+      order = currentOrders[currentOrders.length - 1] // Lấy order mới nhất
+      console.log('=== ORDER HIỆN TẠI ĐƯỢC TÌM THẤY ===')
       console.log('Order ID:', order._id)
       console.log('RoomScheduleId:', order.roomScheduleId)
       console.log('Order data:', JSON.stringify(order.order, null, 2))
       console.log('Drinks:', order.order?.drinks)
       console.log('Snacks:', order.order?.snacks)
     } else {
-      console.log('=== KHÔNG TÌM THẤY ORDER ===')
+      console.log('=== KHÔNG TÌM THẤY ORDER HIỆN TẠI ===')
+
+      // Thử lấy từ history nếu không có order hiện tại
+      const orderHistory = await fnbOrderService.getOrderHistoryByRoomSchedule(scheduleId)
+      console.log('Số lượng order history tìm thấy:', orderHistory.length)
+
+      if (orderHistory.length > 0) {
+        order = orderHistory[orderHistory.length - 1]
+        console.log('=== ORDER TỪ HISTORY ĐƯỢC TÌM THẤY ===')
+        console.log('Order ID:', order._id)
+        console.log('Completed at:', (order as any).completedAt)
+      }
     }
 
     const room = await databaseService.rooms.findOne({ _id: schedule?.roomId })
@@ -790,12 +755,9 @@ export class BillService {
       console.log(`Item ${index + 1}: ${item.description} - ${item.quantity} giờ - ${item.price} VND`)
     })
 
-    const order = orders[0]
-
     // Debug log để kiểm tra FNB orders
     console.log('=== DEBUG FNB ORDERS ===')
-    console.log('Số lượng orders tìm thấy:', orders.length)
-    console.log('Order đầu tiên:', order)
+    console.log('Order từ history:', order)
     if (order) {
       console.log('Order structure:', JSON.stringify(order, null, 2))
       console.log('Order.order:', order.order)
@@ -829,58 +791,34 @@ export class BillService {
         for (const [menuId, quantity] of Object.entries(order.order.drinks)) {
           console.log(`Tìm menu item với ID: ${menuId}, quantity: ${quantity}`)
 
-          // Tìm menu item chính trước
-          let menuItem = menu.find((m) => m._id.toString() === menuId)
-          let itemName = ''
-          let itemPrice = 0
+          // Sử dụng hàm helper để tìm menu item
+          const menuItem = await this.findMenuItemById(menuId, menu)
 
           if (menuItem) {
-            // Nếu tìm thấy menu chính
-            itemName = menuItem.name
-            itemPrice = menuItem.price
-            console.log(`Tìm thấy menu item chính: ${itemName}, price: ${itemPrice}`)
-          } else {
-            // Nếu không tìm thấy menu chính, tìm trong variants
-            console.log(`Không tìm thấy menu chính, tìm trong variants...`)
-            for (const menuItem of menu) {
-              if (menuItem.variants && Array.isArray(menuItem.variants)) {
-                const variant = menuItem.variants.find((v: any) => v.id === menuId)
-                if (variant) {
-                  // Lấy tên product cha và tên variant
-                  itemName = `${menuItem.name} - ${variant.name}`
-                  itemPrice = variant.price
-                  console.log(`Tìm thấy variant: ${itemName}, price: ${itemPrice}`)
-                  break
-                }
-              }
-            }
-          }
+            console.log(`Tìm thấy menu item: ${menuItem.name}, price: ${menuItem.price}`)
 
-          if (itemName && itemPrice > 0) {
             // Đảm bảo price là number và được xử lý đúng định dạng
-            const price = this.parsePrice(itemPrice)
+            const price = this.parsePrice(menuItem.price)
             console.log(`Parsed price: ${price}`)
             if (price === 0) {
-              console.error(`Invalid price for menu item ${itemName}: ${itemPrice}`)
+              console.error(`Invalid price for menu item ${menuItem.name}: ${menuItem.price}`)
               continue
             }
             const totalPrice = Math.floor((quantity * price) / 1000) * 1000
-            console.log(`Thêm item: ${itemName}, quantity: ${quantity}, price: ${price}, totalPrice: ${totalPrice}`)
+            console.log(
+              `Thêm item: ${menuItem.name}, quantity: ${quantity}, price: ${price}, totalPrice: ${totalPrice}`
+            )
             items.push({
-              description: itemName,
+              description: menuItem.name,
               quantity: quantity,
               price: price,
               totalPrice: totalPrice
             })
           } else {
-            console.log(`KHÔNG TÌM THẤY menu item hoặc variant với ID: ${menuId}`)
+            console.log(`KHÔNG TÌM THẤY menu item với ID: ${menuId}`)
             console.log(
               'Available menu IDs:',
               menu.map((m) => m._id.toString())
-            )
-            console.log(
-              'Available variant IDs:',
-              menu.flatMap((m) => (m.variants ? m.variants.map((v: any) => v.id) : []))
             )
           }
         }
@@ -896,58 +834,34 @@ export class BillService {
         for (const [menuId, quantity] of Object.entries(order.order.snacks)) {
           console.log(`Tìm menu item với ID: ${menuId}, quantity: ${quantity}`)
 
-          // Tìm menu item chính trước
-          let menuItem = menu.find((m) => m._id.toString() === menuId)
-          let itemName = ''
-          let itemPrice = 0
+          // Sử dụng hàm helper để tìm menu item
+          const menuItem = await this.findMenuItemById(menuId, menu)
 
           if (menuItem) {
-            // Nếu tìm thấy menu chính
-            itemName = menuItem.name
-            itemPrice = menuItem.price
-            console.log(`Tìm thấy menu item chính: ${itemName}, price: ${itemPrice}`)
-          } else {
-            // Nếu không tìm thấy menu chính, tìm trong variants
-            console.log(`Không tìm thấy menu chính, tìm trong variants...`)
-            for (const menuItem of menu) {
-              if (menuItem.variants && Array.isArray(menuItem.variants)) {
-                const variant = menuItem.variants.find((v: any) => v.id === menuId)
-                if (variant) {
-                  // Lấy tên product cha và tên variant
-                  itemName = `${menuItem.name} - ${variant.name}`
-                  itemPrice = variant.price
-                  console.log(`Tìm thấy variant: ${itemName}, price: ${itemPrice}`)
-                  break
-                }
-              }
-            }
-          }
+            console.log(`Tìm thấy menu item: ${menuItem.name}, price: ${menuItem.price}`)
 
-          if (itemName && itemPrice > 0) {
             // Đảm bảo price là number và được xử lý đúng định dạng
-            const price = this.parsePrice(itemPrice)
+            const price = this.parsePrice(menuItem.price)
             console.log(`Parsed price: ${price}`)
             if (price === 0) {
-              console.error(`Invalid price for menu item ${itemName}: ${itemPrice}`)
+              console.error(`Invalid price for menu item ${menuItem.name}: ${menuItem.price}`)
               continue
             }
             const totalPrice = Math.floor((quantity * price) / 1000) * 1000
-            console.log(`Thêm item: ${itemName}, quantity: ${quantity}, price: ${price}, totalPrice: ${totalPrice}`)
+            console.log(
+              `Thêm item: ${menuItem.name}, quantity: ${quantity}, price: ${price}, totalPrice: ${totalPrice}`
+            )
             items.push({
-              description: itemName,
+              description: menuItem.name,
               quantity: quantity,
               price: price,
               totalPrice: totalPrice
             })
           } else {
-            console.log(`KHÔNG TÌM THẤY menu item hoặc variant với ID: ${menuId}`)
+            console.log(`KHÔNG TÌM THẤY menu item với ID: ${menuId}`)
             console.log(
               'Available menu IDs:',
               menu.map((m) => m._id.toString())
-            )
-            console.log(
-              'Available variant IDs:',
-              menu.flatMap((m) => (m.variants ? m.variants.map((v: any) => v.id) : []))
             )
           }
         }
@@ -978,33 +892,52 @@ export class BillService {
     }
 
     // Áp dụng khuyến mãi nếu có
+    let shouldApplyPromotion = false
     if (activePromotion) {
       console.log('Áp dụng khuyến mãi:', activePromotion.name)
+      console.log('Promotion appliesTo:', activePromotion.appliesTo)
+      console.log('Room ID:', room?._id)
 
-      // Duyệt qua từng item để áp dụng promotion
-      for (let i = 0; i < items.length; i++) {
-        const item = items[i]
+      // Kiểm tra xem promotion có áp dụng cho phòng này không
+      const appliesTo = Array.isArray(activePromotion.appliesTo)
+        ? activePromotion.appliesTo[0]?.toLowerCase()
+        : activePromotion.appliesTo?.toLowerCase()
 
-        // Gọi hàm applyPromotionToItem và truyền thông tin phòng
-        const itemWithPromotion = promotionService.applyPromotionToItem(
-          {
-            description: item.description,
-            quantity: item.quantity,
-            price: item.price,
-            totalPrice: item.totalPrice
-          },
-          activePromotion,
-          room?._id
-        )
+      // For all items
+      if (appliesTo === 'all') {
+        console.log('Áp dụng promotion cho tất cả items')
+        shouldApplyPromotion = true
+      }
+      // For specific room
+      else if (appliesTo === 'room' && room?._id) {
+        const appliesToRooms = Array.isArray(activePromotion.appliesTo)
+          ? activePromotion.appliesTo
+          : [activePromotion.appliesTo]
 
-        // Cập nhật lại item nếu có áp dụng giảm giá
-        if ('originalPrice' in itemWithPromotion) {
-          items[i].originalPrice = itemWithPromotion.originalPrice
-          items[i].totalPrice = itemWithPromotion.totalPrice
-          items[i].discountPercentage = itemWithPromotion.discountPercentage
-          items[i].discountName = itemWithPromotion.discountName
-          // Không thay đổi description - giữ nguyên tên dịch vụ
+        const roomIdStr = room._id.toString()
+        shouldApplyPromotion = appliesToRooms.some((room) => room === roomIdStr)
+        console.log('Áp dụng promotion cho phòng cụ thể:', shouldApplyPromotion)
+      }
+      // For specific room type
+      else if (appliesTo === 'room_type' && room?.roomType) {
+        const appliesToRoomTypes = Array.isArray(activePromotion.appliesTo)
+          ? activePromotion.appliesTo
+          : [activePromotion.appliesTo]
+
+        const roomTypeIdStr = room.roomType.toString()
+        shouldApplyPromotion = appliesToRoomTypes.some((type) => type === roomTypeIdStr)
+        console.log('Áp dụng promotion cho loại phòng:', shouldApplyPromotion)
+      }
+
+      if (shouldApplyPromotion) {
+        // Thêm thông tin promotion vào từng item để hiển thị
+        for (let i = 0; i < items.length; i++) {
+          items[i].discountPercentage = activePromotion.discountPercentage
+          items[i].discountName = activePromotion.name
         }
+        console.log(`Đã áp dụng promotion ${activePromotion.discountPercentage}% cho tất cả items`)
+      } else {
+        console.log('Promotion không áp dụng cho phòng này')
       }
     }
 
@@ -1013,22 +946,21 @@ export class BillService {
       console.log(`Final Item ${index + 1}: ${item.description} - ${item.quantity} - ${item.price} VND`)
     })
 
-    // Tính tổng tiền từ các mục đã được làm tròn và có thể đã áp dụng khuyến mãi
-    // Đảm bảo tính toán nhất quán với logic làm tròn trong getBillText()
+    // Tính tổng tiền từ các mục đã được làm tròn
     // --- SỬA ĐOẠN NÀY: TÍNH SUBTOTAL, DISCOUNT, TOTALAMOUNT ---
     let subtotal = items.reduce((acc, item) => {
-      if (item.originalPrice) {
-        return acc + item.originalPrice
-      }
       return acc + item.totalPrice
     }, 0)
 
     let discountAmount = 0
-    if (activePromotion) {
+    if (activePromotion && shouldApplyPromotion) {
       discountAmount = Math.floor((subtotal * activePromotion.discountPercentage) / 100)
+      console.log(`Subtotal: ${subtotal.toLocaleString('vi-VN')} VND`)
+      console.log(`Discount ${activePromotion.discountPercentage}%: ${discountAmount.toLocaleString('vi-VN')} VND`)
     }
 
     const totalAmount = Math.floor((subtotal - discountAmount) / 1000) * 1000
+    console.log(`Total after discount: ${totalAmount.toLocaleString('vi-VN')} VND`)
 
     const bill: IBill = {
       scheduleId: schedule._id,
@@ -1041,7 +973,6 @@ export class BillService {
         description: item.description,
         price: item.price,
         quantity: typeof item.quantity === 'number' ? parseFloat(item.quantity.toFixed(2)) : item.quantity, // Đảm bảo hiển thị đúng 2 chữ số thập phân
-        originalPrice: item.originalPrice,
         discountPercentage: item.discountPercentage,
         discountName: item.discountName
       })),
@@ -1055,7 +986,43 @@ export class BillService {
           }
         : undefined,
       actualEndTime: actualEndTime ? new Date(actualEndTime) : undefined,
-      actualStartTime: actualStartTime ? new Date(actualStartTime) : undefined
+      actualStartTime: actualStartTime ? new Date(actualStartTime) : undefined,
+      // Thêm thông tin FNB order vào bill
+      fnbOrder: order
+        ? {
+            drinks: order.order.drinks || {},
+            snacks: order.order.snacks || {},
+            completedAt: (order as any).completedAt,
+            completedBy: (order as any).completedBy
+          }
+        : undefined
+    }
+
+    // Tự động lưu order vào history nếu có order và chưa có trong history
+    if (order && order.order) {
+      try {
+        // Kiểm tra xem order đã có trong history chưa
+        const existingHistory = await fnbOrderService.getOrderHistoryByRoomSchedule(scheduleId)
+        const orderExistsInHistory = existingHistory.some(
+          (historyOrder) => JSON.stringify(historyOrder.order) === JSON.stringify(order.order)
+        )
+
+        if (!orderExistsInHistory) {
+          console.log('Lưu order vào history...')
+          await fnbOrderService.saveOrderHistory(
+            scheduleId,
+            order.order,
+            'system',
+            bill.invoiceCode // Sử dụng invoiceCode làm billId
+          )
+          console.log('Order đã được lưu vào history')
+        } else {
+          console.log('Order đã tồn tại trong history, không lưu lại')
+        }
+      } catch (error) {
+        console.error('Lỗi khi lưu order vào history:', error)
+        // Không fail toàn bộ request nếu chỉ lỗi lưu history
+      }
     }
 
     // Không cần làm tròn nữa vì đã làm tròn từng item rồi
@@ -1217,20 +1184,11 @@ export class BillService {
 
       // FIX: Xử lý múi giờ nhất quán - chuyển đổi ngày về múi giờ Việt Nam trước khi tạo khoảng thời gian
       const targetDate = dayjs(date).tz('Asia/Ho_Chi_Minh')
-      console.log(`[DOANH THU] Ngày được chọn: ${targetDate.format('DD/MM/YYYY')}`)
-      console.log(`[DOANH THU] Ngày được chọn (ISO): ${targetDate.toISOString()}`)
 
       // Tạo khoảng thời gian cho ngày đó trong múi giờ Việt Nam
       const startDateObj = targetDate.startOf('day').toDate()
       const endDateObj = targetDate.endOf('day').toDate()
 
-      console.log(`[DOANH THU] Khoảng thời gian tìm kiếm (VN):`)
-      console.log(`  - Bắt đầu: ${dayjs(startDateObj).tz('Asia/Ho_Chi_Minh').format('DD/MM/YYYY HH:mm:ss')}`)
-      console.log(`  - Kết thúc: ${dayjs(endDateObj).tz('Asia/Ho_Chi_Minh').format('DD/MM/YYYY HH:mm:ss')}`)
-      console.log(`[DOANH THU] Query range (ISO): ${startDateObj.toISOString()} to ${endDateObj.toISOString()}`)
-
-      // FIX: Sử dụng createdAt thay vì endTime để tránh vấn đề múi giờ
-      // vì createdAt thường được lưu chính xác hơn về thời điểm tạo hóa đơn
       const bills = await databaseService.bills
         .find({
           createdAt: {
@@ -2238,16 +2196,16 @@ export class BillService {
         return
       }
 
+      // Loại bỏ dấu nếu là món ăn/đồ uống (không phải phí dịch vụ thu âm)
+      description = removeVietnameseTones(description)
+
       // Tách mô tả và thông tin khuyến mãi nếu mô tả có chứa thông tin khuyến mãi
       const promotionMatch = description.match(/ \(Giam (\d+)% - (.*)\)$/)
       if (promotionMatch) {
-        // Tách phần mô tả gốc và phần khuyến mãi
         description = description.replace(/ \(Giam (\d+)% - (.*)\)$/, '')
       }
 
-      // Định nghĩa độ rộng tối đa cho cột tên (45% của 48 ký tự ~ 21 ký tự)
       const maxNameLength = 21
-      // Tách description thành các dòng nhỏ hơn maxNameLength
       const nameLines = []
       let desc = description
       while (desc.length > 0) {
@@ -2255,18 +2213,9 @@ export class BillService {
         desc = desc.substring(maxNameLength)
       }
 
-      // Định dạng số tiền để hiển thị gọn hơn
       const formattedPrice = item.price.toLocaleString('vi-VN')
-      // Tính tổng tiền hiển thị - làm tròn xuống 1000 VND để nhất quán với logic tính toán
-      let itemTotalDisplay = 0
-      if (item.originalPrice) {
-        // Nếu có khuyến mãi, sử dụng originalPrice (đã được làm tròn)
-        itemTotalDisplay = item.originalPrice
-      } else {
-        // Tính lại tổng tiền cho item này và làm tròn xuống 1000 VND
-        const rawTotal = item.quantity * item.price
-        itemTotalDisplay = Math.floor(rawTotal / 1000) * 1000
-      }
+      const rawTotal = item.quantity * item.price
+      const itemTotalDisplay = Math.floor(rawTotal / 1000) * 1000
       const formattedTotal = itemTotalDisplay.toLocaleString('vi-VN')
 
       // In dòng đầu tiên với tên (phần đầu), SL, Đơn giá, Thành tiền
@@ -2289,17 +2238,13 @@ export class BillService {
 
     printer.text('------------------------------------------------')
 
-    // Sử dụng logic tương tự như printBill - hiển thị discount từ activePromotion
+    // Hiển thị discount từ activePromotion nếu có
     if (bill.activePromotion) {
       // Tính tổng tiền gốc (subtotal) - làm tròn xuống 1000 VND để nhất quán
       let subtotalAmount = 0
       bill.items.forEach((item) => {
-        if (item.originalPrice) {
-          subtotalAmount += item.originalPrice
-        } else {
-          const rawTotal = item.quantity * item.price
-          subtotalAmount += Math.floor(rawTotal / 1000) * 1000
-        }
+        const rawTotal = item.quantity * item.price
+        subtotalAmount += Math.floor(rawTotal / 1000) * 1000
       })
 
       // Hiển thị tổng tiền hàng
@@ -2361,6 +2306,49 @@ export class BillService {
   }
 
   /**
+   * Tìm menu item theo ID, tìm trong cả fnb_menu và fnb_menu_item collections
+   */
+  private async findMenuItemById(menuId: string, menu: any[]): Promise<{ name: string; price: number } | null> {
+    // Tìm menu item chính trước
+    let menuItem = menu.find((m) => m._id.toString() === menuId)
+
+    if (menuItem) {
+      // Nếu tìm thấy menu chính
+      return {
+        name: menuItem.name,
+        price: menuItem.price
+      }
+    } else {
+      // Nếu không tìm thấy menu chính, tìm trong fnb_menu_item collection
+      console.log(`Không tìm thấy menu chính, tìm trong fnb_menu_item collection...`)
+      const menuItemFromService = await fnbMenuItemService.getMenuItemById(menuId)
+      if (menuItemFromService) {
+        return {
+          name: menuItemFromService.name,
+          price: menuItemFromService.price
+        }
+      } else {
+        // Nếu vẫn không tìm thấy, tìm trong variants của menu chính
+        console.log(`Không tìm thấy trong fnb_menu_item, tìm trong variants...`)
+        for (const menuItem of menu) {
+          if (menuItem.variants && Array.isArray(menuItem.variants)) {
+            const variant = menuItem.variants.find((v: any) => v.id === menuId)
+            if (variant) {
+              // Lấy tên product cha và tên variant
+              return {
+                name: `${menuItem.name} - ${variant.name}`,
+                price: variant.price
+              }
+            }
+          }
+        }
+      }
+    }
+
+    return null
+  }
+
+  /**
    * Chuyển đổi giá tiền từ nhiều định dạng khác nhau sang số
    * Ví dụ: "10.000" -> 10000, "10,000" -> 10000, 10 -> 10000
    */
@@ -2389,7 +2377,171 @@ export class BillService {
 
     return numericPrice
   }
+
+  /**
+   * In hóa đơn bằng node-thermal-printer (USB, tiếng Việt)
+   */
+  async printBillWithThermalPrinter(billData: IBill): Promise<void> {
+    try {
+      // Khởi tạo printer
+      const printer = new ThermalPrinter({
+        type: PrinterTypes.EPSON, // hoặc PrinterTypes.STAR tùy máy in
+        interface: 'usb',
+        options: {
+          encoding: 'CP858' // Đảm bảo in được tiếng Việt
+        },
+        width: 48, // số ký tự mỗi dòng (tùy máy in)
+        characterSet: 'PC858', // hoặc "SLOVENIA" nếu máy in không hỗ trợ
+        removeSpecialCharacters: false,
+        lineCharacter: '-'
+      })
+
+      // Lấy nội dung hóa đơn dạng text (có thể dùng lại getBillText)
+      const billText = await this.getBillText(billData)
+
+      // In từng dòng (đảm bảo không bị lỗi encoding)
+      billText.split('\n').forEach((line) => {
+        printer.println(line)
+      })
+
+      // Cắt giấy
+      printer.cut()
+
+      // Kiểm tra kết nối máy in
+      const isConnected = await printer.isPrinterConnected()
+      if (!isConnected) {
+        throw new Error('Không kết nối được với máy in qua USB')
+      }
+
+      // Gửi lệnh in
+      const printResult = await printer.execute()
+      if (printResult) {
+        console.log('In hóa đơn thành công bằng node-thermal-printer')
+      } else {
+        throw new Error('Lỗi khi in hóa đơn bằng node-thermal-printer')
+      }
+    } catch (error) {
+      console.error('Lỗi khi in hóa đơn bằng node-thermal-printer:', error)
+      throw error
+    }
+  }
 }
 
 const billService = new BillService()
 export default billService
+
+export async function printUnicodeWithEscpos(text: string): Promise<void> {
+  const escpos = require('escpos')
+  escpos.USB = require('escpos-usb')
+  const iconv = require('iconv-lite')
+  const idVendor = 1137
+  const idProduct = 85
+  const device = new escpos.USB(idVendor, idProduct)
+  const printer = new escpos.Printer(device, { encoding: 'GB18030' })
+
+  return new Promise((resolve, reject) => {
+    device.open(function (err: any) {
+      if (err) return reject(err)
+      const buffer = iconv.encode(text, 'cp1258')
+      printer.raw(buffer)
+      printer.cut()
+      printer.close()
+      resolve()
+    })
+  })
+}
+
+export async function printBitmapUnicode(text: string): Promise<void> {
+  const escpos = require('escpos')
+  escpos.USB = require('escpos-usb')
+  const sharp = require('sharp')
+  const fs = require('fs')
+  const path = require('path')
+
+  // Render text ra BMP buffer
+  const imageBuffer = await sharp({
+    text: {
+      text: `<span foreground=\"black\">${text}</span>`,
+      font: 'DejaVu Sans',
+      width: 384,
+      height: 100,
+      rgba: true
+    }
+  })
+    .bmp()
+    .toBuffer()
+
+  // Ghi buffer ra file tạm
+  const tmpPath = path.join(__dirname, 'temp_print.bmp')
+  fs.writeFileSync(tmpPath, imageBuffer)
+
+  // In ảnh BMP bằng escpos gốc
+  const idVendor = 1137
+  const idProduct = 85
+  const device = new escpos.USB(idVendor, idProduct)
+  const printer = new escpos.Printer(device)
+
+  return new Promise((resolve, reject) => {
+    device.open(function (err: any) {
+      if (err) return reject(err)
+      printer.image(tmpPath, 'd24', function () {
+        for (let i = 0; i < 15; i++) printer.text('\n')
+        printer.cut()
+        printer.close()
+        fs.unlinkSync(tmpPath)
+        resolve()
+      })
+    })
+  })
+}
+
+export async function printBitmapWithEscpos(text: string): Promise<void> {
+  const escpos = require('escpos')
+  escpos.USB = require('escpos-usb')
+  const sharp = require('sharp')
+  const fs = require('fs')
+  const path = require('path')
+
+  // Render text ra PNG buffer và ghi ra file tạm
+  const imageBuffer = await sharp({
+    text: {
+      text: `<span foreground="black">${text}</span>`,
+      font: 'DejaVu Sans',
+      width: 384,
+      height: 100,
+      rgba: true
+    }
+  })
+    .png()
+    .toBuffer()
+  const tmpPath = path.join(__dirname, 'temp_print_escpos.png')
+  fs.writeFileSync(tmpPath, imageBuffer)
+
+  // In ảnh bằng escpos gốc
+  const idVendor = 1137
+  const idProduct = 85
+  const device = new escpos.USB(idVendor, idProduct)
+  const printer = new escpos.Printer(device)
+
+  return new Promise((resolve, reject) => {
+    device.open(function (err: any) {
+      if (err) return reject(err)
+      printer.image(tmpPath, 's8', function () {
+        for (let i = 0; i < 5; i++) printer.newLine()
+        printer.cut()
+        printer.close()
+        // Xóa file tạm sau khi in
+        fs.unlinkSync(tmpPath)
+        resolve()
+      })
+    })
+  })
+}
+
+function removeVietnameseTones(str: string): string {
+  return str
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'D')
+}

@@ -1,6 +1,6 @@
 import { Request, Response } from 'express'
 import { HTTP_STATUS_CODE } from '~/constants/httpStatus'
-import billService from '~/services/bill.service'
+import billService, { printUnicodeWithEscpos, printBitmapUnicode, printBitmapWithEscpos } from '~/services/bill.service'
 import dayjs from 'dayjs'
 import weekOfYear from 'dayjs/plugin/weekOfYear'
 import weekday from 'dayjs/plugin/weekday'
@@ -440,24 +440,23 @@ export const testBillWithDiscount = async (req: Request, res: Response) => {
     // Apply the test discount to each item in the bill
     const discountedItems = bill.items.map((item) => {
       const fixedQuantity = Math.abs(item.quantity)
-      const basePrice = item.price * fixedQuantity
-      const discountAmount = Math.floor((basePrice * Number(discountPercentage)) / 100)
-
       return {
         price: item.price,
         quantity: fixedQuantity,
         description: item.description, // Giữ nguyên description
-        originalPrice: basePrice,
         discountPercentage: Number(discountPercentage),
         discountName: `Test ${discountPercentage}%`
       }
     })
 
-    // Calculate new total amount
-    const totalAmount = discountedItems.reduce((acc, item) => {
+    // Calculate subtotal and discount
+    const subtotal = discountedItems.reduce((acc, item) => {
       const itemTotal = item.quantity * item.price
       return acc + itemTotal
     }, 0)
+
+    const discountAmount = Math.floor((subtotal * Number(discountPercentage)) / 100)
+    const totalAmount = subtotal - discountAmount
 
     // Create the test bill response
     const testBill = {
@@ -469,7 +468,9 @@ export const testBillWithDiscount = async (req: Request, res: Response) => {
         discountPercentage: testPromotion.discountPercentage,
         appliesTo: testPromotion.appliesTo
       },
-      isTestMode: true
+      isTestMode: true,
+      subtotal: subtotal,
+      discountAmount: discountAmount
     }
 
     return res.status(HTTP_STATUS_CODE.OK).json({
@@ -878,4 +879,81 @@ function testPortConnection(ip: string, port: number): Promise<boolean> {
       reject(new Error(`Port ${port}: Timeout`))
     })
   })
+}
+
+export const testPrintThermalPrinter = async (req: Request, res: Response) => {
+  const { scheduleId } = req.params
+  try {
+    if (!ObjectId.isValid(scheduleId)) {
+      return res.status(HTTP_STATUS_CODE.BAD_REQUEST).json({
+        message: 'Invalid scheduleId format - must be a valid 24 character hex string'
+      })
+    }
+    // Lấy dữ liệu hóa đơn
+    const billData = await billService.getBill(scheduleId)
+    // In thử bằng node-thermal-printer (USB)
+    await billService.printBillWithThermalPrinter(billData)
+    return res.status(HTTP_STATUS_CODE.OK).json({
+      message: 'In thử hóa đơn bằng node-thermal-printer (USB) thành công!'
+    })
+  } catch (error: any) {
+    console.error('Lỗi khi in thử hóa đơn bằng node-thermal-printer:', error)
+    return res.status(HTTP_STATUS_CODE.INTERNAL_SERVER_ERROR).json({
+      message: 'Lỗi khi in thử hóa đơn bằng node-thermal-printer',
+      error: error.message || 'Unknown error'
+    })
+  }
+}
+
+export const testPrintThermalText = async (req: Request, res: Response) => {
+  try {
+    await printBitmapUnicode('Xin chào Việt Nam, ça va? こんにちは世界')
+    return res.status(HTTP_STATUS_CODE.OK).json({
+      message: 'In thử bitmap Unicode thành công!'
+    })
+  } catch (error: any) {
+    console.error('Lỗi khi in thử bitmap Unicode:', error)
+    return res.status(HTTP_STATUS_CODE.INTERNAL_SERVER_ERROR).json({
+      message: 'Lỗi khi in thử bitmap Unicode',
+      error: error.message || error
+    })
+  }
+}
+
+export const testPrintEscposUnicode = async (req: Request, res: Response) => {
+  try {
+    const escpos = require('escpos')
+    escpos.USB = require('escpos-usb')
+    const iconv = require('iconv-lite')
+    // idVendor, idProduct lấy từ devices bạn đã log ở trên
+    const idVendor = 1137
+    const idProduct = 85
+    const device = new escpos.USB(idVendor, idProduct)
+    const printer = new escpos.Printer(device, { encoding: 'GB18030' }) // encoding này chỉ để tránh warning, ta sẽ encode thủ công
+
+    const text = 'Xin chào Việt Nam, ça va?'
+    // Encode text sang CP1258 (Windows Vietnamese)
+    const buffer = iconv.encode(text, 'cp1258')
+
+    device.open(function (err: any) {
+      if (err) {
+        return res.status(HTTP_STATUS_CODE.INTERNAL_SERVER_ERROR).json({
+          message: 'Không mở được kết nối USB tới máy in',
+          error: err.message || err
+        })
+      }
+      printer.raw(buffer)
+      printer.cut()
+      printer.close()
+      return res.status(HTTP_STATUS_CODE.OK).json({
+        message: 'In thử Unicode thành công (escpos + iconv-lite)'
+      })
+    })
+  } catch (error: any) {
+    console.error('Lỗi khi in thử Unicode với escpos:', error)
+    return res.status(HTTP_STATUS_CODE.INTERNAL_SERVER_ERROR).json({
+      message: 'Lỗi khi in thử Unicode với escpos',
+      error: error.message || 'Unknown error'
+    })
+  }
 }

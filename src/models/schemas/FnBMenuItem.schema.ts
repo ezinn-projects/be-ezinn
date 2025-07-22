@@ -7,6 +7,8 @@ export interface Inventory {
   lastUpdated: Date
 }
 
+import { FnBCategory } from '~/constants/enum'
+
 export interface FnBMenuItem {
   _id?: ObjectId
   name: string
@@ -14,6 +16,7 @@ export interface FnBMenuItem {
   hasVariant: boolean // true nếu là sản phẩm cha có variant, false nếu là variant hoặc sản phẩm đơn
   price: number
   image?: string // URL ảnh từ Cloudinary
+  category: FnBCategory // snack hoặc drink
   inventory: Inventory
   createdAt: Date
   updatedAt: Date

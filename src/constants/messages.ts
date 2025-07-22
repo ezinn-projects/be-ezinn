@@ -126,7 +126,8 @@ export const FNB_MESSAGES = {
   FNB_ORDER_NOT_FOUND: 'FNB order not found',
   UPSERT_FNB_ORDER_SUCCESS: 'Upsert FNB order success',
   SET_FNB_ORDER_STATUS_SUCCESS: 'Set FNB order status success',
-  GET_FNB_MENUS_SUCCESS: 'Get FNB menus success'
+  GET_FNB_MENUS_SUCCESS: 'Get FNB menus success',
+  COMPLETE_FNB_ORDER_SUCCESS: 'Complete FNB order and save to history success'
 }
 
 export const FNB_MENU_MESSAGES = {

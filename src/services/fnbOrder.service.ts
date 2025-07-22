@@ -1,5 +1,5 @@
 import { ObjectId } from 'mongodb'
-import { RoomScheduleFNBOrder, FNBOrder } from '~/models/schemas/FNB.schema'
+import { RoomScheduleFNBOrder, FNBOrder, FNBOrderHistoryRecord } from '~/models/schemas/FNB.schema'
 import databaseService from './database.service'
 
 class FnbOrderService {
@@ -31,6 +31,35 @@ class FnbOrderService {
     return orders.map(
       (order) =>
         new RoomScheduleFNBOrder(order.roomScheduleId.toString(), order.order, order.createdBy, order.updatedBy)
+    )
+  }
+
+  // Method mới: Lưu order history khi complete
+  async saveOrderHistory(
+    roomScheduleId: string,
+    order: FNBOrder,
+    completedBy?: string,
+    billId?: string
+  ): Promise<FNBOrderHistoryRecord> {
+    const historyRecord = new FNBOrderHistoryRecord(roomScheduleId, order, completedBy, billId)
+    const result = await databaseService.fnbOrderHistory.insertOne(historyRecord)
+    historyRecord._id = result.insertedId
+    return historyRecord
+  }
+
+  // Method mới: Lấy order history theo room schedule ID
+  async getOrderHistoryByRoomSchedule(roomScheduleId: string): Promise<FNBOrderHistoryRecord[]> {
+    const historyRecords = await databaseService.fnbOrderHistory
+      .find({ roomScheduleId: new ObjectId(roomScheduleId) })
+      .toArray()
+    return historyRecords.map(
+      (record) =>
+        new FNBOrderHistoryRecord(
+          record.roomScheduleId.toString(),
+          record.order,
+          record.completedBy,
+          record.billId?.toString()
+        )
     )
   }
 

@@ -3,6 +3,7 @@ import fnBMenuItemService from '~/services/fnbMenuItem.service'
 import { FnBMenuItem } from '~/models/schemas/FnBMenuItem.schema'
 import { HttpStatusCode } from 'axios'
 import { uploadImageToCloudinary } from '~/services/cloudinary.service'
+import { FnBCategory } from '~/constants/enum'
 
 // Tạo mới menu item
 export const createMenuItem = async (req: Request, res: Response, next: NextFunction) => {
@@ -20,6 +21,13 @@ export const createMenuItem = async (req: Request, res: Response, next: NextFunc
 
     // Chuẩn hóa hasVariant từ string sang boolean
     const hasVariant = body.hasVariant === 'true' || body.hasVariant === true
+
+    // Validate category
+    if (body.category && !Object.values(FnBCategory).includes(body.category as FnBCategory)) {
+      return res.status(HttpStatusCode.BadRequest).json({
+        message: 'Category phải là "snack" hoặc "drink"'
+      })
+    }
 
     // Nếu có variants, tạo parent + variants
     if (body.variants && hasVariant) {
@@ -39,6 +47,7 @@ export const createMenuItem = async (req: Request, res: Response, next: NextFunc
         hasVariant: true,
         price: 0, // Sản phẩm cha không có giá
         image: parentImageUrl || undefined,
+        category: (body.category as FnBCategory) || FnBCategory.SNACK,
         inventory: {
           quantity: 0, // Sản phẩm cha không có số lượng
           lastUpdated: new Date()
@@ -77,6 +86,7 @@ export const createMenuItem = async (req: Request, res: Response, next: NextFunc
           hasVariant: false,
           price: Number(variant.price),
           image: variantImageUrl || undefined,
+          category: (variant.category as FnBCategory) || (body.category as FnBCategory) || FnBCategory.SNACK,
           inventory: {
             quantity: Number(variant.inventory?.quantity || variant.inventory || 0),
             minStock: variant.inventory?.minStock ? Number(variant.inventory.minStock) : undefined,
@@ -116,6 +126,7 @@ export const createMenuItem = async (req: Request, res: Response, next: NextFunc
       hasVariant,
       price: Number(body.price),
       image: imageUrl || undefined,
+      category: (body.category as FnBCategory) || FnBCategory.SNACK,
       inventory: {
         quantity: Number(body.quantity),
         minStock: body.minStock ? Number(body.minStock) : undefined,
@@ -154,6 +165,7 @@ export const createMenuItemWithVariants = async (req: Request, res: Response, ne
       hasVariant: true,
       price: 0, // Sản phẩm cha không có giá
       image: parentImageUrl || undefined,
+      category: (body.category as FnBCategory) || FnBCategory.SNACK,
       inventory: {
         quantity: 0, // Sản phẩm cha không có số lượng
         lastUpdated: new Date()
@@ -189,6 +201,7 @@ export const createMenuItemWithVariants = async (req: Request, res: Response, ne
           hasVariant: false,
           price: Number(variant.price),
           image: variantImageUrl || undefined,
+          category: (variant.category as FnBCategory) || (body.category as FnBCategory) || FnBCategory.SNACK,
           inventory: {
             quantity: Number(variant.inventory?.quantity || 0),
             minStock: variant.inventory?.minStock ? Number(variant.inventory.minStock) : undefined,
@@ -270,8 +283,19 @@ export const getMenuItemById = async (req: Request, res: Response, next: NextFun
 // Lấy tất cả menu item
 export const getAllMenuItems = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const result = await fnBMenuItemService.getAllMenuItems()
-    return res.status(HttpStatusCode.Ok).json({ result })
+    const { category } = req.query
+
+    let result
+    if (category && Object.values(FnBCategory).includes(category as FnBCategory)) {
+      result = await fnBMenuItemService.getMenuItemsByCategory(category as FnBCategory)
+    } else {
+      result = await fnBMenuItemService.getAllMenuItems()
+    }
+
+    return res.status(HttpStatusCode.Ok).json({
+      message: 'Lấy menu items thành công',
+      result
+    })
   } catch (error) {
     next(error)
   }
@@ -316,6 +340,12 @@ export const updateMenuItem = async (req: Request, res: Response, next: NextFunc
   try {
     const { id } = req.params
     const body = req.body
+    const files = req.files as Express.Multer.File[]
+
+    console.log('=== UPDATE MENU ITEM DEBUG ===')
+    console.log('Body:', JSON.stringify(body, null, 2))
+    console.log('Files count:', files?.length || 0)
+
     // Chuẩn hóa hasVariant nếu có
     let updateData: Partial<FnBMenuItem> = { ...body }
     if (body.hasVariant !== undefined) {
@@ -330,20 +360,153 @@ export const updateMenuItem = async (req: Request, res: Response, next: NextFunc
       }
     }
 
-    // Upload ảnh mới lên Cloudinary nếu có file
-    const files = req.files as Express.Multer.File[]
+    // Upload ảnh mới lên Cloudinary nếu có file, hoặc giữ ảnh cũ nếu có existingImage
     if (files && files.length > 0) {
       const uploadResult = (await uploadImageToCloudinary(files[0].buffer, 'menu-items')) as {
         url: string
         publicId: string
       }
       updateData.image = uploadResult.url
+    } else if (body.existingImage) {
+      // Giữ lại ảnh cũ nếu không upload ảnh mới
+      updateData.image = body.existingImage
     }
 
+    // Cập nhật sản phẩm cha
     const result = await fnBMenuItemService.updateMenuItem(id, updateData)
     if (!result) return res.status(HttpStatusCode.NotFound).json({ message: 'Không tìm thấy menu item để cập nhật' })
+
+    // Nếu có variants trong payload, cập nhật từng variant
+    if (body.variants) {
+      console.log('=== STARTING VARIANT UPDATE ===')
+      console.log('Updating variants, raw data:', body.variants)
+      console.log('Type of variants:', typeof body.variants)
+
+      const variants = []
+      let variantsData
+
+      // Parse variants từ string JSON hoặc array
+      if (typeof body.variants === 'string') {
+        try {
+          variantsData = JSON.parse(body.variants)
+        } catch (error) {
+          console.error('Error parsing variants JSON:', error)
+          return res.status(HttpStatusCode.BadRequest).json({
+            message: 'Invalid variants JSON format'
+          })
+        }
+      } else {
+        variantsData = body.variants
+      }
+
+      if (!Array.isArray(variantsData)) {
+        return res.status(HttpStatusCode.BadRequest).json({
+          message: 'Variants must be an array'
+        })
+      }
+
+      console.log('Parsed variants:', variantsData.length)
+      console.log('Parsed variants data:', JSON.stringify(variantsData, null, 2))
+
+      // Lấy danh sách variants hiện tại để so sánh
+      const existingVariants = await fnBMenuItemService.getVariantsByParentId(id)
+      const existingVariantNames = existingVariants.map((v: FnBMenuItem) => v.name)
+      const newVariantNames = variantsData.map((v: any) => v.name)
+
+      console.log('Existing variant names:', existingVariantNames)
+      console.log('New variant names:', newVariantNames)
+
+      // Xóa các variants không còn trong danh sách mới
+      for (const existingVariant of existingVariants) {
+        if (!newVariantNames.includes(existingVariant.name)) {
+          console.log(`Deleting variant: ${existingVariant.name}`)
+          await fnBMenuItemService.deleteMenuItem(existingVariant._id!.toString())
+        }
+      }
+
+      for (let i = 0; i < variantsData.length; i++) {
+        const variant = variantsData[i]
+
+        // Tìm variant hiện tại theo tên và parentId
+        let existingVariant = null
+        if (variant._id) {
+          existingVariant = await fnBMenuItemService.getMenuItemById(variant._id)
+          console.log(`Found variant by _id: ${variant._id}`, existingVariant ? 'YES' : 'NO')
+        } else {
+          // Tìm theo tên nếu không có _id
+          existingVariant = await fnBMenuItemService.getVariantByNameAndParentId(variant.name, id)
+          console.log(`Found variant by name: ${variant.name}`, existingVariant ? 'YES' : 'NO')
+        }
+
+        let variantImageUrl = variant.image || ''
+
+        // Tìm ảnh mới cho variant (variantFile_0, variantFile_1, ...)
+        const variantFile = files?.find((file) => file.fieldname === `variantFile_${i}`)
+        if (variantFile) {
+          const uploadResult = (await uploadImageToCloudinary(variantFile.buffer, 'menu-items/variants')) as {
+            url: string
+            publicId: string
+          }
+          variantImageUrl = uploadResult.url
+        }
+
+        console.log(`Processing variant: ${variant.name}`)
+        console.log(`Variant inventory data:`, variant.inventory)
+
+        const variantData: Partial<FnBMenuItem> = {
+          name: variant.name,
+          parentId: id,
+          hasVariant: false,
+          price: Number(variant.price),
+          image: variantImageUrl || undefined,
+          category: (variant.category as FnBCategory) || (body.category as FnBCategory) || FnBCategory.SNACK,
+          inventory: {
+            quantity: Number(variant.inventory?.quantity || variant.inventory || 0),
+            minStock: variant.inventory?.minStock ? Number(variant.inventory.minStock) : undefined,
+            maxStock: variant.inventory?.maxStock ? Number(variant.inventory.maxStock) : undefined,
+            lastUpdated: new Date()
+          },
+          updatedAt: new Date()
+        }
+
+        console.log(`Variant data to update:`, JSON.stringify(variantData, null, 2))
+
+        let variantResult
+        if (existingVariant) {
+          console.log(`Updating existing variant: ${existingVariant._id}`)
+          // Cập nhật variant hiện tại
+          variantResult = await fnBMenuItemService.updateMenuItem(existingVariant._id!.toString(), variantData)
+        } else {
+          console.log(`Creating new variant`)
+          // Tạo variant mới
+          variantData.createdAt = new Date()
+          variantResult = await fnBMenuItemService.createMenuItem(variantData as FnBMenuItem)
+        }
+
+        if (variantResult) {
+          console.log(`Variant result:`, JSON.stringify(variantResult, null, 2))
+          variants.push(variantResult)
+        } else {
+          console.log(`Failed to update/create variant: ${variant.name}`)
+        }
+      }
+
+      // Lấy lại tất cả variants sau khi cập nhật
+      const updatedVariants = await fnBMenuItemService.getVariantsByParentId(id)
+
+      return res.status(HttpStatusCode.Ok).json({
+        message: 'Cập nhật thành công',
+        result: {
+          ...result,
+          variants: updatedVariants
+        }
+      })
+    }
+
+    // Nếu không có variants, trả về kết quả bình thường
     return res.status(HttpStatusCode.Ok).json({ message: 'Cập nhật thành công', result })
   } catch (error) {
+    console.error('Error in updateMenuItem:', error)
     next(error)
   }
 }

@@ -47,3 +47,8 @@ export enum RoomScheduleStatus {
   Cancelled = 'cancelled',
   Finished = 'finished'
 }
+
+export enum FnBCategory {
+  SNACK = 'snack',
+  DRINK = 'drink'
+}
