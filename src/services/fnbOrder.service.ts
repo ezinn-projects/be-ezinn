@@ -80,6 +80,18 @@ class FnbOrderService {
       }
     }
 
+    // Lọc bỏ các item có quantity = 0 khỏi drinks và snacks
+    if (filteredOrder.drinks) {
+      filteredOrder.drinks = Object.fromEntries(
+        Object.entries(filteredOrder.drinks).filter(([_, quantity]) => (quantity as number) > 0)
+      )
+    }
+    if (filteredOrder.snacks) {
+      filteredOrder.snacks = Object.fromEntries(
+        Object.entries(filteredOrder.snacks).filter(([_, quantity]) => (quantity as number) > 0)
+      )
+    }
+
     const filter = { roomScheduleId: new ObjectId(roomScheduleId) }
 
     // Update document (không dùng pipeline)

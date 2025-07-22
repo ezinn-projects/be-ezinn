@@ -8,6 +8,7 @@ import fnbMenuItemService from '~/services/fnbMenuItem.service'
 import databaseService from '~/services/database.service'
 import { BillService } from '~/services/bill.service'
 import { ObjectId } from 'mongodb'
+import { cleanOrderDetail } from '../utils/common'
 
 /**
  * @description Create FNB Order
@@ -574,7 +575,7 @@ export const getOrderDetail = async (req: Request, res: Response, next: NextFunc
       }
     }
 
-    const orderDetail = {
+    let orderDetail = {
       roomScheduleId: currentOrder.roomScheduleId,
       order: {
         drinks: currentOrder.order.drinks,
@@ -589,6 +590,9 @@ export const getOrderDetail = async (req: Request, res: Response, next: NextFunc
       createdBy: currentOrder.createdBy,
       updatedBy: currentOrder.updatedBy
     }
+
+    // Lọc các item có quantity = 0 trước khi trả về
+    orderDetail = cleanOrderDetail(orderDetail)
 
     return res.status(HTTP_STATUS_CODE.OK).json({
       message: 'Get order detail successfully',

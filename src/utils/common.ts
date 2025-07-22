@@ -70,3 +70,28 @@ export async function fetchVideoInfo(videoId: string) {
     format_type: 'hls'
   }
 }
+
+/**
+ * Lọc các item có quantity = 0 khỏi order detail
+ */
+export function cleanOrderDetail(orderDetail: any) {
+  // Lọc drinks/snacks object
+  if (orderDetail.order && orderDetail.order.drinks) {
+    orderDetail.order.drinks = Object.fromEntries(
+      Object.entries(orderDetail.order.drinks).filter(([_, quantity]) => (quantity as number) > 0)
+    )
+  }
+  if (orderDetail.order && orderDetail.order.snacks) {
+    orderDetail.order.snacks = Object.fromEntries(
+      Object.entries(orderDetail.order.snacks).filter(([_, quantity]) => (quantity as number) > 0)
+    )
+  }
+  // Lọc drinks/snacks array
+  if (orderDetail.items && orderDetail.items.drinks) {
+    orderDetail.items.drinks = orderDetail.items.drinks.filter((item: any) => item.quantity > 0)
+  }
+  if (orderDetail.items && orderDetail.items.snacks) {
+    orderDetail.items.snacks = orderDetail.items.snacks.filter((item: any) => item.quantity > 0)
+  }
+  return orderDetail
+}
