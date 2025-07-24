@@ -17,13 +17,12 @@ export function startBookingScheduler() {
 
 export async function finishSchedulerInADay() {
   try {
-    // Thiết lập cron job chạy mỗi ngày lúc 23:59
-    cron.schedule('59 23 * * *', async () => {
-      console.log('Running auto-finish job at 23:59...')
-      await roomScheduleService.autoFinishAllScheduleInADay()
-    })
-
-    console.log('Checked and finished late bookings if any.')
+    // ĐÃ BỎ: Thiết lập cron job chạy mỗi ngày lúc 23:59
+    // cron.schedule('59 23 * * *', async () => {
+    //   console.log('Running auto-finish job at 23:59...')
+    //   await roomScheduleService.autoFinishAllScheduleInADay()
+    // })
+    // console.log('Checked and finished late bookings if any.')
   } catch (error) {
     console.error('Error in auto-finishing late bookings:', error)
   }
