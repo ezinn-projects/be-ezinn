@@ -42,7 +42,7 @@ roomRouter.post(
  * @method GET
  * @author QuangDoo
  */
-roomRouter.get('/', protect([UserRole.Admin]), wrapRequestHandler(getRoomsController))
+roomRouter.get('/', protect([UserRole.Admin, UserRole.Staff]), wrapRequestHandler(getRoomsController))
 
 /**
  * @description Lấy phòng theo id
@@ -50,7 +50,7 @@ roomRouter.get('/', protect([UserRole.Admin]), wrapRequestHandler(getRoomsContro
  * @method GET
  * @author QuangDoo
  */
-roomRouter.get('/:id', protect([UserRole.Admin]), wrapRequestHandler(getRoomController))
+roomRouter.get('/:id', protect([UserRole.Admin, UserRole.Staff]), wrapRequestHandler(getRoomController))
 
 /**
  * @description turn off all videos in room
@@ -70,7 +70,7 @@ roomRouter.post(
  * @method PUT
  * @author QuangDoo
  */
-roomRouter.put('/:id', protect([UserRole.Admin]), wrapRequestHandler(updateRoomController))
+roomRouter.put('/:id', protect([UserRole.Admin, UserRole.Staff]), wrapRequestHandler(updateRoomController))
 
 /**
  * @description Xóa phòng

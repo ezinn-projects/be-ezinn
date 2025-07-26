@@ -5,6 +5,7 @@ export const USER_MESSAGES = {
   INVALID_EMAIL: 'Invalid email',
   INVALID_FIELD: 'Validation error',
   USER_EXISTS: 'User already exists',
+  USERNAME_EXISTS: 'Username already exists',
   EMAIL_EXISTS: 'Email already exists',
   INVALID_VERIFY_TOKEN: 'Invalid verify token',
   INVALID_FORGOT_PASSWORD_TOKEN: 'Invalid forgot password token',
@@ -33,7 +34,12 @@ export const USER_MESSAGES = {
   INVALID_ROLE: 'Invalid role',
   ROLE_NOT_EMPTY: 'Role is not empty',
   PHONE_NUMBER_NOT_EMPTY: 'Phone number is not empty',
-  INVALID_PHONE_NUMBER: 'Invalid phone number'
+  INVALID_PHONE_NUMBER: 'Invalid phone number',
+  GET_USERS_SUCCESS: 'Get users success',
+  UPDATE_USER_SUCCESS: 'Update user success',
+  USERNAME_ALREADY_EXISTS: 'Username already exists',
+  EMAIL_ALREADY_EXISTS: 'Email already exists',
+  PHONE_ALREADY_EXISTS: 'Phone number already exists'
 } as const
 
 export const ROOM_TYPE_MESSAGES = {
