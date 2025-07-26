@@ -2,7 +2,7 @@ import { NextFunction, Request, Response } from 'express'
 import { type ParamsDictionary } from 'express-serve-static-core'
 import { HTTP_STATUS_CODE } from '~/constants/httpStatus'
 import { USER_MESSAGES } from '~/constants/messages'
-import { type RegisterRequestBody } from '~/models/requests/User.requests'
+import { type RegisterRequestBody, UpdateUserRequestBody, GetUsersQuery } from '~/models/requests/User.requests'
 import { usersServices } from '~/services/users.services'
 import { hashPassword } from '~/utils/crypto'
 import { signToken } from '~/utils/jwt'
@@ -14,7 +14,7 @@ import { IUser } from '~/models/schemas/User.schema'
  * @description Register a new user using the native MongoDB driver
  * @path /users/register
  * @method POST
- * @body {name: string, email: string, password: string, confirm_password: string, date_of_birth: ISOString, role: UserRole}
+ * @body {name: string, username: string, email?: string, password: string, confirm_password: string, date_of_birth: ISOString, role: UserRole, phone_number: string}
  * @response {access_token: string, refresh_token: string}
  */
 export const registerController = async (
@@ -23,20 +23,12 @@ export const registerController = async (
   next: NextFunction
 ) => {
   try {
-    const { name, email, password, confirm_password, date_of_birth, role } = req.body
+    const { name, username, email, password, confirm_password, date_of_birth, role, phone_number } = req.body
 
     // Basic check: Ensure passwords match
     if (password !== confirm_password) {
       return res.status(HTTP_STATUS_CODE.BAD_REQUEST).json({
         message: USER_MESSAGES.PASSWORD_NOT_MATCH
-      })
-    }
-
-    // Check if a user with the provided email already exists
-    const existingUser = await databaseService.users.findOne({ email })
-    if (existingUser) {
-      return res.status(HTTP_STATUS_CODE.CONFLICT).json({
-        message: USER_MESSAGES.USER_EXISTS
       })
     }
 
@@ -47,7 +39,9 @@ export const registerController = async (
     const now = new Date()
     const userDocument = {
       name,
-      email,
+      username,
+      email: email || '', // Email có thể là empty string nếu không được cung cấp
+      phone_number,
       date_of_birth: new Date(date_of_birth),
       password: hashedPassword,
       role,
@@ -59,7 +53,6 @@ export const registerController = async (
       bio: '',
       location: '',
       website: '',
-      username: '',
       cover_photo: '',
       avatar: ''
     }
@@ -98,7 +91,7 @@ export const registerController = async (
  * @description Login user
  * @path /users/login
  * @method POST
- * @body {email: string, password: string}
+ * @body {username: string, password: string}
  * @author QuangDoo
  * @response {access_token: string, refresh_token: string}
  */
@@ -128,15 +121,23 @@ export const loginController = async (req: Request, res: Response, next: NextFun
  * @author QuangDoo
  * @response {message: string}
  */
-// export const logoutController = async (req: Request, res: Response, next: NextFunction) => {
-//   try {
-//     res.json({
-//       message: USER_MESSAGES.LOGOUT_SUCCESS
-//     })
-//   } catch (error) {
-//     next(error)
-//   }
-// }
+export const logoutController = async (
+  req: import('express').Request,
+  res: import('express').Response,
+  next: import('express').NextFunction
+) => {
+  try {
+    // Nếu bạn lưu refresh_token trong DB, hãy xóa nó ở đây
+    // const { refresh_token } = req.body
+    // await databaseService.refreshTokens.deleteOne({ token: refresh_token })
+
+    return res.json({
+      message: USER_MESSAGES.LOGOUT_SUCCESS
+    })
+  } catch (error) {
+    next(error)
+  }
+}
 
 /**
  * Get user by id
@@ -166,6 +167,103 @@ export const getAllUsersController = async (req: Request, res: Response, next: N
     const result = await usersServices.getAllUsers()
 
     return res.status(200).json({
+      result
+    })
+  } catch (error) {
+    next(error)
+  }
+}
+
+/**
+ * Get users with pagination, search and filter
+ * @description Get users with pagination, search and filter
+ * @path /users
+ * @method GET
+ * @query {page?: number, limit?: number, search?: string, role?: UserRole, sort_by?: string, sort_order?: 'asc' | 'desc'}
+ * @author QuangDoo
+ */
+export const getUsersController = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const query = req.query as GetUsersQuery
+    const result = await usersServices.getUsers(query)
+
+    return res.status(HTTP_STATUS_CODE.OK).json({
+      message: USER_MESSAGES.GET_USERS_SUCCESS,
+      result
+    })
+  } catch (error) {
+    next(error)
+  }
+}
+
+/**
+ * Get user by ID
+ * @description Get user by ID
+ * @path /users/:id
+ * @method GET
+ * @param {id: string}
+ * @author QuangDoo
+ */
+export const getUserByIdController = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id } = req.params
+    const result = await usersServices.getUserById(id)
+
+    if (!result) {
+      return res.status(HTTP_STATUS_CODE.NOT_FOUND).json({
+        message: USER_MESSAGES.USER_NOT_FOUND
+      })
+    }
+
+    return res.status(HTTP_STATUS_CODE.OK).json({
+      message: USER_MESSAGES.GET_USER_SUCCESS,
+      result
+    })
+  } catch (error) {
+    next(error)
+  }
+}
+
+/**
+ * Update user
+ * @description Update user
+ * @path /users/:id
+ * @method PUT
+ * @param {id: string}
+ * @body {name?: string, email?: string, phone_number?: string, date_of_birth?: Date, bio?: string, location?: string, avatar?: string, role?: UserRole}
+ * @author QuangDoo
+ */
+export const updateUserController = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id } = req.params
+    const updateData = req.body as UpdateUserRequestBody
+
+    const result = await usersServices.updateUser(id, updateData)
+
+    return res.status(HTTP_STATUS_CODE.OK).json({
+      message: USER_MESSAGES.UPDATE_USER_SUCCESS,
+      result
+    })
+  } catch (error) {
+    next(error)
+  }
+}
+
+/**
+ * Delete user
+ * @description Delete user
+ * @path /users/:id
+ * @method DELETE
+ * @param {id: string}
+ * @author QuangDoo
+ */
+export const deleteUserController = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id } = req.params
+    const result = await usersServices.deleteUser(id)
+
+    return res.status(HTTP_STATUS_CODE.OK).json({
+      message: 'User deleted successfully',
       result
     })
   } catch (error) {

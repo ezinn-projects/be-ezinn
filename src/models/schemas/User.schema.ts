@@ -4,6 +4,7 @@ import { UserRole, UserVerifyStatus } from '~/constants/enum'
 export interface IUser {
   _id: ObjectId
   name: string
+  username: string // Thêm username field
   email?: string
   phone_number: string
   date_of_birth: Date
@@ -31,8 +32,10 @@ export interface IUser {
 export class User {
   // khai báo thuộc tính của class User
   _id?: ObjectId
+  username: string // Thêm username field
   email: string
   name: string
+  phone_number: string
   date_of_birth: Date
   password: string
   created_at: Date
@@ -52,8 +55,10 @@ export class User {
     const date = new Date()
 
     this._id = user._id
+    this.username = user.username || ''
     this.email = user.email || ''
     this.name = user.name || ''
+    this.phone_number = user.phone_number || ''
     this.date_of_birth = user.date_of_birth || date
     this.password = user.password
     this.created_at = user.created_at || date

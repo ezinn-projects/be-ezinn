@@ -41,11 +41,13 @@ describe('Integration Test for Register API', () => {
 
     const payload = {
       name: 'Quang Do',
+      username: `quangdo${new Date().valueOf()}`,
       email,
       password: 'ValidPass123!',
       confirm_password: 'ValidPass123!',
       date_of_birth: '2000-01-01',
-      role: UserRole.Admin
+      role: UserRole.Admin,
+      phone_number: '0123456789'
     }
 
     const res = await request(app)
@@ -58,13 +60,13 @@ describe('Integration Test for Register API', () => {
     // Kiểm tra phản hồi trả về
     expect(res.body).toHaveProperty('message', USER_MESSAGES.REGISTER_SUCCESS)
 
-    const result = await db.collection('users').insertOne(
-      new User({
-        ...payload,
-        date_of_birth: new Date(payload.date_of_birth),
-        password: hashPassword(payload.password)
-      })
-    )
+    const result = await db.collection('users').insertOne({
+      ...payload,
+      date_of_birth: new Date(payload.date_of_birth),
+      password: hashPassword(payload.password),
+      created_at: new Date(),
+      updated_at: new Date()
+    })
 
     expect(result).toBeTruthy()
 
@@ -78,26 +80,113 @@ describe('Integration Test for Register API', () => {
     // Đầu tiên đăng ký một người dùng
     await db.collection('users').insertOne({
       name: 'Quang Do',
+      username: 'quangdo',
       email: 'quangdo@example.com',
       password: 'ValidPass123!',
       date_of_birth: '2000-01-01',
-      role: UserRole.Admin
+      role: UserRole.Admin,
+      phone_number: '0123456789',
+      created_at: new Date(),
+      updated_at: new Date()
     })
 
-    // Thử đăng ký lại với cùng email
+    // Thử đăng ký lại với cùng username
     const res = await request(app).post('/users/register').send({
       name: 'Quang Do',
-      email: 'quangdo@example.com', // Email đã tồn tại
+      username: 'quangdo', // Username đã tồn tại
+      email: 'quangdo2@example.com',
       password: 'ValidPass123!',
       confirm_password: 'ValidPass123!',
       date_of_birth: '2000-01-01',
-      role: UserRole.Admin
+      role: UserRole.Admin,
+      phone_number: '0123456789'
     })
 
     // Kiểm tra mã trạng thái HTTP
     expect(res.statusCode).toBe(HTTP_STATUS_CODE.CONFLICT) // 409 Conflict khi người dùng đã tồn tại
 
     // Kiểm tra phản hồi trả về
-    expect(res.body).toHaveProperty('message', USER_MESSAGES.USER_EXISTS)
+    expect(res.body).toHaveProperty('message', USER_MESSAGES.USERNAME_EXISTS)
+  })
+
+  it('should login successfully with username', async () => {
+    // Tạo user trước
+    const hashedPassword = hashPassword('ValidPass123!')
+    await db.collection('users').insertOne({
+      name: 'Quang Do',
+      username: 'quangdo',
+      email: 'quangdo@example.com',
+      phone_number: '0123456789',
+      password: hashedPassword,
+      date_of_birth: '2000-01-01',
+      role: UserRole.Admin,
+      created_at: new Date(),
+      updated_at: new Date()
+    })
+
+    // Test login với username
+    const loginRes = await request(app).post('/users/login').send({
+      username: 'quangdo',
+      password: 'ValidPass123!'
+    })
+
+    expect(loginRes.statusCode).toBe(HTTP_STATUS_CODE.CREATED)
+    expect(loginRes.body).toHaveProperty('message', USER_MESSAGES.LOGIN_SUCCESS)
+    expect(loginRes.body.result).toHaveProperty('access_token')
+    expect(loginRes.body.result).toHaveProperty('refresh_token')
+  })
+
+  it('should login successfully with email', async () => {
+    // Tạo user trước
+    const hashedPassword = hashPassword('ValidPass123!')
+    await db.collection('users').insertOne({
+      name: 'Quang Do',
+      username: 'quangdo',
+      email: 'quangdo@example.com',
+      phone_number: '0123456789',
+      password: hashedPassword,
+      date_of_birth: '2000-01-01',
+      role: UserRole.Admin,
+      created_at: new Date(),
+      updated_at: new Date()
+    })
+
+    // Test login với email
+    const loginRes = await request(app).post('/users/login').send({
+      username: 'quangdo@example.com',
+      password: 'ValidPass123!'
+    })
+
+    expect(loginRes.statusCode).toBe(HTTP_STATUS_CODE.CREATED)
+    expect(loginRes.body).toHaveProperty('message', USER_MESSAGES.LOGIN_SUCCESS)
+    expect(loginRes.body.result).toHaveProperty('access_token')
+    expect(loginRes.body.result).toHaveProperty('refresh_token')
+  })
+
+  it('should login successfully with phone number', async () => {
+    // Tạo user trước
+    const hashedPassword = hashPassword('ValidPass123!')
+    await db.collection('users').insertOne({
+      name: 'Quang Do',
+      username: 'quangdo',
+      email: 'quangdo@example.com',
+      phone_number: '0123456789',
+      password: hashedPassword,
+      date_of_birth: '2000-01-01',
+      role: UserRole.Admin,
+      created_at: new Date(),
+      updated_at: new Date()
+    })
+
+    // Test login với phone number
+    const loginRes = await request(app).post('/users/login').send({
+      username: '0123456789',
+      password: 'ValidPass123!'
+    })
+
+    expect(loginRes.statusCode).toBe(HTTP_STATUS_CODE.CREATED)
+    expect(loginRes.body).toHaveProperty('message', USER_MESSAGES.LOGIN_SUCCESS)
+    expect(loginRes.body.result).toHaveProperty('access_token')
+    expect(loginRes.body.result).toHaveProperty('refresh_token')
   })
 })

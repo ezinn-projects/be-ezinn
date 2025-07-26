@@ -12,15 +12,26 @@ import { validate } from '~/utils/validation'
 
 export const checkRegisterUserExists = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { email } = req.body
-    // Check if the user exists based on the email only
-    const user = await databaseService.users.findOne({ email })
+    const { username, email } = req.body
 
-    if (user) {
+    // Kiểm tra username đã tồn tại chưa
+    const existingUserByUsername = await databaseService.users.findOne({ username })
+    if (existingUserByUsername) {
       throw new ErrorWithStatus({
-        message: USER_MESSAGES.USER_EXISTS,
+        message: USER_MESSAGES.USERNAME_EXISTS,
         status: HTTP_STATUS_CODE.CONFLICT
       })
+    }
+
+    // Kiểm tra email đã tồn tại chưa (nếu có email)
+    if (email) {
+      const existingUserByEmail = await databaseService.users.findOne({ email })
+      if (existingUserByEmail) {
+        throw new ErrorWithStatus({
+          message: USER_MESSAGES.EMAIL_EXISTS,
+          status: HTTP_STATUS_CODE.CONFLICT
+        })
+      }
     }
 
     next()
@@ -28,12 +39,23 @@ export const checkRegisterUserExists = async (req: Request, res: Response, next:
     next(error)
   }
 }
+
 export const checkLoginUserExists = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { email, password } = req.body
+    const { username, password } = req.body
 
-    // Bước 1: Tìm người dùng dựa vào email
-    const user = await databaseService.users.findOne({ email })
+    // Tìm người dùng dựa vào username (có thể là email hoặc phone_number)
+    let user = await databaseService.users.findOne({ username })
+
+    // Nếu không tìm thấy bằng username, thử tìm bằng email
+    if (!user) {
+      user = await databaseService.users.findOne({ email: username })
+    }
+
+    // Nếu vẫn không tìm thấy, thử tìm bằng phone_number
+    if (!user) {
+      user = await databaseService.users.findOne({ phone_number: username })
+    }
 
     if (!user) {
       throw new ErrorWithStatus({
@@ -89,13 +111,11 @@ export const checkUserId = async (req: Request, res: Response, next: NextFunctio
 export const loginValidator = validate(
   checkSchema(
     {
-      email: {
+      username: {
         notEmpty: {
-          errorMessage: USER_MESSAGES.INVALID_EMAIL
+          errorMessage: USER_MESSAGES.USERNAME_NOT_EMPTY
         },
-        isEmail: {
-          errorMessage: USER_MESSAGES.INVALID_EMAIL
-        },
+        isString: true,
         trim: true
       },
       password: {
@@ -104,15 +124,9 @@ export const loginValidator = validate(
         },
         isString: true,
         trim: true,
-        isStrongPassword: {
-          options: {
-            minLength: 6,
-            minLowercase: 1,
-            minNumbers: 1,
-            minSymbols: 1,
-            minUppercase: 1
-          },
-          errorMessage: USER_MESSAGES.INVALID_PASSWORD
+        isLength: {
+          options: { min: 6, max: 8 },
+          errorMessage: 'Password must be between 6 and 8 characters'
         }
       }
     },
@@ -134,10 +148,18 @@ export const registerValidator = validate(
         },
         trim: true
       },
-      email: {
+      username: {
         notEmpty: {
-          errorMessage: USER_MESSAGES.EMAIL_NOT_EMPTY
+          errorMessage: USER_MESSAGES.USERNAME_NOT_EMPTY
         },
+        isLength: {
+          options: { min: 3, max: 50 },
+          errorMessage: 'Username must be between 3 and 50 characters'
+        },
+        trim: true
+      },
+      email: {
+        optional: true,
         isEmail: {
           errorMessage: USER_MESSAGES.INVALID_EMAIL
         },
@@ -158,15 +180,9 @@ export const registerValidator = validate(
         },
         isString: true,
         trim: true,
-        isStrongPassword: {
-          options: {
-            minLength: 6,
-            minLowercase: 1,
-            minNumbers: 1,
-            minSymbols: 1,
-            minUppercase: 1
-          },
-          errorMessage: USER_MESSAGES.INVALID_PASSWORD
+        isLength: {
+          options: { min: 6, max: 8 },
+          errorMessage: 'Password must be between 6 and 8 characters'
         }
       },
       confirm_password: {
@@ -175,15 +191,9 @@ export const registerValidator = validate(
         },
         isString: true,
         trim: true,
-        isStrongPassword: {
-          options: {
-            minLength: 6,
-            minLowercase: 1,
-            minNumbers: 1,
-            minSymbols: 1,
-            minUppercase: 1
-          },
-          errorMessage: USER_MESSAGES.INVALID_PASSWORD
+        isLength: {
+          options: { min: 6, max: 8 },
+          errorMessage: 'Password must be between 6 and 8 characters'
         },
         custom: {
           options: (value: string, { req }) => {
@@ -240,5 +250,72 @@ export const accessTokenValidator = validate(
       }
     },
     ['headers', 'body']
+  )
+)
+
+export const updateUserValidator = validate(
+  checkSchema(
+    {
+      name: {
+        optional: true,
+        isLength: {
+          options: { min: 1, max: 100 },
+          errorMessage: USER_MESSAGES.INVALID_USER_NAME
+        },
+        trim: true
+      },
+      email: {
+        optional: true,
+        isEmail: {
+          errorMessage: USER_MESSAGES.INVALID_EMAIL
+        },
+        trim: true
+      },
+      phone_number: {
+        optional: true,
+        isMobilePhone: {
+          errorMessage: USER_MESSAGES.INVALID_PHONE_NUMBER
+        },
+        trim: true
+      },
+      date_of_birth: {
+        optional: true,
+        isISO8601: {
+          options: { strict: true, strictSeparator: true },
+          errorMessage: USER_MESSAGES.INVALID_DATE_OF_BIRTH
+        }
+      },
+      bio: {
+        optional: true,
+        isLength: {
+          options: { max: 200 },
+          errorMessage: 'Bio must be less than 200 characters'
+        },
+        trim: true
+      },
+      location: {
+        optional: true,
+        isLength: {
+          options: { max: 100 },
+          errorMessage: 'Location must be less than 100 characters'
+        },
+        trim: true
+      },
+      avatar: {
+        optional: true,
+        isURL: {
+          errorMessage: 'Avatar must be a valid URL'
+        },
+        trim: true
+      },
+      role: {
+        optional: true,
+        isIn: {
+          options: [Object.values(UserRole)],
+          errorMessage: USER_MESSAGES.INVALID_ROLE
+        }
+      }
+    },
+    ['body']
   )
 )
