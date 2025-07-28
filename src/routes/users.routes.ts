@@ -1,12 +1,15 @@
 import { Router } from 'express'
 import {
   deleteUserController,
+  forgotPasswordController,
+  getAllUsersController,
   getUserByIdController,
   getUserController,
   getUsersController,
   loginController,
   logoutController,
   registerController,
+  resetPasswordController,
   updateUserController
 } from '~/controllers/users.controller'
 import {
@@ -14,8 +17,10 @@ import {
   checkLoginUserExists,
   checkRegisterUserExists,
   checkUserId,
+  forgotPasswordValidator,
   loginValidator,
   registerValidator,
+  resetPasswordValidator,
   updateUserValidator
 } from '~/middlewares/users.middleware'
 import { wrapRequestHandler } from '~/utils/handlers'
@@ -51,6 +56,34 @@ usersRouter.post('/login', checkLoginUserExists, loginValidator, loginController
 usersRouter.post('/logout', accessTokenValidator, wrapRequestHandler(logoutController))
 
 /**
+ * @description Forgot password
+ * @path /users/forgot-password
+ * @method POST
+ * @body {email: string}
+ * @author QuangDoo
+ */
+usersRouter.post('/forgot-password', forgotPasswordValidator, wrapRequestHandler(forgotPasswordController))
+
+/**
+ * @description Reset password
+ * @path /users/reset-password
+ * @method POST
+ * @body {forgot_password_token: string, password: string, confirm_password: string}
+ * @author QuangDoo
+ */
+usersRouter.post('/reset-password', resetPasswordValidator, wrapRequestHandler(resetPasswordController))
+
+/**
+ * @description Get all users (legacy)
+ */
+usersRouter.get('/get-all-users', wrapRequestHandler(getAllUsersController))
+
+/**
+ * @description Get user by id (current user)
+ */
+usersRouter.get('/get-user', accessTokenValidator, checkUserId, wrapRequestHandler(getUserController))
+
+/**
  * @description Get users with pagination, search and filter
  * @path /users
  * @method GET
@@ -58,11 +91,6 @@ usersRouter.post('/logout', accessTokenValidator, wrapRequestHandler(logoutContr
  * @author QuangDoo
  */
 usersRouter.get('/', wrapRequestHandler(getUsersController))
-
-/**
- * @description Get user by id (current user)
- */
-usersRouter.get('/get-user', accessTokenValidator, checkUserId, wrapRequestHandler(getUserController))
 
 /**
  * @description Get user by ID

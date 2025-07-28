@@ -39,7 +39,10 @@ export const USER_MESSAGES = {
   UPDATE_USER_SUCCESS: 'Update user success',
   USERNAME_ALREADY_EXISTS: 'Username already exists',
   EMAIL_ALREADY_EXISTS: 'Email already exists',
-  PHONE_ALREADY_EXISTS: 'Phone number already exists'
+  PHONE_ALREADY_EXISTS: 'Phone number already exists',
+  FORGOT_PASSWORD_SUCCESS: 'Forgot password email sent successfully',
+  RESET_PASSWORD_SUCCESS: 'Password reset successfully',
+  EMAIL_NOT_FOUND: 'Email not found'
 } as const
 
 export const ROOM_TYPE_MESSAGES = {

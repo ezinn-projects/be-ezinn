@@ -319,3 +319,65 @@ export const updateUserValidator = validate(
     ['body']
   )
 )
+
+export const forgotPasswordValidator = validate(
+  checkSchema(
+    {
+      email: {
+        notEmpty: {
+          errorMessage: USER_MESSAGES.EMAIL_NOT_EMPTY
+        },
+        isEmail: {
+          errorMessage: USER_MESSAGES.INVALID_EMAIL
+        },
+        trim: true
+      }
+    },
+    ['body']
+  )
+)
+
+export const resetPasswordValidator = validate(
+  checkSchema(
+    {
+      forgot_password_token: {
+        notEmpty: {
+          errorMessage: 'Forgot password token is required'
+        },
+        isString: true,
+        trim: true
+      },
+      password: {
+        notEmpty: {
+          errorMessage: USER_MESSAGES.PASSWORD_NOT_EMPTY
+        },
+        isString: true,
+        trim: true,
+        isLength: {
+          options: { min: 6, max: 8 },
+          errorMessage: 'Password must be between 6 and 8 characters'
+        }
+      },
+      confirm_password: {
+        notEmpty: {
+          errorMessage: USER_MESSAGES.CONFIRM_PASSWORD_NOT_EMPTY
+        },
+        isString: true,
+        trim: true,
+        isLength: {
+          options: { min: 6, max: 8 },
+          errorMessage: 'Password must be between 6 and 8 characters'
+        },
+        custom: {
+          options: (value: string, { req }) => {
+            if (value !== req.body.password) {
+              throw new Error(USER_MESSAGES.PASSWORD_NOT_MATCH)
+            }
+            return true
+          }
+        }
+      }
+    },
+    ['body']
+  )
+)

@@ -3,8 +3,9 @@ import { USER_MESSAGES } from '~/constants/messages'
 import { RegisterRequestBody, UpdateUserRequestBody, GetUsersQuery } from '~/models/requests/User.requests'
 import { User } from '~/models/schemas/User.schema'
 import { hashPassword } from '~/utils/crypto'
-import { signToken } from '~/utils/jwt'
+import { signToken, verifyToken } from '~/utils/jwt'
 import databaseService from './database.service'
+import { sendResetPasswordEmail, sendWelcomeEmail } from './email.service'
 import { ObjectId } from 'mongodb'
 
 class UsersServices {
@@ -45,6 +46,16 @@ class UsersServices {
       const user_id = result.insertedId.toString()
 
       const [access_token, refresh_token] = await this.signAccessTAndRefreshToken(user_id)
+
+      // Gửi welcome email nếu có email
+      if (payload.email) {
+        try {
+          await sendWelcomeEmail(payload.email, payload.name)
+        } catch (error) {
+          console.error('Error sending welcome email:', error)
+          // Không throw error vì register vẫn thành công
+        }
+      }
 
       return {
         access_token,
@@ -209,6 +220,72 @@ class UsersServices {
     }
 
     return { message: 'User deleted successfully' }
+  }
+
+  async forgotPassword(email: string) {
+    // Tìm user theo email
+    const user = await databaseService.users.findOne({ email })
+    if (!user) {
+      throw new Error(USER_MESSAGES.EMAIL_NOT_FOUND)
+    }
+
+    // Tạo forgot password token
+    const forgotPasswordToken = await signToken({
+      payload: { user_id: user._id.toString(), token_type: TokenType.ForgotPasswordToken },
+      options: { expiresIn: '15m', algorithm: 'HS256' }
+    })
+
+    // Lưu token vào database
+    await databaseService.users.updateOne(
+      { _id: user._id },
+      {
+        $set: {
+          forgot_password_token: forgotPasswordToken as string,
+          updated_at: new Date()
+        }
+      }
+    )
+
+    // Gửi email với link reset password
+    await sendResetPasswordEmail(user.email, forgotPasswordToken as string)
+
+    return { message: USER_MESSAGES.FORGOT_PASSWORD_SUCCESS }
+  }
+
+  async resetPassword(forgotPasswordToken: string, newPassword: string) {
+    try {
+      // Verify token
+      const decoded = (await verifyToken(forgotPasswordToken)) as any
+
+      // Tìm user theo token
+      const user = await databaseService.users.findOne({
+        _id: new ObjectId(decoded.user_id),
+        forgot_password_token: forgotPasswordToken
+      })
+
+      if (!user) {
+        throw new Error(USER_MESSAGES.INVALID_FORGOT_PASSWORD_TOKEN)
+      }
+
+      // Hash password mới
+      const hashedPassword = hashPassword(newPassword)
+
+      // Update password và xóa token
+      await databaseService.users.updateOne(
+        { _id: user._id },
+        {
+          $set: {
+            password: hashedPassword,
+            updated_at: new Date()
+          },
+          $unset: { forgot_password_token: '' }
+        }
+      )
+
+      return { message: USER_MESSAGES.RESET_PASSWORD_SUCCESS }
+    } catch (error) {
+      throw new Error(USER_MESSAGES.INVALID_FORGOT_PASSWORD_TOKEN)
+    }
   }
 }
 

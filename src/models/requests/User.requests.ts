@@ -16,6 +16,16 @@ export interface LoginRequestBody {
   password: string
 }
 
+export interface ForgotPasswordRequestBody {
+  email: string
+}
+
+export interface ResetPasswordRequestBody {
+  forgot_password_token: string
+  password: string
+  confirm_password: string
+}
+
 export interface UpdateUserRequestBody {
   name?: string
   email?: string
