@@ -270,3 +270,55 @@ export const deleteUserController = async (req: Request, res: Response, next: Ne
     next(error)
   }
 }
+
+/**
+ * Forgot password
+ * @description Send forgot password email
+ * @path /users/forgot-password
+ * @method POST
+ * @body {email: string}
+ * @author QuangDoo
+ */
+export const forgotPasswordController = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { email } = req.body
+    const result = await usersServices.forgotPassword(email)
+
+    return res.status(HTTP_STATUS_CODE.OK).json({
+      message: USER_MESSAGES.FORGOT_PASSWORD_SUCCESS,
+      result
+    })
+  } catch (error) {
+    next(error)
+  }
+}
+
+/**
+ * Reset password
+ * @description Reset password with token
+ * @path /users/reset-password
+ * @method POST
+ * @body {forgot_password_token: string, password: string, confirm_password: string}
+ * @author QuangDoo
+ */
+export const resetPasswordController = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { forgot_password_token, password, confirm_password } = req.body
+
+    // Kiểm tra password và confirm_password có khớp nhau không
+    if (password !== confirm_password) {
+      return res.status(HTTP_STATUS_CODE.BAD_REQUEST).json({
+        message: USER_MESSAGES.PASSWORD_NOT_MATCH
+      })
+    }
+
+    const result = await usersServices.resetPassword(forgot_password_token, password)
+
+    return res.status(HTTP_STATUS_CODE.OK).json({
+      message: USER_MESSAGES.RESET_PASSWORD_SUCCESS,
+      result
+    })
+  } catch (error) {
+    next(error)
+  }
+}

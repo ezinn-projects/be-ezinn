@@ -1,0 +1,77 @@
+import { Request, Response } from 'express'
+import { recruitmentService } from '~/services/recruitment.service'
+import { GetRecruitmentsRequest } from '~/models/requests/Recruitment.request'
+import { HTTP_STATUS_CODE } from '~/constants/httpStatus'
+
+export class RecruitmentController {
+  // Lấy danh sách đơn ứng tuyển (admin only)
+  async getRecruitments(req: Request, res: Response) {
+    try {
+      const query: GetRecruitmentsRequest = {
+        status: req.query.status as string,
+        page: req.query.page ? parseInt(req.query.page as string) : 1,
+        limit: req.query.limit ? parseInt(req.query.limit as string) : 10,
+        search: req.query.search as string
+      }
+
+      const result = await recruitmentService.getRecruitments(query)
+
+      res.status(HTTP_STATUS_CODE.OK).json({
+        message: 'Lấy danh sách đơn ứng tuyển thành công',
+        data: result.recruitments,
+        pagination: {
+          page: query.page || 1,
+          limit: query.limit || 10,
+          total: result.total,
+          totalPages: Math.ceil(result.total / (query.limit || 10))
+        }
+      })
+    } catch (error: any) {
+      res.status(error.status || HTTP_STATUS_CODE.INTERNAL_SERVER_ERROR).json({
+        message: error.message || 'Có lỗi xảy ra khi lấy danh sách đơn ứng tuyển'
+      })
+    }
+  }
+
+  // Lấy chi tiết đơn ứng tuyển (admin only)
+  async getRecruitmentById(req: Request, res: Response) {
+    try {
+      const { id } = req.params
+
+      const recruitment = await recruitmentService.getRecruitmentById(id)
+
+      if (!recruitment) {
+        return res.status(HTTP_STATUS_CODE.NOT_FOUND).json({
+          message: 'Không tìm thấy đơn ứng tuyển'
+        })
+      }
+
+      res.status(HTTP_STATUS_CODE.OK).json({
+        message: 'Lấy chi tiết đơn ứng tuyển thành công',
+        data: recruitment
+      })
+    } catch (error: any) {
+      res.status(error.status || HTTP_STATUS_CODE.INTERNAL_SERVER_ERROR).json({
+        message: error.message || 'Có lỗi xảy ra khi lấy chi tiết đơn ứng tuyển'
+      })
+    }
+  }
+
+  // Lấy thống kê đơn ứng tuyển (admin only)
+  async getRecruitmentStats(req: Request, res: Response) {
+    try {
+      const stats = await recruitmentService.getRecruitmentStats()
+
+      res.status(HTTP_STATUS_CODE.OK).json({
+        message: 'Lấy thống kê đơn ứng tuyển thành công',
+        data: stats
+      })
+    } catch (error: any) {
+      res.status(error.status || HTTP_STATUS_CODE.INTERNAL_SERVER_ERROR).json({
+        message: error.message || 'Có lỗi xảy ra khi lấy thống kê đơn ứng tuyển'
+      })
+    }
+  }
+}
+
+export const recruitmentController = new RecruitmentController()

@@ -52,3 +52,24 @@ export enum FnBCategory {
   SNACK = 'snack',
   DRINK = 'drink'
 }
+
+export enum RecruitmentStatus {
+  Pending = 'pending',
+  Reviewed = 'reviewed',
+  Approved = 'approved',
+  Rejected = 'rejected',
+  Hired = 'hired'
+}
+
+export enum CurrentStatus {
+  Student = 'student',
+  Working = 'working',
+  Other = 'other'
+}
+
+export enum WorkTimeSlot {
+  Morning = 'morning', // 10h-14h
+  Afternoon = 'afternoon', // 14h-18h
+  Evening = 'evening', // 18h-24h
+  Weekend = 'weekend' // T7-CN
+}
