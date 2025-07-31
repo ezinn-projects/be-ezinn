@@ -57,6 +57,45 @@ export class RecruitmentController {
     }
   }
 
+  // Cập nhật trạng thái đơn ứng tuyển (admin only)
+  async updateRecruitmentStatus(req: Request, res: Response) {
+    try {
+      const { id } = req.params
+      const { status } = req.body
+
+      if (!status) {
+        return res.status(HTTP_STATUS_CODE.BAD_REQUEST).json({
+          message: 'Trạng thái không được để trống'
+        })
+      }
+
+      // Kiểm tra status có hợp lệ không
+      const validStatuses = ['pending', 'reviewed', 'approved', 'rejected', 'hired']
+      if (!validStatuses.includes(status)) {
+        return res.status(HTTP_STATUS_CODE.BAD_REQUEST).json({
+          message: 'Trạng thái không hợp lệ'
+        })
+      }
+
+      const recruitment = await recruitmentService.updateRecruitment(id, { status })
+
+      if (!recruitment) {
+        return res.status(HTTP_STATUS_CODE.NOT_FOUND).json({
+          message: 'Không tìm thấy đơn ứng tuyển'
+        })
+      }
+
+      res.status(HTTP_STATUS_CODE.OK).json({
+        message: 'Cập nhật trạng thái đơn ứng tuyển thành công',
+        data: recruitment
+      })
+    } catch (error: any) {
+      res.status(error.status || HTTP_STATUS_CODE.INTERNAL_SERVER_ERROR).json({
+        message: error.message || 'Có lỗi xảy ra khi cập nhật trạng thái đơn ứng tuyển'
+      })
+    }
+  }
+
   // Lấy thống kê đơn ứng tuyển (admin only)
   async getRecruitmentStats(req: Request, res: Response) {
     try {

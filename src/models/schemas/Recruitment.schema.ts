@@ -1,59 +1,67 @@
 import { ObjectId } from 'mongodb'
-import { RecruitmentStatus, CurrentStatus, WorkTimeSlot } from '~/constants/enum'
+import { RecruitmentStatus } from '~/constants/enum'
 
 export interface IRecruitment {
   _id?: ObjectId
   fullName: string
-  birthYear: number // Chỉ lưu năm sinh để tính tuổi
-  phoneNumber: string
-  socialMedia: string // Facebook/Zalo
-  currentStatus: CurrentStatus
-  currentStatusOther?: string // Nếu chọn "Khác"
-  area: string // Phường/xã + Quận/huyện
-  availableWorkTimes: WorkTimeSlot[] // Có thể chọn nhiều khung giờ
+  birthDate: Date
+  gender: string
+  phone: string
+  email: string
+  socialMedia: string
+  currentStatus: string
+  otherStatus: string
+  workDays: string[]
+  position: string
+  submittedAt: Date
   status: RecruitmentStatus
-  notes?: string // Ghi chú của admin
-  createdAt: Date
-  updatedAt?: Date
 }
 
 export class Recruitment {
   _id?: ObjectId
   fullName: string
-  birthYear: number
-  phoneNumber: string
+  birthDate: Date
+  gender: string
+  phone: string
+  email: string
   socialMedia: string
-  currentStatus: CurrentStatus
-  currentStatusOther?: string
-  area: string
-  availableWorkTimes: WorkTimeSlot[]
+  currentStatus: string
+  otherStatus: string
+  workDays: string[]
+  position: string
+  submittedAt: Date
   status: RecruitmentStatus
-  notes?: string
-  createdAt: Date
-  updatedAt?: Date
 
   constructor(recruitment: IRecruitment) {
     const date = new Date()
 
     this._id = recruitment._id
     this.fullName = recruitment.fullName
-    this.birthYear = recruitment.birthYear
-    this.phoneNumber = recruitment.phoneNumber
+    this.birthDate = recruitment.birthDate || date
+    this.gender = recruitment.gender
+    this.phone = recruitment.phone
+    this.email = recruitment.email
     this.socialMedia = recruitment.socialMedia
     this.currentStatus = recruitment.currentStatus
-    this.currentStatusOther = recruitment.currentStatusOther
-    this.area = recruitment.area
-    this.availableWorkTimes = recruitment.availableWorkTimes || []
+    this.otherStatus = recruitment.otherStatus
+    this.workDays = recruitment.workDays || []
+    this.position = recruitment.position
+    this.submittedAt = recruitment.submittedAt || date
     this.status = recruitment.status || RecruitmentStatus.Pending
-    this.notes = recruitment.notes
-    this.createdAt = recruitment.createdAt || date
-    this.updatedAt = recruitment.updatedAt || date
   }
 
-  // Tính tuổi từ năm sinh
+  // Tính tuổi từ ngày sinh
   getAge(): number {
-    const currentYear = new Date().getFullYear()
-    return currentYear - this.birthYear
+    const today = new Date()
+    const birthDate = new Date(this.birthDate)
+    let age = today.getFullYear() - birthDate.getFullYear()
+    const monthDiff = today.getMonth() - birthDate.getMonth()
+
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+      age--
+    }
+
+    return age
   }
 
   // Kiểm tra xem có đủ tuổi không (18-25 tuổi)

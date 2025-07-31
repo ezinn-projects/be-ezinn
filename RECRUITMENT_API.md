@@ -12,17 +12,17 @@ API này cung cấp các endpoints để admin xem và quản lý đơn ứng tu
 {
   _id: ObjectId,
   fullName: string,           // Họ tên đầy đủ
-  birthYear: number,          // Năm sinh (để tính tuổi 18-25)
-  phoneNumber: string,        // Số điện thoại (10-11 số)
+  birthDate: Date,            // Ngày sinh
+  gender: string,             // Giới tính
+  phone: string,              // Số điện thoại
+  email: string,              // Email
   socialMedia: string,        // Facebook/Zalo
-  currentStatus: string,      // 'student' | 'working' | 'other'
-  currentStatusOther?: string, // Thông tin bổ sung nếu chọn 'other'
-  area: string,               // Khu vực (Phường/xã + Quận/huyện)
-  availableWorkTimes: string[], // ['morning', 'afternoon', 'evening', 'weekend']
-  status: string,             // 'pending' | 'reviewed' | 'approved' | 'rejected' | 'hired'
-  notes?: string,             // Ghi chú của admin
-  createdAt: Date,
-  updatedAt?: Date
+  currentStatus: string,      // Trạng thái hiện tại
+  otherStatus: string,        // Thông tin khác
+  workDays: string[],         // Ngày có thể làm việc
+  position: string,           // Vị trí ứng tuyển
+  submittedAt: Date,          // Ngày nộp đơn
+  status: string              // 'pending' | 'reviewed' | 'approved' | 'rejected' | 'hired'
 }
 ```
 
@@ -41,26 +41,29 @@ Authorization: Bearer <access_token>
 - `status` (optional): Lọc theo trạng thái
 - `page` (optional): Trang hiện tại (default: 1)
 - `limit` (optional): Số lượng item mỗi trang (default: 10)
-- `search` (optional): Tìm kiếm theo tên, số điện thoại, khu vực
+- `search` (optional): Tìm kiếm theo tên, số điện thoại, email, vị trí
 
 **Response (200):**
 ```json
 {
   "message": "Lấy danh sách đơn ứng tuyển thành công",
-  "data": [
-    {
-      "_id": "...",
-      "fullName": "Nguyễn Văn A",
-      "birthYear": 2000,
-      "phoneNumber": "0123456789",
-      "socialMedia": "facebook.com/nguyenvana",
-      "currentStatus": "student",
-      "area": "Phường 1, Quận 1, TP.HCM",
-      "availableWorkTimes": ["evening", "weekend"],
-      "status": "pending",
-      "createdAt": "2024-01-01T00:00:00.000Z"
-    }
-  ],
+        "data": [
+        {
+          "_id": "...",
+          "fullName": "Nguyễn Văn A",
+          "birthDate": "2000-01-01T00:00:00.000Z",
+          "gender": "Nam",
+          "phone": "0123456789",
+          "email": "nguyenvana@email.com",
+          "socialMedia": "facebook.com/nguyenvana",
+          "currentStatus": "Sinh viên",
+          "otherStatus": "",
+          "workDays": ["Thứ 2", "Thứ 3", "Thứ 4"],
+          "position": "Nhân viên phục vụ",
+          "submittedAt": "2024-01-01T00:00:00.000Z",
+          "status": "pending"
+        }
+      ],
   "pagination": {
     "page": 1,
     "limit": 10,
@@ -83,24 +86,63 @@ Authorization: Bearer <access_token>
 ```json
 {
   "message": "Lấy chi tiết đơn ứng tuyển thành công",
+          "data": {
+          "_id": "...",
+          "fullName": "Nguyễn Văn A",
+          "birthDate": "2000-01-01T00:00:00.000Z",
+          "gender": "Nam",
+          "phone": "0123456789",
+          "email": "nguyenvana@email.com",
+          "socialMedia": "facebook.com/nguyenvana",
+          "currentStatus": "Sinh viên",
+          "otherStatus": "",
+          "workDays": ["Thứ 2", "Thứ 3", "Thứ 4"],
+          "position": "Nhân viên phục vụ",
+          "submittedAt": "2024-01-01T00:00:00.000Z",
+          "status": "pending"
+        }
+}
+```
+
+### 3. Cập nhật trạng thái đơn ứng tuyển
+
+**PUT** `/recruitments/recruitments/:id/status`
+
+**Headers:**
+```
+Authorization: Bearer <access_token>
+```
+
+**Request Body:**
+```json
+{
+  "status": "approved"
+}
+```
+
+**Response (200):**
+```json
+{
+  "message": "Cập nhật trạng thái đơn ứng tuyển thành công",
   "data": {
     "_id": "...",
     "fullName": "Nguyễn Văn A",
-    "birthYear": 2000,
-    "phoneNumber": "0123456789",
+    "birthDate": "2000-01-01T00:00:00.000Z",
+    "gender": "Nam",
+    "phone": "0123456789",
+    "email": "nguyenvana@email.com",
     "socialMedia": "facebook.com/nguyenvana",
-    "currentStatus": "student",
-    "area": "Phường 1, Quận 1, TP.HCM",
-    "availableWorkTimes": ["evening", "weekend"],
-    "status": "pending",
-    "notes": "",
-    "createdAt": "2024-01-01T00:00:00.000Z",
-    "updatedAt": "2024-01-01T00:00:00.000Z"
+    "currentStatus": "Sinh viên",
+    "otherStatus": "",
+    "workDays": ["Thứ 2", "Thứ 3", "Thứ 4"],
+    "position": "Nhân viên phục vụ",
+    "submittedAt": "2024-01-01T00:00:00.000Z",
+    "status": "approved"
   }
 }
 ```
 
-### 3. Thống kê đơn ứng tuyển
+### 4. Thống kê đơn ứng tuyển
 
 **GET** `/recruitments/stats`
 
@@ -132,12 +174,20 @@ Authorization: Bearer <access_token>
 - `rejected`: Từ chối
 - `hired`: Đã tuyển dụng
 
-## Khung giờ làm việc
+## Các trường dữ liệu
 
-- `morning`: 10h-14h
-- `afternoon`: 14h-18h
-- `evening`: 18h-24h
-- `weekend`: Thứ 7 - Chủ nhật
+- `fullName`: Họ tên đầy đủ
+- `birthDate`: Ngày sinh (Date)
+- `gender`: Giới tính (Nam/Nữ)
+- `phone`: Số điện thoại
+- `email`: Email
+- `socialMedia`: Facebook/Zalo
+- `currentStatus`: Trạng thái hiện tại (Sinh viên/Đi làm/Khác)
+- `otherStatus`: Thông tin bổ sung nếu chọn "Khác"
+- `workDays`: Mảng các ngày có thể làm việc
+- `position`: Vị trí ứng tuyển
+- `submittedAt`: Ngày nộp đơn
+- `status`: Trạng thái đơn ứng tuyển
 
 ## Error Responses
 
@@ -181,6 +231,14 @@ curl -X GET "http://localhost:4000/recruitments/recruitments?page=1&limit=10&sta
 ```bash
 curl -X GET "http://localhost:4000/recruitments/recruitments/507f1f77bcf86cd799439011" \
   -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
+```
+
+### Cập nhật trạng thái đơn ứng tuyển:
+```bash
+curl -X PUT "http://localhost:4000/recruitments/recruitments/507f1f77bcf86cd799439011/status" \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"status": "approved"}'
 ```
 
 ### Lấy thống kê:

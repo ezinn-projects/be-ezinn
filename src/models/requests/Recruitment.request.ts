@@ -1,19 +1,18 @@
-import { CurrentStatus, WorkTimeSlot } from '~/constants/enum'
-
 export interface CreateRecruitmentRequest {
   fullName: string
-  birthYear: number
-  phoneNumber: string
+  birthDate: Date
+  gender: string
+  phone: string
+  email: string
   socialMedia: string
-  currentStatus: CurrentStatus
-  currentStatusOther?: string
-  area: string
-  availableWorkTimes: WorkTimeSlot[]
+  currentStatus: string
+  otherStatus: string
+  workDays: string[]
+  position: string
 }
 
 export interface UpdateRecruitmentRequest {
   status?: string
-  notes?: string
 }
 
 export interface GetRecruitmentsRequest {

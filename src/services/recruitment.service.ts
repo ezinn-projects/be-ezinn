@@ -1,24 +1,36 @@
 import { ObjectId } from 'mongodb'
-import { Recruitment, IRecruitment } from '~/models/schemas/Recruitment.schema'
-import { RecruitmentStatus, CurrentStatus, WorkTimeSlot } from '~/constants/enum'
+import { RecruitmentStatus } from '~/constants/enum'
+import { HTTP_STATUS_CODE } from '~/constants/httpStatus'
+import { ErrorWithStatus } from '~/models/Error'
 import {
   CreateRecruitmentRequest,
-  UpdateRecruitmentRequest,
-  GetRecruitmentsRequest
+  GetRecruitmentsRequest,
+  UpdateRecruitmentRequest
 } from '~/models/requests/Recruitment.request'
+import { IRecruitment, Recruitment } from '~/models/schemas/Recruitment.schema'
 import databaseService from './database.service'
-import { ErrorWithStatus } from '~/models/Error'
-import { HTTP_STATUS_CODE } from '~/constants/httpStatus'
 
 class RecruitmentService {
   private collection = 'recruitments'
 
   async createRecruitment(data: CreateRecruitmentRequest): Promise<Recruitment> {
     // Kiểm tra tuổi
-    const currentYear = new Date().getFullYear()
-    const age = currentYear - data.birthYear
+    const recruitment = new Recruitment({
+      fullName: data.fullName,
+      birthDate: data.birthDate,
+      gender: data.gender,
+      phone: data.phone,
+      email: data.email,
+      socialMedia: data.socialMedia,
+      currentStatus: data.currentStatus,
+      otherStatus: data.otherStatus,
+      workDays: data.workDays,
+      position: data.position,
+      submittedAt: new Date(),
+      status: RecruitmentStatus.Pending
+    })
 
-    if (age < 18 || age > 25) {
+    if (!recruitment.isValidAge()) {
       throw new ErrorWithStatus({
         message: 'Chỉ nhận ứng viên từ 18-25 tuổi',
         status: HTTP_STATUS_CODE.BAD_REQUEST
@@ -27,7 +39,7 @@ class RecruitmentService {
 
     // Kiểm tra số điện thoại đã tồn tại chưa
     const existingRecruitment = await databaseService.getCollection(this.collection).findOne({
-      phoneNumber: data.phoneNumber
+      phone: data.phone
     })
 
     if (existingRecruitment) {
@@ -39,15 +51,17 @@ class RecruitmentService {
 
     const recruitmentData: IRecruitment = {
       fullName: data.fullName,
-      birthYear: data.birthYear,
-      phoneNumber: data.phoneNumber,
+      birthDate: data.birthDate,
+      gender: data.gender,
+      phone: data.phone,
+      email: data.email,
       socialMedia: data.socialMedia,
       currentStatus: data.currentStatus,
-      currentStatusOther: data.currentStatusOther,
-      area: data.area,
-      availableWorkTimes: data.availableWorkTimes,
-      status: RecruitmentStatus.Pending,
-      createdAt: new Date()
+      otherStatus: data.otherStatus,
+      workDays: data.workDays,
+      position: data.position,
+      submittedAt: new Date(),
+      status: RecruitmentStatus.Pending
     }
 
     const result = await databaseService.getCollection(this.collection).insertOne(recruitmentData)
@@ -71,8 +85,9 @@ class RecruitmentService {
     if (search) {
       filter.$or = [
         { fullName: { $regex: search, $options: 'i' } },
-        { phoneNumber: { $regex: search, $options: 'i' } },
-        { area: { $regex: search, $options: 'i' } }
+        { phone: { $regex: search, $options: 'i' } },
+        { email: { $regex: search, $options: 'i' } },
+        { position: { $regex: search, $options: 'i' } }
       ]
     }
 
@@ -102,16 +117,10 @@ class RecruitmentService {
   }
 
   async updateRecruitment(id: string, data: UpdateRecruitmentRequest): Promise<Recruitment | null> {
-    const updateData: any = {
-      updatedAt: new Date()
-    }
+    const updateData: any = {}
 
     if (data.status) {
       updateData.status = data.status
-    }
-
-    if (data.notes !== undefined) {
-      updateData.notes = data.notes
     }
 
     const result = await databaseService
