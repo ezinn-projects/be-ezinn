@@ -5,16 +5,17 @@ export interface IRecruitment {
   _id?: ObjectId
   fullName: string
   birthDate: Date
-  gender: string
-  phone: string
-  email: string
-  socialMedia: string
-  currentStatus: string
-  otherStatus: string
-  workDays: string[]
-  position: string
+  gender: string // "male" | "female" | "other"
+  phone: string // Format: 0xxxxxxxxx
+  email: string | null // Optional
+  socialMedia: string // Facebook/Zalo link
+  currentStatus: string // "student" | "working" | "other"
+  otherStatus: string | null // Thông tin khác (nếu currentStatus = "other")
+  position: string[] // ["cashier", "server", "parking"] - có thể chọn nhiều
+  workShifts: string[] // ["morning", "evening"] - có thể chọn nhiều
   submittedAt: Date
   status: RecruitmentStatus
+  workDays?: string[] | null // Optional - backward compatibility
 }
 
 export class Recruitment {
@@ -23,14 +24,15 @@ export class Recruitment {
   birthDate: Date
   gender: string
   phone: string
-  email: string
+  email: string | null
   socialMedia: string
   currentStatus: string
-  otherStatus: string
-  workDays: string[]
-  position: string
+  otherStatus: string | null
+  position: string[]
+  workShifts: string[]
   submittedAt: Date
   status: RecruitmentStatus
+  workDays?: string[] | null
 
   constructor(recruitment: IRecruitment) {
     const date = new Date()
@@ -44,10 +46,11 @@ export class Recruitment {
     this.socialMedia = recruitment.socialMedia
     this.currentStatus = recruitment.currentStatus
     this.otherStatus = recruitment.otherStatus
-    this.workDays = recruitment.workDays || []
-    this.position = recruitment.position
+    this.position = recruitment.position || []
+    this.workShifts = recruitment.workShifts || []
     this.submittedAt = recruitment.submittedAt || date
     this.status = recruitment.status || RecruitmentStatus.Pending
+    this.workDays = recruitment.workDays
   }
 
   // Tính tuổi từ ngày sinh
@@ -68,5 +71,18 @@ export class Recruitment {
   isValidAge(): boolean {
     const age = this.getAge()
     return age >= 18 && age <= 25
+  }
+
+  // Kiểm tra format số điện thoại Việt Nam
+  isValidPhone(): boolean {
+    const phoneRegex = /^0[0-9]{9}$/
+    return phoneRegex.test(this.phone)
+  }
+
+  // Kiểm tra email hợp lệ (nếu có)
+  isValidEmail(): boolean {
+    if (!this.email) return true // Optional
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    return emailRegex.test(this.email)
   }
 }

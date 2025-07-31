@@ -12,17 +12,18 @@ API này cung cấp các endpoints để admin xem và quản lý đơn ứng tu
 {
   _id: ObjectId,
   fullName: string,           // Họ tên đầy đủ
-  birthDate: Date,            // Ngày sinh
-  gender: string,             // Giới tính
-  phone: string,              // Số điện thoại
-  email: string,              // Email
-  socialMedia: string,        // Facebook/Zalo
-  currentStatus: string,      // Trạng thái hiện tại
-  otherStatus: string,        // Thông tin khác
-  workDays: string[],         // Ngày có thể làm việc
-  position: string,           // Vị trí ứng tuyển
-  submittedAt: Date,          // Ngày nộp đơn
-  status: string              // 'pending' | 'reviewed' | 'approved' | 'rejected' | 'hired'
+  birthDate: Date,            // Ngày sinh (dd/mm/yyyy)
+  gender: string,             // "male" | "female" | "other"
+  phone: string,              // Số điện thoại (0xxxxxxxxx)
+  email: string | null,       // Email (optional)
+  socialMedia: string,        // Facebook/Zalo link
+  currentStatus: string,      // "student" | "working" | "other"
+  otherStatus: string | null, // Thông tin khác (nếu currentStatus = "other")
+  position: string[],         // ["cashier", "server", "parking"] - có thể chọn nhiều
+  workShifts: string[],       // ["morning", "evening"] - có thể chọn nhiều
+  submittedAt: Date,          // Thời gian nộp đơn
+  status: string,             // "pending" | "reviewed" | "contacted" | "hired" | "rejected"
+  workDays?: string[] | null  // Optional - backward compatibility
 }
 ```
 
@@ -39,6 +40,8 @@ Authorization: Bearer <access_token>
 
 **Query Parameters:**
 - `status` (optional): Lọc theo trạng thái
+- `position` (optional): Lọc theo vị trí ứng tuyển
+- `gender` (optional): Lọc theo giới tính
 - `page` (optional): Trang hiện tại (default: 1)
 - `limit` (optional): Số lượng item mỗi trang (default: 10)
 - `search` (optional): Tìm kiếm theo tên, số điện thoại, email, vị trí
@@ -52,14 +55,14 @@ Authorization: Bearer <access_token>
           "_id": "...",
           "fullName": "Nguyễn Văn A",
           "birthDate": "2000-01-01T00:00:00.000Z",
-          "gender": "Nam",
+          "gender": "male",
           "phone": "0123456789",
           "email": "nguyenvana@email.com",
           "socialMedia": "facebook.com/nguyenvana",
-          "currentStatus": "Sinh viên",
-          "otherStatus": "",
-          "workDays": ["Thứ 2", "Thứ 3", "Thứ 4"],
-          "position": "Nhân viên phục vụ",
+          "currentStatus": "student",
+          "otherStatus": null,
+          "position": ["server", "cashier"],
+          "workShifts": ["morning", "evening"],
           "submittedAt": "2024-01-01T00:00:00.000Z",
           "status": "pending"
         }
@@ -90,14 +93,14 @@ Authorization: Bearer <access_token>
           "_id": "...",
           "fullName": "Nguyễn Văn A",
           "birthDate": "2000-01-01T00:00:00.000Z",
-          "gender": "Nam",
+          "gender": "male",
           "phone": "0123456789",
           "email": "nguyenvana@email.com",
           "socialMedia": "facebook.com/nguyenvana",
-          "currentStatus": "Sinh viên",
-          "otherStatus": "",
-          "workDays": ["Thứ 2", "Thứ 3", "Thứ 4"],
-          "position": "Nhân viên phục vụ",
+          "currentStatus": "student",
+          "otherStatus": null,
+          "position": ["server", "cashier"],
+          "workShifts": ["morning", "evening"],
           "submittedAt": "2024-01-01T00:00:00.000Z",
           "status": "pending"
         }
@@ -168,25 +171,35 @@ Authorization: Bearer <access_token>
 
 ## Trạng thái đơn ứng tuyển
 
-- `pending`: Chờ xử lý
+- `pending`: Chờ xem xét
 - `reviewed`: Đã xem xét
-- `approved`: Đã duyệt
-- `rejected`: Từ chối
+- `contacted`: Đã liên hệ
 - `hired`: Đã tuyển dụng
+- `rejected`: Từ chối
 
 ## Các trường dữ liệu
 
+### Thông tin cá nhân:
 - `fullName`: Họ tên đầy đủ
-- `birthDate`: Ngày sinh (Date)
-- `gender`: Giới tính (Nam/Nữ)
-- `phone`: Số điện thoại
-- `email`: Email
-- `socialMedia`: Facebook/Zalo
-- `currentStatus`: Trạng thái hiện tại (Sinh viên/Đi làm/Khác)
-- `otherStatus`: Thông tin bổ sung nếu chọn "Khác"
-- `workDays`: Mảng các ngày có thể làm việc
-- `position`: Vị trí ứng tuyển
-- `submittedAt`: Ngày nộp đơn
+- `birthDate`: Ngày sinh (dd/mm/yyyy, validate 18-25 tuổi)
+- `gender`: Giới tính ("male" | "female" | "other")
+- `phone`: Số điện thoại (format: 0xxxxxxxxx)
+- `email`: Email (optional)
+- `socialMedia`: Facebook/Zalo (required)
+
+### Thông tin ứng tuyển:
+- `currentStatus`: Tình trạng hiện tại ("student" | "working" | "other")
+- `otherStatus`: Thông tin khác (nếu currentStatus = "other")
+- `position`: Vị trí ứng tuyển (array - có thể chọn nhiều)
+  - `"cashier"` = Nhân viên lễ tân
+  - `"server"` = Nhân viên phục vụ  
+  - `"parking"` = Nhân viên giữ xe
+- `workShifts`: Ca làm việc (array - có thể chọn nhiều)
+  - `"morning"` = Ca sáng (12:00-17:00)
+  - `"evening"` = Ca tối (17:00-22:00)
+
+### Quản lý đơn:
+- `submittedAt`: Thời gian nộp đơn
 - `status`: Trạng thái đơn ứng tuyển
 
 ## Error Responses

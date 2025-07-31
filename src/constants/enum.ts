@@ -56,9 +56,9 @@ export enum FnBCategory {
 export enum RecruitmentStatus {
   Pending = 'pending',
   Reviewed = 'reviewed',
-  Approved = 'approved',
-  Rejected = 'rejected',
-  Hired = 'hired'
+  Contacted = 'contacted',
+  Hired = 'hired',
+  Rejected = 'rejected'
 }
 
 export enum CurrentStatus {

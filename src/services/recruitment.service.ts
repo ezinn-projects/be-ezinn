@@ -20,12 +20,12 @@ class RecruitmentService {
       birthDate: data.birthDate,
       gender: data.gender,
       phone: data.phone,
-      email: data.email,
+      email: data.email || null,
       socialMedia: data.socialMedia,
       currentStatus: data.currentStatus,
-      otherStatus: data.otherStatus,
-      workDays: data.workDays,
+      otherStatus: data.otherStatus || null,
       position: data.position,
+      workShifts: data.workShifts,
       submittedAt: new Date(),
       status: RecruitmentStatus.Pending
     })
@@ -33,6 +33,44 @@ class RecruitmentService {
     if (!recruitment.isValidAge()) {
       throw new ErrorWithStatus({
         message: 'Chỉ nhận ứng viên từ 18-25 tuổi',
+        status: HTTP_STATUS_CODE.BAD_REQUEST
+      })
+    }
+
+    if (!recruitment.isValidPhone()) {
+      throw new ErrorWithStatus({
+        message: 'Số điện thoại không đúng định dạng Việt Nam (0xxxxxxxxx)',
+        status: HTTP_STATUS_CODE.BAD_REQUEST
+      })
+    }
+
+    if (!recruitment.isValidEmail()) {
+      throw new ErrorWithStatus({
+        message: 'Email không hợp lệ',
+        status: HTTP_STATUS_CODE.BAD_REQUEST
+      })
+    }
+
+    // Kiểm tra position ít nhất 1 vị trí
+    if (!data.position || data.position.length === 0) {
+      throw new ErrorWithStatus({
+        message: 'Phải chọn ít nhất 1 vị trí ứng tuyển',
+        status: HTTP_STATUS_CODE.BAD_REQUEST
+      })
+    }
+
+    // Kiểm tra workShifts ít nhất 1 ca
+    if (!data.workShifts || data.workShifts.length === 0) {
+      throw new ErrorWithStatus({
+        message: 'Phải chọn ít nhất 1 ca làm việc',
+        status: HTTP_STATUS_CODE.BAD_REQUEST
+      })
+    }
+
+    // Kiểm tra otherStatus nếu currentStatus = "other"
+    if (data.currentStatus === 'other' && (!data.otherStatus || data.otherStatus.trim() === '')) {
+      throw new ErrorWithStatus({
+        message: 'Vui lòng điền thông tin khi chọn "Khác"',
         status: HTTP_STATUS_CODE.BAD_REQUEST
       })
     }
@@ -54,12 +92,12 @@ class RecruitmentService {
       birthDate: data.birthDate,
       gender: data.gender,
       phone: data.phone,
-      email: data.email,
+      email: data.email || null,
       socialMedia: data.socialMedia,
       currentStatus: data.currentStatus,
-      otherStatus: data.otherStatus,
-      workDays: data.workDays,
+      otherStatus: data.otherStatus || null,
       position: data.position,
+      workShifts: data.workShifts,
       submittedAt: new Date(),
       status: RecruitmentStatus.Pending
     }
@@ -73,13 +111,21 @@ class RecruitmentService {
   }
 
   async getRecruitments(query: GetRecruitmentsRequest = {}): Promise<{ recruitments: Recruitment[]; total: number }> {
-    const { status, page = 1, limit = 10, search } = query
+    const { status, position, gender, page = 1, limit = 10, search } = query
     const skip = (page - 1) * limit
 
     const filter: any = {}
 
     if (status) {
       filter.status = status
+    }
+
+    if (position) {
+      filter.position = { $in: [position] }
+    }
+
+    if (gender) {
+      filter.gender = gender
     }
 
     if (search) {
