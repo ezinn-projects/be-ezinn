@@ -11,6 +11,7 @@ export class RecruitmentController {
         status: req.query.status as string,
         position: req.query.position as string,
         gender: req.query.gender as string,
+        workShifts: req.query.workShifts as string,
         page: req.query.page ? parseInt(req.query.page as string) : 1,
         limit: req.query.limit ? parseInt(req.query.limit as string) : 10,
         search: req.query.search as string

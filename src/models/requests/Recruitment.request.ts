@@ -19,6 +19,7 @@ export interface GetRecruitmentsRequest {
   status?: string
   position?: string
   gender?: string
+  workShifts?: string
   page?: number
   limit?: number
   search?: string

@@ -111,7 +111,7 @@ class RecruitmentService {
   }
 
   async getRecruitments(query: GetRecruitmentsRequest = {}): Promise<{ recruitments: Recruitment[]; total: number }> {
-    const { status, position, gender, page = 1, limit = 10, search } = query
+    const { status, position, gender, workShifts, page = 1, limit = 10, search } = query
     const skip = (page - 1) * limit
 
     const filter: any = {}
@@ -128,6 +128,10 @@ class RecruitmentService {
       filter.gender = gender
     }
 
+    if (workShifts) {
+      filter.workShifts = { $in: [workShifts] }
+    }
+
     if (search) {
       filter.$or = [
         { fullName: { $regex: search, $options: 'i' } },
@@ -141,7 +145,7 @@ class RecruitmentService {
       databaseService
         .getCollection(this.collection)
         .find(filter)
-        .sort({ createdAt: -1 })
+        .sort({ submittedAt: -1 }) // Sắp xếp theo thứ tự mới nhất
         .skip(skip)
         .limit(limit)
         .toArray(),

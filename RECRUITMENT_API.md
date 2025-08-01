@@ -42,9 +42,12 @@ Authorization: Bearer <access_token>
 - `status` (optional): Lọc theo trạng thái
 - `position` (optional): Lọc theo vị trí ứng tuyển
 - `gender` (optional): Lọc theo giới tính
+- `workShifts` (optional): Lọc theo ca làm việc
 - `page` (optional): Trang hiện tại (default: 1)
 - `limit` (optional): Số lượng item mỗi trang (default: 10)
 - `search` (optional): Tìm kiếm theo tên, số điện thoại, email, vị trí
+
+**Lưu ý:** Kết quả được sắp xếp theo thứ tự mới nhất (submittedAt DESC)
 
 **Response (200):**
 ```json
@@ -236,7 +239,28 @@ Authorization: Bearer <access_token>
 
 ### Lấy danh sách đơn ứng tuyển:
 ```bash
-curl -X GET "http://localhost:4000/recruitments/recruitments?page=1&limit=10&status=pending" \
+# Lấy tất cả đơn ứng tuyển (sắp xếp theo mới nhất)
+curl -X GET "http://localhost:4000/recruitments/recruitments?page=1&limit=10" \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
+
+# Lọc theo trạng thái
+curl -X GET "http://localhost:4000/recruitments/recruitments?status=pending&page=1&limit=10" \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
+
+# Lọc theo vị trí ứng tuyển
+curl -X GET "http://localhost:4000/recruitments/recruitments?position=server&page=1&limit=10" \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
+
+# Lọc theo ca làm việc
+curl -X GET "http://localhost:4000/recruitments/recruitments?workShifts=morning&page=1&limit=10" \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
+
+# Lọc theo giới tính
+curl -X GET "http://localhost:4000/recruitments/recruitments?gender=male&page=1&limit=10" \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
+
+# Kết hợp nhiều filter
+curl -X GET "http://localhost:4000/recruitments/recruitments?status=pending&position=server&workShifts=morning&gender=female&page=1&limit=10" \
   -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
 ```
 
