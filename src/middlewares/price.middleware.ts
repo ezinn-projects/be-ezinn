@@ -20,18 +20,29 @@ export const createPriceValidator = validate(
       },
       custom: {
         options: (timeSlots: TimeSlot[]) => {
-          if (!timeSlots.length || timeSlots.length !== 2) {
+          if (!timeSlots.length) {
             throw new ErrorWithStatus({
-              message: 'Must have exactly 2 time slots',
+              message: 'At least one time slot is required',
               status: HTTP_STATUS_CODE.BAD_REQUEST
             })
           }
 
           // Kiểm tra từng time slot
-          return timeSlots.every((slot, index) => {
+          for (let i = 0; i < timeSlots.length; i++) {
+            const slot = timeSlots[i]
+
             if (!slot.start || !slot.end) {
               throw new ErrorWithStatus({
-                message: 'Start and end time are required',
+                message: 'Start and end time are required for each time slot',
+                status: HTTP_STATUS_CODE.BAD_REQUEST
+              })
+            }
+
+            // Kiểm tra format thời gian (HH:mm)
+            const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/
+            if (!timeRegex.test(slot.start) || !timeRegex.test(slot.end)) {
+              throw new ErrorWithStatus({
+                message: 'Time format must be HH:mm (e.g., 10:30, 23:45)',
                 status: HTTP_STATUS_CODE.BAD_REQUEST
               })
             }
@@ -42,7 +53,7 @@ export const createPriceValidator = validate(
 
             if (start >= end) {
               throw new ErrorWithStatus({
-                message: 'End time must be greater than start time',
+                message: `End time must be greater than start time in time slot ${i + 1}`,
                 status: HTTP_STATUS_CODE.BAD_REQUEST
               })
             }
@@ -50,13 +61,28 @@ export const createPriceValidator = validate(
             // Kiểm tra prices
             if (!slot.prices?.length) {
               throw new ErrorWithStatus({
-                message: 'Prices are required for each time slot',
+                message: `Prices are required for time slot ${i + 1}`,
                 status: HTTP_STATUS_CODE.BAD_REQUEST
               })
             }
 
-            return true
-          })
+            // Kiểm tra overlap với các time slots khác
+            for (let j = i + 1; j < timeSlots.length; j++) {
+              const otherSlot = timeSlots[j]
+              const otherStart = new Date(`2024-01-01T${otherSlot.start}`)
+              const otherEnd = new Date(`2024-01-01T${otherSlot.end}`)
+
+              // Kiểm tra overlap
+              if ((start < otherEnd && end > otherStart) || (otherStart < end && otherEnd > start)) {
+                throw new ErrorWithStatus({
+                  message: `Time slot ${i + 1} overlaps with time slot ${j + 1}`,
+                  status: HTTP_STATUS_CODE.BAD_REQUEST
+                })
+              }
+            }
+          }
+
+          return true
         }
       }
     },
