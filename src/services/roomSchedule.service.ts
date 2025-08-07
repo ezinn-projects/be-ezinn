@@ -68,11 +68,23 @@ class RoomScheduleService {
   }
 
   /**
+   * So sánh thời gian chỉ tính đến giờ và phút, bỏ qua giây
+   * @param time1 - Thời gian thứ nhất
+   * @param time2 - Thời gian thứ hai
+   * @returns true nếu time1 >= time2 (chỉ tính giờ và phút)
+   */
+  private compareTimeIgnoreSeconds(time1: Date, time2: Date): boolean {
+    const time1Minutes = time1.getHours() * 60 + time1.getMinutes()
+    const time2Minutes = time2.getHours() * 60 + time2.getMinutes()
+    return time1Minutes >= time2Minutes
+  }
+
+  /**
    * Validate thời gian cho lịch phòng.
    * Đối với trạng thái "Booked":
    * - Bắt buộc phải có endTime.
-   * - endTime phải lớn hơn startTime.
-   * - Khoảng cách giữa startTime và endTime không vượt quá 2 tiếng.
+   * - endTime phải lớn hơn hoặc bằng startTime (chỉ tính giờ và phút).
+   * - Khoảng cách giữa startTime và endTime không vượt quá 8 tiếng.
    *
    * @param schedule - Đối tượng lịch phòng {IRoomScheduleRequestBody}
    * @returns Một object chứa startTime và endTime (có thể null nếu không được cung cấp)
@@ -89,22 +101,24 @@ class RoomScheduleService {
           status: HTTP_STATUS_CODE.UNPROCESSABLE_ENTITY
         })
       }
-      if (endTime.getTime() <= startTime.getTime()) {
+
+      // So sánh thời gian chỉ tính đến giờ và phút
+      if (!this.compareTimeIgnoreSeconds(endTime, startTime)) {
         throw new ErrorWithStatus({
-          message: 'endTime must be greater than startTime.',
+          message: 'endTime must be greater than or equal to startTime (comparing only hours and minutes).',
           status: HTTP_STATUS_CODE.UNPROCESSABLE_ENTITY
         })
       }
 
       // Calculate duration in milliseconds
       const diffMs = endTime.getTime() - startTime.getTime()
-      const minDurationMs = 30 * 60 * 1000 // 30 minutes in milliseconds
+      const minDurationMs = 0 // Cho phép duration = 0 (startTime = endTime)
       const maxDurationMs = 8 * 60 * 60 * 1000 // 8 hours in milliseconds
 
-      // Validate minimum duration
+      // Validate minimum duration (cho phép = 0)
       if (diffMs < minDurationMs) {
         throw new ErrorWithStatus({
-          message: 'Booking duration must be at least 30 minutes.',
+          message: 'Booking duration cannot be negative.',
           status: HTTP_STATUS_CODE.UNPROCESSABLE_ENTITY
         })
       }

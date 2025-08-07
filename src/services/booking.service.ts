@@ -30,6 +30,18 @@ interface IClientBooking {
 
 class BookingService {
   /**
+   * So sánh thời gian chỉ tính đến giờ và phút, bỏ qua giây
+   * @param time1 - Thời gian thứ nhất (dayjs object)
+   * @param time2 - Thời gian thứ hai (dayjs object)
+   * @returns true nếu time1 >= time2 (chỉ tính giờ và phút)
+   */
+  private compareTimeIgnoreSeconds(time1: any, time2: any): boolean {
+    const time1Minutes = time1.hour() * 60 + time1.minute()
+    const time2Minutes = time2.hour() * 60 + time2.minute()
+    return time1Minutes >= time2Minutes
+  }
+
+  /**
    * Chuyển đổi booking của client thành các RoomSchedule entries
    * @param clientBooking - Thông tin booking từ client
    */
@@ -47,14 +59,22 @@ class BookingService {
         )
         const endTime = dayjs.tz(`${clientBooking.booking_date} ${endTimeStr}`, 'YYYY-MM-DD HH:mm', 'Asia/Ho_Chi_Minh')
 
+        // So sánh thời gian chỉ tính đến giờ và phút
+        if (!this.compareTimeIgnoreSeconds(endTime, startTime)) {
+          throw new ErrorWithStatus({
+            message: `End time must be greater than or equal to start time (comparing only hours and minutes). Invalid time slot: ${timeSlot}`,
+            status: HTTP_STATUS_CODE.UNPROCESSABLE_ENTITY
+          })
+        }
+
         // Calculate duration in milliseconds
         const diffMs = endTime.diff(startTime)
-        const minDurationMs = 30 * 60 * 1000 // 30 minutes in milliseconds
+        const minDurationMs = 0 // Cho phép duration = 0 (startTime = endTime)
 
-        // Validate minimum duration
+        // Validate minimum duration (cho phép = 0)
         if (diffMs < minDurationMs) {
           throw new ErrorWithStatus({
-            message: `Booking duration must be at least 30 minutes. Invalid time slot: ${timeSlot}`,
+            message: `Booking duration cannot be negative. Invalid time slot: ${timeSlot}`,
             status: HTTP_STATUS_CODE.UNPROCESSABLE_ENTITY
           })
         }

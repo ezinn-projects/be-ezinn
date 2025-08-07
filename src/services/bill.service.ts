@@ -468,10 +468,10 @@ export class BillService {
         .millisecond(0)
         .toDate()
 
-      // Kiểm tra nếu actualEndTime trước hoặc bằng startTime (điều này không hợp lý)
-      if (dayjs(validatedEndTime).isSameOrBefore(dayjs(startTime))) {
+      // Kiểm tra nếu actualEndTime trước startTime (chỉ tính giờ và phút)
+      if (!this.compareTimeIgnoreSeconds(validatedEndTime, startTime)) {
         console.warn(
-          `Warning: Actual end time (${actualEndTime}) is before or equal to start time (${dayjs(startTime).format('HH:mm')})`
+          `Warning: Actual end time (${actualEndTime}) is before start time (${dayjs(startTime).format('HH:mm')}) - comparing only hours and minutes`
         )
         console.warn(`Start time: ${dayjs(startTime).format('YYYY-MM-DD HH:mm:ss')}`)
         console.warn(`End time: ${dayjs(validatedEndTime).format('YYYY-MM-DD HH:mm:ss')}`)
@@ -2375,6 +2375,18 @@ export class BillService {
     }
 
     return numericPrice
+  }
+
+  /**
+   * So sánh thời gian chỉ tính đến giờ và phút, bỏ qua giây
+   * @param time1 - Thời gian thứ nhất
+   * @param time2 - Thời gian thứ hai
+   * @returns true nếu time1 >= time2 (chỉ tính giờ và phút)
+   */
+  private compareTimeIgnoreSeconds(time1: Date, time2: Date): boolean {
+    const time1Minutes = time1.getHours() * 60 + time1.getMinutes()
+    const time2Minutes = time2.getHours() * 60 + time2.getMinutes()
+    return time1Minutes >= time2Minutes
   }
 }
 

@@ -13,18 +13,32 @@ export const createPriceValidator = validate(
   checkSchema({
     timeSlots: {
       notEmpty: {
-        errorMessage: 'Time slots array is required'
+        errorMessage: 'Time slots are required'
       },
       isArray: {
         errorMessage: 'Time slots must be an array'
       },
       custom: {
         options: (timeSlots: TimeSlot[]) => {
-          if (!timeSlots.length) {
+          if (!Array.isArray(timeSlots) || timeSlots.length === 0) {
             throw new ErrorWithStatus({
               message: 'At least one time slot is required',
               status: HTTP_STATUS_CODE.BAD_REQUEST
             })
+          }
+
+          /**
+           * So sánh thời gian chỉ tính đến giờ và phút, bỏ qua giây
+           * @param time1 - Thời gian thứ nhất (HH:mm)
+           * @param time2 - Thời gian thứ hai (HH:mm)
+           * @returns true nếu time1 >= time2 (chỉ tính giờ và phút)
+           */
+          const compareTimeIgnoreSeconds = (time1: string, time2: string): boolean => {
+            const [hours1, minutes1] = time1.split(':').map(Number)
+            const [hours2, minutes2] = time2.split(':').map(Number)
+            const time1Minutes = hours1 * 60 + minutes1
+            const time2Minutes = hours2 * 60 + minutes2
+            return time1Minutes >= time2Minutes
           }
 
           // Kiểm tra từng time slot
@@ -47,13 +61,10 @@ export const createPriceValidator = validate(
               })
             }
 
-            // Kiểm tra thời gian hợp lệ
-            const start = new Date(`2024-01-01T${slot.start}`)
-            const end = new Date(`2024-01-01T${slot.end}`)
-
-            if (start >= end) {
+            // Kiểm tra thời gian hợp lệ (chỉ tính giờ và phút)
+            if (!compareTimeIgnoreSeconds(slot.end, slot.start)) {
               throw new ErrorWithStatus({
-                message: `End time must be greater than start time in time slot ${i + 1}`,
+                message: `End time must be greater than or equal to start time (comparing only hours and minutes) in time slot ${i + 1}`,
                 status: HTTP_STATUS_CODE.BAD_REQUEST
               })
             }
@@ -69,6 +80,8 @@ export const createPriceValidator = validate(
             // Kiểm tra overlap với các time slots khác
             for (let j = i + 1; j < timeSlots.length; j++) {
               const otherSlot = timeSlots[j]
+              const start = new Date(`2024-01-01T${slot.start}`)
+              const end = new Date(`2024-01-01T${slot.end}`)
               const otherStart = new Date(`2024-01-01T${otherSlot.start}`)
               const otherEnd = new Date(`2024-01-01T${otherSlot.end}`)
 
