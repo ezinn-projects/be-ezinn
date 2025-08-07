@@ -803,9 +803,25 @@ export const saveBill = async (req: Request, res: Response) => {
   const bill = req.body
 
   console.log('bill', bill)
-  if (!bill || !bill.scheduleId || !bill.roomId || !bill.items || !bill.totalAmount) {
+  
+  // Kiểm tra các trường bắt buộc
+  if (!bill || !bill.scheduleId || !bill.roomId) {
     return res.status(HTTP_STATUS_CODE.BAD_REQUEST).json({
-      message: 'Missing required bill fields (scheduleId, roomId, items, totalAmount)'
+      message: 'Missing required bill fields (scheduleId, roomId)'
+    })
+  }
+
+  // Kiểm tra items phải là array (có thể rỗng)
+  if (!Array.isArray(bill.items)) {
+    return res.status(HTTP_STATUS_CODE.BAD_REQUEST).json({
+      message: 'Items must be an array'
+    })
+  }
+
+  // Kiểm tra totalAmount phải là number (có thể = 0)
+  if (typeof bill.totalAmount !== 'number' || bill.totalAmount < 0) {
+    return res.status(HTTP_STATUS_CODE.BAD_REQUEST).json({
+      message: 'TotalAmount must be a non-negative number'
     })
   }
 
