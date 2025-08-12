@@ -88,21 +88,33 @@ jobs:
           script: |
             docker login -u ${{ secrets.DOCKER_USERNAME }} -p ${{ secrets.DOCKER_PASSWORD }}
             docker pull ${{ secrets.DOCKER_USERNAME }}/jozo-be:${{ steps.get_sha.outputs.GIT_SHA }}
-            # Chạy container mới trước, nếu thành công thì mới stop và remove container cũ
+
+            # Kiểm tra xem container cũ có đang chạy không
+            if docker ps | grep -q jozo-be; then
+              echo "Container cũ đang chạy, tạm thời stop để giải phóng port"
+              docker stop jozo-be
+              # Đợi một chút để port được giải phóng hoàn toàn
+              sleep 5
+            fi
+
+            # Chạy container mới với tên tạm thời
+            echo "Chạy container mới..."
             docker run -d --name jozo-be-new -p 4000:4000 -p 8080:8080 ${{ secrets.DOCKER_USERNAME }}/jozo-be:${{ steps.get_sha.outputs.GIT_SHA }}
+
             # Kiểm tra container mới có chạy thành công không
             if docker ps | grep -q jozo-be-new; then
               echo "Container mới chạy thành công, tiến hành thay thế container cũ"
-              # Stop và remove container cũ
-              docker stop jozo-be || true
+              # Remove container cũ (đã stop ở trên)
               docker rm jozo-be || true
               # Đổi tên container mới thành jozo-be
               docker rename jozo-be-new jozo-be
               echo "Thay thế container thành công"
             else
-              echo "Container mới chạy thất bại, giữ nguyên container cũ"
+              echo "Container mới chạy thất bại, khôi phục container cũ"
               # Xóa container mới nếu chạy thất bại
               docker rm jozo-be-new || true
+              # Khôi phục container cũ
+              docker start jozo-be || true
               exit 1
             fi
 
