@@ -543,15 +543,31 @@ export class BillService {
       })
     }
 
-    // Tính toán phí dịch vụ với việc xét nhiều khung giờ
+    // Tính toán phí dịch vụ với việc xét tất cả các khung giờ một cách linh hoạt
     let totalServiceFee = 0
     let totalHoursUsed = 0
-    const timeSlotItems = []
+    const timeSlotItems: Array<{
+      description: string
+      quantity: number
+      price: number
+      totalPrice: number
+      discountPercentage?: number
+      discountName?: string
+    }> = []
 
     // Sắp xếp các khung giờ theo thời gian bắt đầu
     const sortedTimeSlots = [...priceDoc.time_slots].sort((a, b) => {
       return a.start.localeCompare(b.start)
     })
+
+    console.log('=== TÍNH TOÁN KHUNG GIỜ LINH HOẠT ===')
+    console.log('Session start (VN):', dayjs(startTime).tz('Asia/Ho_Chi_Minh').format('YYYY-MM-DD HH:mm:ss'))
+    console.log('Session end (VN):', dayjs(validatedEndTime).tz('Asia/Ho_Chi_Minh').format('YYYY-MM-DD HH:mm:ss'))
+    console.log(
+      'Available time slots:',
+      sortedTimeSlots.map((slot) => `${slot.start}-${slot.end}`)
+    )
+    console.log('==========================')
 
     // Tạo ranh giới thời gian cho các khung giờ trong ngày
     const timeSlotBoundaries = []
@@ -576,179 +592,90 @@ export class BillService {
       })
     }
 
-    // Kiểm tra và tính toán giờ sử dụng trong từng khung giờ
-    const transitionTime = '18:00' // Thời điểm chuyển tiếp giữa các khung giờ
+    // Tính toán giờ sử dụng trong từng khung giờ một cách linh hoạt
     const sessionStartVN = dayjs(startTime).tz('Asia/Ho_Chi_Minh')
     const sessionEndVN = dayjs(validatedEndTime).tz('Asia/Ho_Chi_Minh')
-    const transitionPoint = dayjs.tz(
-      `${sessionStartVN.format('YYYY-MM-DD')} ${transitionTime}`,
-      'YYYY-MM-DD HH:mm',
-      'Asia/Ho_Chi_Minh'
-    )
 
-    // Debug log cho tính toán khung giờ
-    console.log('=== TÍNH TOÁN KHUNG GIỜ ===')
-    console.log('Session start (VN):', sessionStartVN.format('YYYY-MM-DD HH:mm:ss'))
-    console.log('Session end (VN):', sessionEndVN.format('YYYY-MM-DD HH:mm:ss'))
-    console.log('Transition point (18:00):', transitionPoint.format('YYYY-MM-DD HH:mm:ss'))
-    console.log('Is before transition?', sessionStartVN.isBefore(transitionPoint))
-    console.log('Is after transition?', sessionEndVN.isAfter(transitionPoint))
-    console.log('Session duration (hours):', sessionEndVN.diff(sessionStartVN, 'hour', true))
-    console.log('==========================')
+    // Tìm tất cả các khung giờ mà session đi qua
+    const applicableTimeSlots = []
 
-    // Kiểm tra xem phiên có kéo dài qua điểm chuyển tiếp không
-    if (sessionStartVN.isBefore(transitionPoint) && sessionEndVN.isAfter(transitionPoint)) {
-      // Tính toán cho khoảng thời gian trước 18:00
-      const hoursBeforeTransition = this.calculateHours(sessionStartVN.toDate(), transitionPoint.toDate())
-      console.log(`Tính toán giờ trước 18h: ${hoursBeforeTransition} giờ`)
-      if (hoursBeforeTransition > 0) {
-        // Tìm giá cho khung giờ trước 18:00
-        const beforePrice = sortedTimeSlots.find((slot) => {
-          const slotStart = dayjs.tz(
-            `${sessionStartVN.format('YYYY-MM-DD')} ${slot.start}`,
-            'YYYY-MM-DD HH:mm',
-            'Asia/Ho_Chi_Minh'
-          )
-          const slotEnd = dayjs.tz(
-            `${sessionStartVN.format('YYYY-MM-DD')} ${slot.end}`,
-            'YYYY-MM-DD HH:mm',
-            'Asia/Ho_Chi_Minh'
-          )
-          return sessionStartVN.isBetween(slotStart, slotEnd, null, '[)')
-        })
+    for (const slot of sortedTimeSlots) {
+      const slotStart = dayjs.tz(`${bookingDate} ${slot.start}`, 'YYYY-MM-DD HH:mm', 'Asia/Ho_Chi_Minh')
+      let slotEnd
 
-        if (beforePrice) {
-          const priceEntry = beforePrice.prices.find((p: any) => p.room_type === room?.roomType)
-          if (priceEntry) {
-            const slotServiceFee = Math.floor((hoursBeforeTransition * priceEntry.price) / 1000) * 1000
-            totalServiceFee += slotServiceFee
-            totalHoursUsed += hoursBeforeTransition
-
-            timeSlotItems.push({
-              description: `Phi dich vu thu am (${sessionStartVN.format('HH:mm')}-${transitionPoint.format('HH:mm')})`,
-              quantity: parseFloat(hoursBeforeTransition.toFixed(2)),
-              price: priceEntry.price,
-              totalPrice: slotServiceFee
-            })
-
-            console.log(
-              `Tính giờ cho khung trước 18h: ${sessionStartVN.format('HH:mm')}-${transitionPoint.format('HH:mm')}:`
-            )
-            console.log(`- Số giờ: ${hoursBeforeTransition}`)
-            console.log(`- Đơn giá: ${priceEntry.price}`)
-            console.log(`- Thành tiền: ${slotServiceFee}`)
-          }
-        }
-      }
-
-      // Tính toán cho khoảng thời gian sau 18:00
-      const hoursAfterTransition = this.calculateHours(transitionPoint.toDate(), sessionEndVN.toDate())
-      console.log(`Tính toán giờ sau 18h: ${hoursAfterTransition} giờ`)
-      if (hoursAfterTransition > 0) {
-        // Tìm giá cho khung giờ sau 18:00
-        const afterPrice = sortedTimeSlots.find((slot) => {
-          const slotStart = dayjs.tz(
-            `${sessionStartVN.format('YYYY-MM-DD')} ${slot.start}`,
-            'YYYY-MM-DD HH:mm',
-            'Asia/Ho_Chi_Minh'
-          )
-          const slotEnd =
-            slot.start > slot.end
-              ? dayjs
-                  .tz(`${sessionStartVN.format('YYYY-MM-DD')} ${slot.end}`, 'YYYY-MM-DD HH:mm', 'Asia/Ho_Chi_Minh')
-                  .add(1, 'day')
-              : dayjs.tz(`${sessionStartVN.format('YYYY-MM-DD')} ${slot.end}`, 'YYYY-MM-DD HH:mm', 'Asia/Ho_Chi_Minh')
-          return transitionPoint.isBetween(slotStart, slotEnd, null, '[)')
-        })
-
-        if (afterPrice) {
-          const priceEntry = afterPrice.prices.find((p: any) => p.room_type === room?.roomType)
-          if (priceEntry) {
-            const slotServiceFee = Math.floor((hoursAfterTransition * priceEntry.price) / 1000) * 1000
-            totalServiceFee += slotServiceFee
-            totalHoursUsed += hoursAfterTransition
-
-            timeSlotItems.push({
-              description: `Phi dich vu thu am (${transitionPoint.format('HH:mm')}-${sessionEndVN.format('HH:mm')})`,
-              quantity: parseFloat(hoursAfterTransition.toFixed(2)),
-              price: priceEntry.price,
-              totalPrice: slotServiceFee
-            })
-
-            console.log(
-              `Tính giờ cho khung sau 18h: ${transitionPoint.format('HH:mm')}-${sessionEndVN.format('HH:mm')}:`
-            )
-            console.log(`- Số giờ: ${hoursAfterTransition}`)
-            console.log(`- Đơn giá: ${priceEntry.price}`)
-            console.log(`- Thành tiền: ${slotServiceFee}`)
-          }
-        }
-      }
-
-      // Kiểm tra nếu cả hai khoảng thời gian đều = 0
-      if (hoursBeforeTransition <= 0 && hoursAfterTransition <= 0) {
-        console.log(
-          `Không tính phí dịch vụ vì tổng thời gian sử dụng = ${hoursBeforeTransition + hoursAfterTransition} giờ`
-        )
-      }
-    } else {
-      // Nếu không kéo dài qua điểm chuyển tiếp, tính toán bình thường
-      const hoursInSlot = this.calculateHours(sessionStartVN.toDate(), sessionEndVN.toDate())
-      console.log(`Tính toán giờ sử dụng: ${hoursInSlot} giờ`)
-
-      if (hoursInSlot > 0) {
-        // Tìm khung giờ phù hợp
-        const timeSlot = sortedTimeSlots.find((slot) => {
-          const slotStart = dayjs.tz(
-            `${sessionStartVN.format('YYYY-MM-DD')} ${slot.start}`,
-            'YYYY-MM-DD HH:mm',
-            'Asia/Ho_Chi_Minh'
-          )
-          const slotEnd =
-            slot.start > slot.end
-              ? dayjs
-                  .tz(`${sessionStartVN.format('YYYY-MM-DD')} ${slot.end}`, 'YYYY-MM-DD HH:mm', 'Asia/Ho_Chi_Minh')
-                  .add(1, 'day')
-              : dayjs.tz(`${sessionStartVN.format('YYYY-MM-DD')} ${slot.end}`, 'YYYY-MM-DD HH:mm', 'Asia/Ho_Chi_Minh')
-          return sessionStartVN.isBetween(slotStart, slotEnd, null, '[)')
-        })
-
-        if (timeSlot) {
-          const priceEntry = timeSlot.prices.find((p: any) => p.room_type === room?.roomType)
-          if (priceEntry) {
-            const slotServiceFee = Math.floor((hoursInSlot * priceEntry.price) / 1000) * 1000
-            totalServiceFee += slotServiceFee
-            totalHoursUsed += hoursInSlot
-
-            timeSlotItems.push({
-              description: `Phi dich vu thu am (${sessionStartVN.format('HH:mm')}-${sessionEndVN.format('HH:mm')})`,
-              quantity: parseFloat(hoursInSlot.toFixed(2)),
-              price: priceEntry.price,
-              totalPrice: slotServiceFee
-            })
-
-            console.log(`Tính giờ cho khung ${sessionStartVN.format('HH:mm')}-${sessionEndVN.format('HH:mm')}:`)
-            console.log(`- Số giờ: ${hoursInSlot}`)
-            console.log(`- Đơn giá: ${priceEntry.price}`)
-            console.log(`- Thành tiền: ${slotServiceFee}`)
-          }
-        }
+      // Xử lý khung giờ qua ngày
+      if (slot.start > slot.end) {
+        slotEnd = dayjs.tz(`${bookingDate} ${slot.end}`, 'YYYY-MM-DD HH:mm', 'Asia/Ho_Chi_Minh').add(1, 'day')
       } else {
-        console.log(`Không tính phí dịch vụ vì thời gian sử dụng = ${hoursInSlot} giờ`)
+        slotEnd = dayjs.tz(`${bookingDate} ${slot.end}`, 'YYYY-MM-DD HH:mm', 'Asia/Ho_Chi_Minh')
+      }
+
+      // Kiểm tra xem session có overlap với khung giờ này không
+      const sessionStart = sessionStartVN.toDate()
+      const sessionEnd = sessionEndVN.toDate()
+
+      // Tính toán thời gian overlap
+      const overlapStart = new Date(Math.max(sessionStart.getTime(), slotStart.toDate().getTime()))
+      const overlapEnd = new Date(Math.min(sessionEnd.getTime(), slotEnd.toDate().getTime()))
+
+      if (overlapStart < overlapEnd) {
+        const overlapHours = this.calculateHours(overlapStart, overlapEnd)
+        if (overlapHours > 0) {
+          applicableTimeSlots.push({
+            slot,
+            overlapStart,
+            overlapEnd,
+            overlapHours,
+            slotStart: slotStart.toDate(),
+            slotEnd: slotEnd.toDate()
+          })
+
+          console.log(
+            `Khung giờ ${slot.start}-${slot.end}: overlap từ ${dayjs(overlapStart).format('HH:mm')} đến ${dayjs(overlapEnd).format('HH:mm')} = ${overlapHours} giờ`
+          )
+        }
       }
     }
 
-    // Xử lý các đơn hàng F&B từ menu động
-    const items = [...timeSlotItems] as Array<{
-      description: string
-      quantity: number
-      price: number
-      totalPrice: number
-      originalPrice?: number
-      discountPercentage?: number
-      discountName?: string
-    }>
+    // Sắp xếp các khung giờ theo thời gian bắt đầu
+    applicableTimeSlots.sort((a, b) => a.overlapStart.getTime() - b.overlapStart.getTime())
 
+    console.log(`Tìm thấy ${applicableTimeSlots.length} khung giờ áp dụng`)
+
+    // Tính toán phí dịch vụ cho từng khung giờ
+    for (const timeSlotInfo of applicableTimeSlots) {
+      const { slot, overlapStart, overlapEnd, overlapHours } = timeSlotInfo
+
+      // Tìm giá cho loại phòng
+      const priceEntry = slot.prices.find((p: any) => p.room_type === room?.roomType)
+
+      if (priceEntry) {
+        const slotServiceFee = Math.floor((overlapHours * priceEntry.price) / 1000) * 1000
+        totalServiceFee += slotServiceFee
+        totalHoursUsed += overlapHours
+
+        const startTimeStr = dayjs(overlapStart).tz('Asia/Ho_Chi_Minh').format('HH:mm')
+        const endTimeStr = dayjs(overlapEnd).tz('Asia/Ho_Chi_Minh').format('HH:mm')
+
+        timeSlotItems.push({
+          description: `Phi dich vu thu am (${startTimeStr}-${endTimeStr})`,
+          quantity: parseFloat(overlapHours.toFixed(2)),
+          price: priceEntry.price,
+          totalPrice: slotServiceFee
+        })
+
+        console.log(`Tính giờ cho khung ${startTimeStr}-${endTimeStr}:`)
+        console.log(`- Số giờ: ${overlapHours}`)
+        console.log(`- Đơn giá: ${priceEntry.price}`)
+        console.log(`- Thành tiền: ${slotServiceFee}`)
+      }
+    }
+
+    if (applicableTimeSlots.length === 0) {
+      console.log('Không tìm thấy khung giờ nào áp dụng cho session này')
+    }
+
+    // Xử lý các đơn hàng F&B từ menu động
     console.log(`Tổng số items từ timeSlotItems: ${timeSlotItems.length}`)
     timeSlotItems.forEach((item, index) => {
       console.log(`Item ${index + 1}: ${item.description} - ${item.quantity} giờ - ${item.price} VND`)
@@ -807,7 +734,7 @@ export class BillService {
             console.log(
               `Thêm item: ${menuItem.name}, quantity: ${quantity}, price: ${price}, totalPrice: ${totalPrice}`
             )
-            items.push({
+            timeSlotItems.push({
               description: menuItem.name,
               quantity: quantity,
               price: price,
@@ -850,7 +777,7 @@ export class BillService {
             console.log(
               `Thêm item: ${menuItem.name}, quantity: ${quantity}, price: ${price}, totalPrice: ${totalPrice}`
             )
-            items.push({
+            timeSlotItems.push({
               description: menuItem.name,
               quantity: quantity,
               price: price,
@@ -869,7 +796,7 @@ export class BillService {
         console.log('Snacks object:', order.order.snacks)
       }
       console.log('=== KẾT THÚC XỬ LÝ FNB ITEMS ===')
-      console.log('Tổng số items sau khi xử lý FNB:', items.length)
+      console.log('Tổng số items sau khi xử lý FNB:', timeSlotItems.length)
     } else {
       console.log('Không có order hoặc order.order không tồn tại')
       console.log('Order object:', order)
@@ -930,9 +857,9 @@ export class BillService {
 
       if (shouldApplyPromotion) {
         // Thêm thông tin promotion vào từng item để hiển thị
-        for (let i = 0; i < items.length; i++) {
-          items[i].discountPercentage = activePromotion.discountPercentage
-          items[i].discountName = activePromotion.name
+        for (let i = 0; i < timeSlotItems.length; i++) {
+          timeSlotItems[i].discountPercentage = activePromotion.discountPercentage
+          timeSlotItems[i].discountName = activePromotion.name
         }
         console.log(`Đã áp dụng promotion ${activePromotion.discountPercentage}% cho tất cả items`)
       } else {
@@ -940,14 +867,14 @@ export class BillService {
       }
     }
 
-    console.log(`Tổng số items cuối cùng: ${items.length}`)
-    items.forEach((item, index) => {
+    console.log(`Tổng số items cuối cùng: ${timeSlotItems.length}`)
+    timeSlotItems.forEach((item, index) => {
       console.log(`Final Item ${index + 1}: ${item.description} - ${item.quantity} - ${item.price} VND`)
     })
 
     // Tính tổng tiền từ các mục đã được làm tròn
     // --- SỬA ĐOẠN NÀY: TÍNH SUBTOTAL, DISCOUNT, TOTALAMOUNT ---
-    let subtotal = items.reduce((acc, item) => {
+    let subtotal = timeSlotItems.reduce((acc, item) => {
       return acc + item.totalPrice
     }, 0)
 
@@ -968,7 +895,7 @@ export class BillService {
       endTime: validatedEndTime,
       createdAt: schedule.createdAt,
       note: schedule.note,
-      items: items.map((item) => ({
+      items: timeSlotItems.map((item) => ({
         description: item.description,
         price: item.price,
         quantity: typeof item.quantity === 'number' ? parseFloat(item.quantity.toFixed(2)) : item.quantity, // Đảm bảo hiển thị đúng 2 chữ số thập phân
