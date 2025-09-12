@@ -97,33 +97,39 @@ class TextPrinter {
   }
 
   text(str: string) {
-    let line = str
+    // Xử lý xuống dòng từ \n
+    const lines = str.split('\n')
 
-    // Nếu là dòng gạch ngang, chuẩn hóa độ dài
-    if (/^-+$/.test(line)) {
-      line = '-'.repeat(this.PAPER_WIDTH)
-    } else {
-      // Cắt chuỗi nếu dài hơn độ rộng giấy
-      if (line.length > this.PAPER_WIDTH) {
-        line = line.substring(0, this.PAPER_WIDTH)
-      }
+    for (let i = 0; i < lines.length; i++) {
+      let line = lines[i]
 
-      // Xử lý căn lề
-      if (this.currentAlign === 'ct') {
-        // Tính toán padding trái và phải để căn giữa chính xác
-        const totalPadding = this.PAPER_WIDTH - line.length
-        const leftPadding = Math.floor(totalPadding / 2)
-        const rightPadding = totalPadding - leftPadding
-        line = ' '.repeat(leftPadding) + line + ' '.repeat(rightPadding)
-      } else if (this.currentAlign === 'rt') {
-        line = line.padStart(this.PAPER_WIDTH)
+      // Nếu là dòng gạch ngang, chuẩn hóa độ dài
+      if (/^-+$/.test(line)) {
+        line = '-'.repeat(this.PAPER_WIDTH)
       } else {
-        // Căn trái (lt)
-        line = line.padEnd(this.PAPER_WIDTH)
+        // Cắt chuỗi nếu dài hơn độ rộng giấy
+        if (line.length > this.PAPER_WIDTH) {
+          line = line.substring(0, this.PAPER_WIDTH)
+        }
+
+        // Xử lý căn lề
+        if (this.currentAlign === 'ct') {
+          // Tính toán padding trái và phải để căn giữa chính xác
+          const totalPadding = this.PAPER_WIDTH - line.length
+          const leftPadding = Math.floor(totalPadding / 2)
+          const rightPadding = totalPadding - leftPadding
+          line = ' '.repeat(leftPadding) + line + ' '.repeat(rightPadding)
+        } else if (this.currentAlign === 'rt') {
+          line = line.padStart(this.PAPER_WIDTH)
+        } else {
+          // Căn trái (lt)
+          line = line.padEnd(this.PAPER_WIDTH)
+        }
       }
+
+      this.content.push(line)
     }
 
-    this.content.push(line)
     return this
   }
 
@@ -569,27 +575,44 @@ export class BillService {
     )
     console.log('==========================')
 
-    // Tạo ranh giới thời gian cho các khung giờ trong ngày
+    // Tạo ranh giới thời gian cho các khung giờ có thể trải qua nhiều ngày
     const timeSlotBoundaries = []
-    const bookingDate = dayjs(startTime).tz('Asia/Ho_Chi_Minh').format('YYYY-MM-DD')
+    const sessionStartDate = dayjs(startTime).tz('Asia/Ho_Chi_Minh').format('YYYY-MM-DD')
+    const sessionEndDate = dayjs(validatedEndTime).tz('Asia/Ho_Chi_Minh').format('YYYY-MM-DD')
 
-    for (const slot of sortedTimeSlots) {
-      // Tạo thời gian bắt đầu và kết thúc của khung giờ
-      const slotStartTime = dayjs.tz(`${bookingDate} ${slot.start}`, 'YYYY-MM-DD HH:mm', 'Asia/Ho_Chi_Minh')
-      let slotEndTime
+    // Tạo danh sách các ngày mà session đi qua
+    const sessionDates = []
+    let currentDate = dayjs(sessionStartDate).tz('Asia/Ho_Chi_Minh')
+    const endDate = dayjs(sessionEndDate).tz('Asia/Ho_Chi_Minh')
 
-      // Xử lý khung giờ qua ngày
-      if (slot.start > slot.end) {
-        slotEndTime = dayjs.tz(`${bookingDate} ${slot.end}`, 'YYYY-MM-DD HH:mm', 'Asia/Ho_Chi_Minh').add(1, 'day')
-      } else {
-        slotEndTime = dayjs.tz(`${bookingDate} ${slot.end}`, 'YYYY-MM-DD HH:mm', 'Asia/Ho_Chi_Minh')
+    while (currentDate.isSameOrBefore(endDate, 'day')) {
+      sessionDates.push(currentDate.format('YYYY-MM-DD'))
+      currentDate = currentDate.add(1, 'day')
+    }
+
+    console.log('Session đi qua các ngày:', sessionDates)
+
+    // Tạo khung giờ cho từng ngày mà session đi qua
+    for (const dateStr of sessionDates) {
+      for (const slot of sortedTimeSlots) {
+        // Tạo thời gian bắt đầu và kết thúc của khung giờ cho ngày này
+        const slotStartTime = dayjs.tz(`${dateStr} ${slot.start}`, 'YYYY-MM-DD HH:mm', 'Asia/Ho_Chi_Minh')
+        let slotEndTime
+
+        // Xử lý khung giờ qua ngày
+        if (slot.start > slot.end) {
+          slotEndTime = dayjs.tz(`${dateStr} ${slot.end}`, 'YYYY-MM-DD HH:mm', 'Asia/Ho_Chi_Minh').add(1, 'day')
+        } else {
+          slotEndTime = dayjs.tz(`${dateStr} ${slot.end}`, 'YYYY-MM-DD HH:mm', 'Asia/Ho_Chi_Minh')
+        }
+
+        timeSlotBoundaries.push({
+          start: slotStartTime.toDate(),
+          end: slotEndTime.toDate(),
+          prices: slot.prices,
+          date: dateStr
+        })
       }
-
-      timeSlotBoundaries.push({
-        start: slotStartTime.toDate(),
-        end: slotEndTime.toDate(),
-        prices: slot.prices
-      })
     }
 
     // Tính toán giờ sử dụng trong từng khung giờ một cách linh hoạt
@@ -599,39 +622,42 @@ export class BillService {
     // Tìm tất cả các khung giờ mà session đi qua
     const applicableTimeSlots = []
 
-    for (const slot of sortedTimeSlots) {
-      const slotStart = dayjs.tz(`${bookingDate} ${slot.start}`, 'YYYY-MM-DD HH:mm', 'Asia/Ho_Chi_Minh')
-      let slotEnd
-
-      // Xử lý khung giờ qua ngày
-      if (slot.start > slot.end) {
-        slotEnd = dayjs.tz(`${bookingDate} ${slot.end}`, 'YYYY-MM-DD HH:mm', 'Asia/Ho_Chi_Minh').add(1, 'day')
-      } else {
-        slotEnd = dayjs.tz(`${bookingDate} ${slot.end}`, 'YYYY-MM-DD HH:mm', 'Asia/Ho_Chi_Minh')
-      }
-
+    for (const slotBoundary of timeSlotBoundaries) {
       // Kiểm tra xem session có overlap với khung giờ này không
       const sessionStart = sessionStartVN.toDate()
       const sessionEnd = sessionEndVN.toDate()
 
       // Tính toán thời gian overlap
-      const overlapStart = new Date(Math.max(sessionStart.getTime(), slotStart.toDate().getTime()))
-      const overlapEnd = new Date(Math.min(sessionEnd.getTime(), slotEnd.toDate().getTime()))
+      const overlapStart = new Date(Math.max(sessionStart.getTime(), slotBoundary.start.getTime()))
+      const overlapEnd = new Date(Math.min(sessionEnd.getTime(), slotBoundary.end.getTime()))
 
       if (overlapStart < overlapEnd) {
         const overlapHours = this.calculateHours(overlapStart, overlapEnd)
         if (overlapHours > 0) {
+          // Tìm slot gốc từ sortedTimeSlots để lấy thông tin slot
+          const originalSlot =
+            sortedTimeSlots.find(
+              (slot) =>
+                slot.start === dayjs(slotBoundary.start).format('HH:mm') &&
+                slot.end === dayjs(slotBoundary.end).format('HH:mm')
+            ) || sortedTimeSlots.find((slot) => slot.start === dayjs(slotBoundary.start).format('HH:mm'))
+
           applicableTimeSlots.push({
-            slot,
+            slot: originalSlot || {
+              start: dayjs(slotBoundary.start).format('HH:mm'),
+              end: dayjs(slotBoundary.end).format('HH:mm'),
+              prices: slotBoundary.prices
+            },
             overlapStart,
             overlapEnd,
             overlapHours,
-            slotStart: slotStart.toDate(),
-            slotEnd: slotEnd.toDate()
+            slotStart: slotBoundary.start,
+            slotEnd: slotBoundary.end,
+            date: slotBoundary.date
           })
 
           console.log(
-            `Khung giờ ${slot.start}-${slot.end}: overlap từ ${dayjs(overlapStart).format('HH:mm')} đến ${dayjs(overlapEnd).format('HH:mm')} = ${overlapHours} giờ`
+            `Khung giờ ${dayjs(slotBoundary.start).format('HH:mm')}-${dayjs(slotBoundary.end).format('HH:mm')} (${slotBoundary.date}): overlap từ ${dayjs(overlapStart).format('DD/MM HH:mm')} đến ${dayjs(overlapEnd).format('DD/MM HH:mm')} = ${overlapHours} giờ`
           )
         }
       }
@@ -642,7 +668,7 @@ export class BillService {
 
     console.log(`Tìm thấy ${applicableTimeSlots.length} khung giờ áp dụng`)
 
-    // Tính toán phí dịch vụ cho từng khung giờ
+    // Tính toán phí dịch vụ cho từng khung giờ riêng biệt
     for (const timeSlotInfo of applicableTimeSlots) {
       const { slot, overlapStart, overlapEnd, overlapHours } = timeSlotInfo
 
@@ -656,9 +682,14 @@ export class BillService {
 
         const startTimeStr = dayjs(overlapStart).tz('Asia/Ho_Chi_Minh').format('HH:mm')
         const endTimeStr = dayjs(overlapEnd).tz('Asia/Ho_Chi_Minh').format('HH:mm')
+        const startDateStr = dayjs(overlapStart).tz('Asia/Ho_Chi_Minh').format('DD/MM')
+        const endDateStr = dayjs(overlapEnd).tz('Asia/Ho_Chi_Minh').format('DD/MM')
+
+        // Tạo description với thời gian - luôn xuống dòng từ dấu (
+        const description = `Phi dich vu thu am\n(${startTimeStr}-${endTimeStr})`
 
         timeSlotItems.push({
-          description: `Phi dich vu thu am (${startTimeStr}-${endTimeStr})`,
+          description: description,
           quantity: parseFloat(overlapHours.toFixed(2)),
           price: priceEntry.price,
           totalPrice: slotServiceFee
@@ -2061,8 +2092,22 @@ export class BillService {
       .text(`${room?.roomName || 'Khong xac dinh'}`)
       .align('lt')
       .text(`Ngay: ${dayjs(ensureVNTimezone(bill.createdAt)).format('DD/MM/YYYY')}`)
-      .text(`Gio bat dau: ${dayjs(bill.startTime).tz('Asia/Ho_Chi_Minh').format('HH:mm')}`)
-      .text(`Gio ket thuc: ${dayjs(bill.endTime).tz('Asia/Ho_Chi_Minh').format('HH:mm')}`)
+
+    // Hiển thị thời gian với ngày nếu session đi qua nhiều ngày
+    const startDateStr = dayjs(bill.startTime).tz('Asia/Ho_Chi_Minh').format('DD/MM')
+    const endDateStr = dayjs(bill.endTime).tz('Asia/Ho_Chi_Minh').format('DD/MM')
+
+    if (startDateStr === endDateStr) {
+      printer
+        .text(`Gio bat dau: ${dayjs(bill.startTime).tz('Asia/Ho_Chi_Minh').format('HH:mm')}`)
+        .text(`Gio ket thuc: ${dayjs(bill.endTime).tz('Asia/Ho_Chi_Minh').format('HH:mm')}`)
+    } else {
+      printer.text(
+        `Gio: ${dayjs(bill.startTime).tz('Asia/Ho_Chi_Minh').format('DD/MM HH:mm')} - ${dayjs(bill.endTime).tz('Asia/Ho_Chi_Minh').format('DD/MM HH:mm')}`
+      )
+    }
+
+    printer
       .text(
         `Tong gio su dung: ${dayjs(bill.endTime).diff(dayjs(bill.startTime), 'hour')} gio ${dayjs(bill.endTime).diff(dayjs(bill.startTime), 'minute') % 60} phut`
       )
@@ -2091,8 +2136,8 @@ export class BillService {
       // Xử lý đặc biệt cho phí dịch vụ thu âm
       if (description.includes('Phi dich vu thu am')) {
         // Tách description thành tên dịch vụ và thời gian
-        const [serviceName, timeRange] = description.split('(')
-        const timeStr = timeRange ? `(${timeRange}` : ''
+        const [serviceName, timeRange] = description.split('\n')
+        const timeStr = timeRange || ''
 
         // Định dạng số tiền để hiển thị gọn hơn
         const formattedPrice = item.price.toLocaleString('vi-VN')
@@ -2101,15 +2146,15 @@ export class BillService {
         const currentTotal = Math.floor(rawTotal / 1000) * 1000
         const formattedTotal = currentTotal.toLocaleString('vi-VN')
 
-        // In dòng đầu với tên dịch vụ
+        // In dòng đầu với tên dịch vụ và các cột số liệu
         printer.style('b').tableCustom([
-          { text: 'Phi dich vu thu am', width: 0.45, align: 'left' },
+          { text: serviceName, width: 0.45, align: 'left' },
           { text: quantity.toString(), width: 0.15, align: 'center' },
           { text: formattedPrice, width: 0.2, align: 'right' },
           { text: formattedTotal, width: 0.2, align: 'right' }
         ])
 
-        // In dòng thứ hai với thời gian
+        // In dòng thứ hai chỉ với thời gian, các cột còn lại để trống
         if (timeStr) {
           printer.style('b').tableCustom([
             { text: timeStr, width: 0.45, align: 'left' },
