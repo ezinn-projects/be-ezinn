@@ -15,7 +15,7 @@ const fnbMenuItemRouter = Router()
 
 // Routes
 fnbMenuItemRouter.post('/', protect([UserRole.Admin]), upload.any(), createMenuItem)
-fnbMenuItemRouter.get('/', protect([UserRole.Admin]), getAllMenuItems)
+fnbMenuItemRouter.get('/', getAllMenuItems)
 fnbMenuItemRouter.get('/:id', protect([UserRole.Admin]), getMenuItemById)
 
 fnbMenuItemRouter.put('/:id', protect([UserRole.Admin]), upload.any(), updateMenuItem)

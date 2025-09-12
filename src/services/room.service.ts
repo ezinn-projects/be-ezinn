@@ -15,6 +15,12 @@ export const emitBookingNotification = (roomId: string, bookingData: any) => {
 
 class RoomServices {
   async addRoom(payload: IAddRoomRequestBody) {
+    // Kiểm tra roomId có trùng lặp không
+    const existingRoom = await databaseService.rooms.findOne({ roomId: payload.roomId })
+    if (existingRoom) {
+      throw new Error(`Room ID ${payload.roomId} đã tồn tại`)
+    }
+
     const result = await databaseService.rooms.insertOne({
       ...payload,
       createdAt: new Date(),
@@ -61,9 +67,26 @@ class RoomServices {
     return result
   }
 
+  async getRoomByRoomId(roomId: number) {
+    const result = await databaseService.rooms.findOne({ roomId })
+    if (!result) throw new Error(ROOM_MESSAGES.ROOM_NOT_FOUND)
+    return result
+  }
+
   async updateRoom(id: string, payload: Partial<IRoom>) {
     // Remove _id from payload to prevent immutable field modification
     const { _id, ...updateData } = payload
+
+    // Nếu có roomId trong payload, kiểm tra trùng lặp
+    if (updateData.roomId !== undefined) {
+      const existingRoom = await databaseService.rooms.findOne({
+        roomId: updateData.roomId,
+        _id: { $ne: new ObjectId(id) } // Loại trừ phòng hiện tại
+      })
+      if (existingRoom) {
+        throw new Error(`Room ID ${updateData.roomId} đã tồn tại`)
+      }
+    }
 
     const result = await databaseService.rooms.updateOne(
       { _id: new ObjectId(id) },
