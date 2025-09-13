@@ -1,10 +1,5 @@
 import { Router } from 'express'
-import {
-  saveClientFnbOrder,
-  getClientFnbOrderByRoomSchedule,
-  checkInventoryAvailability,
-  upsertClientFnbOrderItem
-} from '~/controllers/roomScheduleFnb.controller'
+import { getClientFnbOrderByRoomSchedule, saveClientFnbOrder } from '~/controllers/roomScheduleFnb.controller'
 import { wrapRequestHandler } from '~/utils/handlers'
 
 const clientFnbRouter = Router()

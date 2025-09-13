@@ -111,6 +111,21 @@ class RoomServices {
     return true
   }
 
+  async solveOrder(roomId: string, orderId: string) {
+    // delete order notification in redis
+    const orderNotificationKey = `room_${roomId}_new_order_${orderId}`
+    await redis.del(orderNotificationKey)
+
+    // Also delete any order notifications with timestamp pattern
+    const pattern = `room_${roomId}_new_order_*`
+    const keys = await redis.keys(pattern)
+    if (keys.length > 0) {
+      await redis.del(...keys)
+    }
+
+    return true
+  }
+
   async turnOffVideos() {
     // Clean up all rooms
     for (let i = 1; i <= 8; i++) {

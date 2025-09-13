@@ -172,6 +172,27 @@ export const solveRequestController = async (req: Request, res: Response, next: 
 }
 
 /**
+ * @description Mark order as served
+ * @path /rooms/:roomId/orders/:orderId/serve
+ * @method POST
+ * @author Assistant
+ */
+export const solveOrderController = async (req: Request, res: Response, next: NextFunction) => {
+  const { roomId, orderId } = req.params
+
+  try {
+    await roomServices.solveOrder(roomId, orderId)
+    res.status(HTTP_STATUS_CODE.OK).json({ 
+      message: 'Order marked as served successfully',
+      roomId,
+      orderId
+    })
+  } catch (error) {
+    next(error)
+  }
+}
+
+/**
  * @description turn off all videos in room
  * @path /rooms/turn-off-videos
  * @method POST

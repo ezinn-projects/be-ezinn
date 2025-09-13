@@ -156,24 +156,48 @@ class FnbOrderService {
     const currentDrinks = existingOrder?.order?.drinks || {}
     const currentSnacks = existingOrder?.order?.snacks || {}
 
-    // Merge drinks: chỉ cập nhật những item có trong request, giữ nguyên những item cũ
+    // Merge drinks: giữ nguyên items cũ, chỉ cập nhật/xóa items có trong request
     let mergedDrinks = { ...currentDrinks }
     if (order.drinks) {
-      // Lọc bỏ các item có quantity = 0
-      const validDrinks = Object.fromEntries(
-        Object.entries(order.drinks).filter(([_, quantity]) => (quantity as number) > 0)
-      )
-      mergedDrinks = { ...mergedDrinks, ...validDrinks }
+      console.log('=== DEBUG UPSERT FNB ORDER - DRINKS ===')
+      console.log('Current drinks:', currentDrinks)
+      console.log('Order drinks:', order.drinks)
+
+      // Chỉ cập nhật/xóa những items có trong request hiện tại
+      for (const [itemId, quantity] of Object.entries(order.drinks)) {
+        if (quantity > 0) {
+          mergedDrinks[itemId] = quantity
+          console.log(`Set drink ${itemId} = ${quantity}`)
+        } else {
+          delete mergedDrinks[itemId]
+          console.log(`Deleted drink ${itemId}`)
+        }
+      }
+
+      console.log('Merged drinks:', mergedDrinks)
+      console.log('=== END DEBUG DRINKS ===')
     }
 
-    // Merge snacks: chỉ cập nhật những item có trong request, giữ nguyên những item cũ
+    // Merge snacks: giữ nguyên items cũ, chỉ cập nhật/xóa items có trong request
     let mergedSnacks = { ...currentSnacks }
     if (order.snacks) {
-      // Lọc bỏ các item có quantity = 0
-      const validSnacks = Object.fromEntries(
-        Object.entries(order.snacks).filter(([_, quantity]) => (quantity as number) > 0)
-      )
-      mergedSnacks = { ...mergedSnacks, ...validSnacks }
+      console.log('=== DEBUG UPSERT FNB ORDER - SNACKS ===')
+      console.log('Current snacks:', currentSnacks)
+      console.log('Order snacks:', order.snacks)
+
+      // Chỉ cập nhật/xóa những items có trong request hiện tại
+      for (const [itemId, quantity] of Object.entries(order.snacks)) {
+        if (quantity > 0) {
+          mergedSnacks[itemId] = quantity
+          console.log(`Set snack ${itemId} = ${quantity}`)
+        } else {
+          delete mergedSnacks[itemId]
+          console.log(`Deleted snack ${itemId}`)
+        }
+      }
+
+      console.log('Merged snacks:', mergedSnacks)
+      console.log('=== END DEBUG SNACKS ===')
     }
 
     const validUpdate = {

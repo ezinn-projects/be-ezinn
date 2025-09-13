@@ -8,6 +8,7 @@ import {
   getRoomByRoomIdController,
   getRoomsController,
   solveRequestController,
+  solveOrderController,
   turnOffVideosController,
   updateRoomController
 } from '~/controllers/room.controller'
@@ -104,6 +105,18 @@ roomRouter.post(
   '/:id/resolve-request',
   protect([UserRole.Admin, UserRole.Staff]),
   wrapRequestHandler(solveRequestController)
+)
+
+/**
+ * @description Mark order as served
+ * @path /rooms/:roomId/orders/:orderId/serve
+ * @method POST
+ * @author Assistant
+ */
+roomRouter.post(
+  '/:roomId/orders/:orderId/serve',
+  protect([UserRole.Admin, UserRole.Staff]),
+  wrapRequestHandler(solveOrderController)
 )
 
 export default roomRouter

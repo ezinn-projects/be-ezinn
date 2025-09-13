@@ -7,6 +7,7 @@ import { RoomScheduleStatus } from '~/constants/enum'
 import fnbOrderService from '~/services/fnbOrder.service'
 import fnbMenuItemService from '~/services/fnbMenuItem.service'
 import databaseService from '~/services/database.service'
+import { roomMusicServices } from '~/services/roomMusic.service'
 
 /**
  * @description Save FNB Order for client app using room ID
@@ -51,6 +52,55 @@ export const saveClientFnbOrder = async (req: Request, res: Response, next: Next
 
     // Create or update the order using the found roomScheduleId
     const result = await fnbOrderService.upsertFnbOrder(currentSchedule._id.toString(), order, 'client-app')
+
+    // Send notification to admin about new order
+    try {
+      // Chuẩn bị dữ liệu đơn hàng để gửi thông báo
+      const orderNotificationData = {
+        orderId: result?._id?.toString() || 'unknown',
+        items: [] as Array<{
+          itemId: string
+          name: string
+          quantity: number
+          price: number
+        }>,
+        totalAmount: 0,
+        customerInfo: {
+          roomName: room.roomName || `Phòng ${roomId}`,
+          roomScheduleId: currentSchedule._id.toString()
+        }
+      }
+
+      // Lấy thông tin chi tiết các món đã đặt
+      const allItems = { ...order.drinks, ...order.snacks }
+      for (const [itemId, quantity] of Object.entries(allItems)) {
+        const qty = quantity as number
+        if (qty > 0) {
+          // Tìm thông tin item
+          let item: any = await databaseService.fnbMenu.findOne({ _id: new ObjectId(itemId) })
+          if (!item) {
+            item = await fnbMenuItemService.getMenuItemById(itemId)
+          }
+
+          if (item) {
+            orderNotificationData.items.push({
+              itemId,
+              name: item.name,
+              quantity: qty,
+              price: item.price || 0
+            })
+            orderNotificationData.totalAmount += (item.price || 0) * qty
+          }
+        }
+      }
+
+      // Gửi thông báo đến admin
+      await roomMusicServices.sendNewOrderNotificationToAdmin(roomId.toString(), orderNotificationData)
+      console.log(`Đã gửi thông báo đơn hàng mới đến admin cho phòng ${roomId}`)
+    } catch (notificationError) {
+      console.error('Lỗi khi gửi thông báo đến admin:', notificationError)
+      // Không fail toàn bộ request nếu chỉ lỗi notification
+    }
 
     return res.status(HTTP_STATUS_CODE.OK).json({
       message: FNB_MESSAGES.UPSERT_FNB_ORDER_SUCCESS,
@@ -239,45 +289,6 @@ export const upsertClientFnbOrderItem = async (req: Request, res: Response, next
           availableQuantity: updatedItem?.inventory?.quantity ?? 0
         }
       }
-    })
-  } catch (error) {
-    next(error)
-  }
-}
-
-/**
- * @description Check inventory availability for multiple items
- * @path /client/fnb/inventory/check
- * @method POST
- */
-export const checkInventoryAvailability = async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const { items } = req.body
-
-    // Validate input
-    if (!items || !Array.isArray(items) || items.length === 0) {
-      throw new ErrorWithStatus({
-        message: 'Items array is required and must not be empty',
-        status: HTTP_STATUS_CODE.BAD_REQUEST
-      })
-    }
-
-    // Validate each item
-    for (const item of items) {
-      if (!item.itemId || !item.quantity || item.quantity <= 0) {
-        throw new ErrorWithStatus({
-          message: 'Each item must have valid itemId and quantity > 0',
-          status: HTTP_STATUS_CODE.BAD_REQUEST
-        })
-      }
-    }
-
-    // Check inventory availability
-    const result = await fnbOrderService.checkInventoryAvailability(items)
-
-    return res.status(HTTP_STATUS_CODE.OK).json({
-      message: 'Inventory check completed',
-      result
     })
   } catch (error) {
     next(error)

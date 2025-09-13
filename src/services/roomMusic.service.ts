@@ -384,6 +384,46 @@ class RoomMusicServices {
       throw error
     }
   }
+
+  /**
+   * @description Send new order notification to admin with order details
+   * @param roomId - Room ID
+   * @param orderData - Order information
+   * @returns Promise<{ message: string; timestamp: number; orderData: any }>
+   * @author QuangDoo
+   */
+  async sendNewOrderNotificationToAdmin(
+    roomId: string,
+    orderData: any
+  ): Promise<{ message: string; timestamp: number; orderData: any }> {
+    try {
+      const notification = {
+        message: `Đơn hàng mới từ phòng ${roomId}`,
+        timestamp: Date.now(),
+        orderData: {
+          roomId,
+          orderId: orderData.orderId,
+          items: orderData.items,
+          totalAmount: orderData.totalAmount,
+          customerInfo: orderData.customerInfo,
+          createdAt: new Date().toISOString()
+        }
+      }
+
+      const redisKey = `room_${roomId}_new_order_${Date.now()}`
+      await this.cacheService.setex(redisKey, 24 * 60 * 60, JSON.stringify(notification))
+      roomMusicEventEmitter.emit('admin_notification', {
+        type: 'new_order',
+        roomId,
+        ...notification
+      })
+
+      return notification
+    } catch (error) {
+      this.logger.error(`Error sending new order notification to room ${roomId}:`, error)
+      throw new Error('Failed to send new order notification')
+    }
+  }
 }
 
 export const roomMusicServices = new RoomMusicServices()
