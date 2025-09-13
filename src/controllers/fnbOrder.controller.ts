@@ -367,7 +367,7 @@ export const completeOrder = async (req: Request, res: Response, next: NextFunct
     const { roomScheduleId, items, createdBy } = req.body
 
     // Step 1: Deduct inventory
-    const inventoryResults = []
+    const inventoryResults: Array<{ item: any; isVariant: boolean }> = []
     for (const { itemId, quantity } of items) {
       // Tìm trong menu chính (fnb_menu collection) trước
       let item: any = await databaseService.fnbMenu.findOne({ _id: new ObjectId(itemId) })
@@ -691,20 +691,14 @@ export const upsertOrderItem = async (req: Request, res: Response, next: NextFun
       }
     }
 
-    // Cập nhật quantity cho item
-    const updatedOrder = {
-      drinks: { ...currentOrder.order.drinks },
-      snacks: { ...currentOrder.order.snacks }
-    }
-
-    if (category === 'drink') {
-      updatedOrder.drinks[itemId] = quantity
-    } else {
-      updatedOrder.snacks[itemId] = quantity
+    // Tạo order object với item cần cập nhật
+    const orderUpdate = {
+      drinks: category === 'drink' ? { [itemId]: quantity } : {},
+      snacks: category === 'snack' ? { [itemId]: quantity } : {}
     }
 
     // Upsert order
-    const result = await fnbOrderService.upsertFnbOrder(roomScheduleId, updatedOrder, createdBy)
+    const result = await fnbOrderService.upsertFnbOrder(roomScheduleId, orderUpdate, createdBy)
 
     return res.status(HTTP_STATUS_CODE.OK).json({
       message: 'Upsert order item successfully',

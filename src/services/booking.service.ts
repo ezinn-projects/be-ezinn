@@ -240,12 +240,6 @@ class BookingService {
         }
       }
 
-      // After creating all schedules
-      console.log(
-        'Successfully created room schedules:',
-        createdScheduleIds.map((id) => id.toString())
-      )
-
       // 3. Cập nhật trạng thái booking trong collection bookings nếu có _id
       if (clientBooking._id) {
         // Cập nhật trực tiếp với _id dạng string
@@ -259,9 +253,6 @@ class BookingService {
           }
         )
       }
-
-      // After updating booking status
-      console.log('Updated booking status to confirmed:', clientBooking._id)
 
       // Send real-time notification
       emitBookingNotification(room._id.toString(), {

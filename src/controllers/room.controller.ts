@@ -23,9 +23,10 @@ export const addRoomController = async (
   next: NextFunction
 ) => {
   try {
-    const { roomName, roomType, maxCapacity, status, description } = req.body
+    const { roomId, roomName, roomType, maxCapacity, status, description } = req.body
 
     const result = await roomServices.addRoom({
+      roomId: Number(roomId),
       roomName,
       roomType,
       maxCapacity: Number(maxCapacity),
@@ -76,6 +77,29 @@ export const getRoomsController = async (req: Request, res: Response, next: Next
 export const getRoomController = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const result = await roomServices.getRoom(req.params.id)
+
+    return res.status(HTTP_STATUS_CODE.OK).json({
+      message: ROOM_MESSAGES.GET_ROOM_SUCCESS,
+      result
+    })
+  } catch (error) {
+    next(error)
+  }
+}
+
+/**
+ * @description Controller xử lý lấy phòng theo roomId
+ * @param {Request} req - Express request object
+ * @param {Response} res - Express response object
+ * @param {NextFunction} next - Express next middleware function
+ * @returns {Promise<Response>} Response với status 200 và thông tin phòng
+ * @throws {Error} Chuyển tiếp lỗi đến middleware xử lý lỗi thông qua next(error)
+ * @author QuangDo
+ */
+export const getRoomByRoomIdController = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const roomId = Number(req.params.roomId)
+    const result = await roomServices.getRoomByRoomId(roomId)
 
     return res.status(HTTP_STATUS_CODE.OK).json({
       message: ROOM_MESSAGES.GET_ROOM_SUCCESS,
@@ -148,6 +172,27 @@ export const solveRequestController = async (req: Request, res: Response, next: 
 }
 
 /**
+ * @description Mark order as served
+ * @path /rooms/:roomId/orders/:orderId/serve
+ * @method POST
+ * @author Assistant
+ */
+export const solveOrderController = async (req: Request, res: Response, next: NextFunction) => {
+  const { roomId, orderId } = req.params
+
+  try {
+    await roomServices.solveOrder(roomId, orderId)
+    res.status(HTTP_STATUS_CODE.OK).json({ 
+      message: 'Order marked as served successfully',
+      roomId,
+      orderId
+    })
+  } catch (error) {
+    next(error)
+  }
+}
+
+/**
  * @description turn off all videos in room
  * @path /rooms/turn-off-videos
  * @method POST
@@ -190,6 +235,7 @@ export const debugRooms = async (req: Request, res: Response) => {
       if (!rooms.some((r) => r.roomType.toLowerCase() === 'small')) {
         console.log('Creating a test room with type Small')
         const smallRoom = {
+          roomId: 1,
           roomName: 'Test Room - Small',
           roomType: 'small',
           status: RoomStatus.Available,
@@ -205,6 +251,7 @@ export const debugRooms = async (req: Request, res: Response) => {
       if (!rooms.some((r) => r.roomType.toLowerCase() === 'medium')) {
         console.log('Creating a test room with type Medium')
         const mediumRoom = {
+          roomId: 2,
           roomName: 'Test Room - Medium',
           roomType: 'medium',
           status: RoomStatus.Available,
@@ -220,6 +267,7 @@ export const debugRooms = async (req: Request, res: Response) => {
       if (!rooms.some((r) => r.roomType.toLowerCase() === 'large')) {
         console.log('Creating a test room with type Large')
         const largeRoom = {
+          roomId: 3,
           roomName: 'Test Room - Large',
           roomType: 'large',
           status: RoomStatus.Available,

@@ -1,6 +1,7 @@
 import { ObjectId } from 'mongodb'
 import { RoomScheduleFNBOrder, FNBOrder, FNBOrderHistoryRecord } from '~/models/schemas/FNB.schema'
 import databaseService from './database.service'
+import fnbMenuItemService from './fnbMenuItem.service'
 
 class FnbOrderService {
   async createFnbOrder(roomScheduleId: string, order: FNBOrder, createdBy?: string): Promise<RoomScheduleFNBOrder> {
@@ -63,64 +64,148 @@ class FnbOrderService {
     )
   }
 
+  // Method mới: Kiểm tra tồn kho cho multiple items
+  async checkInventoryAvailability(items: { itemId: string; quantity: number }[]): Promise<{
+    available: boolean
+    unavailableItems: Array<{
+      itemId: string
+      itemName: string
+      requestedQuantity: number
+      availableQuantity: number
+    }>
+    availableItems: Array<{
+      itemId: string
+      itemName: string
+      requestedQuantity: number
+      availableQuantity: number
+    }>
+  }> {
+    const unavailableItems: Array<{
+      itemId: string
+      itemName: string
+      requestedQuantity: number
+      availableQuantity: number
+    }> = []
+
+    const availableItems: Array<{
+      itemId: string
+      itemName: string
+      requestedQuantity: number
+      availableQuantity: number
+    }> = []
+
+    for (const { itemId, quantity } of items) {
+      // Tìm trong menu chính (fnb_menu collection) trước
+      let item: any = await databaseService.fnbMenu.findOne({ _id: new ObjectId(itemId) })
+      let isVariant = false
+
+      // Nếu không tìm thấy, tìm trong menu items (fnb_menu_item collection)
+      if (!item) {
+        const menuItem = await fnbMenuItemService.getMenuItemById(itemId)
+        if (menuItem) {
+          item = menuItem
+          isVariant = true
+        }
+      }
+
+      if (!item) {
+        unavailableItems.push({
+          itemId,
+          itemName: 'Item not found',
+          requestedQuantity: quantity,
+          availableQuantity: 0
+        })
+        continue
+      }
+
+      const availableQuantity = item.inventory?.quantity ?? 0
+
+      if (availableQuantity < quantity) {
+        unavailableItems.push({
+          itemId,
+          itemName: item.name,
+          requestedQuantity: quantity,
+          availableQuantity
+        })
+      } else {
+        availableItems.push({
+          itemId,
+          itemName: item.name,
+          requestedQuantity: quantity,
+          availableQuantity
+        })
+      }
+    }
+
+    return {
+      available: unavailableItems.length === 0,
+      unavailableItems,
+      availableItems
+    }
+  }
+
   async upsertFnbOrder(
     roomScheduleId: string,
     order: Partial<FNBOrder>,
     user?: string
   ): Promise<RoomScheduleFNBOrder | null> {
-    // Lọc bỏ các key mà value là object rỗng
-    const filteredOrder: Partial<FNBOrder> = {}
-    for (const key in order) {
-      if (order.hasOwnProperty(key)) {
-        const value = order[key as keyof FNBOrder]
-        if (typeof value === 'object' && value !== null && Object.keys(value).length === 0) {
-          continue
-        }
-        filteredOrder[key as keyof FNBOrder] = value
-      }
-    }
-
-    // Lọc bỏ các item có quantity = 0 khỏi drinks và snacks
-    if (filteredOrder.drinks) {
-      filteredOrder.drinks = Object.fromEntries(
-        Object.entries(filteredOrder.drinks).filter(([_, quantity]) => (quantity as number) > 0)
-      )
-    }
-    if (filteredOrder.snacks) {
-      filteredOrder.snacks = Object.fromEntries(
-        Object.entries(filteredOrder.snacks).filter(([_, quantity]) => (quantity as number) > 0)
-      )
-    }
-
     const filter = { roomScheduleId: new ObjectId(roomScheduleId) }
 
-    // Update document (không dùng pipeline)
-    const update = {
-      $set: {
-        order: {
-          drinks: filteredOrder.drinks || {},
-          snacks: filteredOrder.snacks || {}
-        },
-        updatedAt: new Date(),
-        updatedBy: user || ' Ive',
-        createdAt: { $ifNull: ['$createdAt', new Date()] },
-        createdBy: { $ifNull: ['$createdBy', user || 'system'] }
-      },
-      $push: {
-        history: {
-          timestamp: new Date(),
-          updatedBy: user || 'system',
-          changes: filteredOrder
+    // Lấy dữ liệu hiện tại để merge
+    const existingOrder = await databaseService.fnbOrder.findOne(filter)
+    const currentDrinks = existingOrder?.order?.drinks || {}
+    const currentSnacks = existingOrder?.order?.snacks || {}
+
+    // Merge drinks: giữ nguyên items cũ, chỉ cập nhật/xóa items có trong request
+    let mergedDrinks = { ...currentDrinks }
+    if (order.drinks) {
+      console.log('=== DEBUG UPSERT FNB ORDER - DRINKS ===')
+      console.log('Current drinks:', currentDrinks)
+      console.log('Order drinks:', order.drinks)
+
+      // Chỉ cập nhật/xóa những items có trong request hiện tại
+      for (const [itemId, quantity] of Object.entries(order.drinks)) {
+        if (quantity > 0) {
+          mergedDrinks[itemId] = quantity
+          console.log(`Set drink ${itemId} = ${quantity}`)
+        } else {
+          delete mergedDrinks[itemId]
+          console.log(`Deleted drink ${itemId}`)
         }
       }
+
+      console.log('Merged drinks:', mergedDrinks)
+      console.log('=== END DEBUG DRINKS ===')
+    }
+
+    // Merge snacks: giữ nguyên items cũ, chỉ cập nhật/xóa items có trong request
+    let mergedSnacks = { ...currentSnacks }
+    if (order.snacks) {
+      console.log('=== DEBUG UPSERT FNB ORDER - SNACKS ===')
+      console.log('Current snacks:', currentSnacks)
+      console.log('Order snacks:', order.snacks)
+
+      // Chỉ cập nhật/xóa những items có trong request hiện tại
+      for (const [itemId, quantity] of Object.entries(order.snacks)) {
+        if (quantity > 0) {
+          mergedSnacks[itemId] = quantity
+          console.log(`Set snack ${itemId} = ${quantity}`)
+        } else {
+          delete mergedSnacks[itemId]
+          console.log(`Deleted snack ${itemId}`)
+        }
+      }
+
+      console.log('Merged snacks:', mergedSnacks)
+      console.log('=== END DEBUG SNACKS ===')
     }
 
     const validUpdate = {
       $set: {
-        'order.drinks': filteredOrder.drinks || {},
-        'order.snacks': filteredOrder.snacks || {},
+        'order.drinks': mergedDrinks,
+        'order.snacks': mergedSnacks,
         updatedAt: new Date(),
-        updatedBy: user || ' Ive'
+        updatedBy: user || 'system'
       },
       $setOnInsert: {
         createdAt: new Date(),
@@ -130,7 +215,7 @@ class FnbOrderService {
         history: {
           timestamp: new Date(),
           updatedBy: user || 'system',
-          changes: filteredOrder
+          changes: order
         }
       }
     }

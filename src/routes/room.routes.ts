@@ -5,13 +5,15 @@ import {
   addRoomController,
   deleteRoomController,
   getRoomController,
+  getRoomByRoomIdController,
   getRoomsController,
   solveRequestController,
+  solveOrderController,
   turnOffVideosController,
   updateRoomController
 } from '~/controllers/room.controller'
 import { protect } from '~/middlewares/auth.middleware'
-import { checkRoomExists, validateFiles } from '~/middlewares/room.middleware'
+import { checkRoomExists, checkRoomIdExists, validateFiles } from '~/middlewares/room.middleware'
 import { wrapRequestHandler } from '~/utils/handlers'
 
 const roomRouter = Router()
@@ -31,6 +33,7 @@ roomRouter.post(
   protect([UserRole.Admin]),
   validateFiles,
   checkRoomExists,
+  checkRoomIdExists,
   // addRoomValidator,
   upload.array('images', 5),
   wrapRequestHandler(addRoomController)
@@ -51,6 +54,18 @@ roomRouter.get('/', protect([UserRole.Admin, UserRole.Staff]), wrapRequestHandle
  * @author QuangDoo
  */
 roomRouter.get('/:id', protect([UserRole.Admin, UserRole.Staff]), wrapRequestHandler(getRoomController))
+
+/**
+ * @description Lấy phòng theo roomId
+ * @path /rooms/by-room-id/:roomId
+ * @method GET
+ * @author QuangDoo
+ */
+roomRouter.get(
+  '/by-room-id/:roomId',
+  protect([UserRole.Admin, UserRole.Staff]),
+  wrapRequestHandler(getRoomByRoomIdController)
+)
 
 /**
  * @description turn off all videos in room
@@ -90,6 +105,18 @@ roomRouter.post(
   '/:id/resolve-request',
   protect([UserRole.Admin, UserRole.Staff]),
   wrapRequestHandler(solveRequestController)
+)
+
+/**
+ * @description Mark order as served
+ * @path /rooms/:roomId/orders/:orderId/serve
+ * @method POST
+ * @author Assistant
+ */
+roomRouter.post(
+  '/:roomId/orders/:orderId/serve',
+  protect([UserRole.Admin, UserRole.Staff]),
+  wrapRequestHandler(solveOrderController)
 )
 
 export default roomRouter

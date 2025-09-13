@@ -45,7 +45,13 @@ export const RoomSocket = (io: Server) => {
 
   // Listen for roomMusic events
   roomMusicEventEmitter.on('admin_notification', (notification) => {
-    io.to('admin').emit('notification', notification)
+    console.log('notification', notification)
+    // Kiểm tra loại thông báo để xử lý khác nhau
+    if (notification.type === 'new_order') {
+      io.to('admin').emit('new_order_notification', notification)
+    } else {
+      io.to('admin').emit('notification', notification)
+    }
   })
 
   io.on('connection', (socket: Socket) => {

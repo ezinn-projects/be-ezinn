@@ -10,13 +10,32 @@ import { validate } from '~/utils/validation'
 
 export const checkRoomExists = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { name } = req.body
+    const { roomName } = req.body
 
-    const room = await databaseService.rooms.findOne({ name: { $regex: new RegExp(`^${name}$`, 'i') } })
+    const room = await databaseService.rooms.findOne({ roomName: { $regex: new RegExp(`^${roomName}$`, 'i') } })
 
     if (room) {
       throw new ErrorWithStatus({
         message: ROOM_MESSAGES.ROOM_EXISTS,
+        status: HTTP_STATUS_CODE.CONFLICT
+      })
+    }
+
+    next()
+  } catch (error) {
+    next(error)
+  }
+}
+
+export const checkRoomIdExists = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { roomId } = req.body
+
+    const room = await databaseService.rooms.findOne({ roomId: Number(roomId) })
+
+    if (room) {
+      throw new ErrorWithStatus({
+        message: `Room ID ${roomId} đã tồn tại`,
         status: HTTP_STATUS_CODE.CONFLICT
       })
     }
@@ -90,10 +109,31 @@ interface ValidationError {
 
 export const addRoomValidator = (req: Request, res: Response, next: NextFunction) => {
   try {
+    const roomId = req.body?.get('roomId')
     const roomName = req.body?.get('roomName')
     const roomType = req.body?.get('roomType')
     const maxCapacity = req.body?.get('maxCapacity')
     const errors: Record<string, ValidationError> = {}
+
+    // Kiểm tra roomId
+    const roomIdNum = Number(roomId)
+    if (!roomId) {
+      errors.roomId = {
+        type: 'field',
+        value: roomId,
+        msg: 'Room ID là bắt buộc',
+        path: 'roomId',
+        location: 'formData'
+      }
+    } else if (isNaN(roomIdNum) || roomIdNum < 1 || !Number.isInteger(roomIdNum)) {
+      errors.roomId = {
+        type: 'field',
+        value: roomId,
+        msg: 'Room ID phải là số nguyên lớn hơn 0',
+        path: 'roomId',
+        location: 'formData'
+      }
+    }
 
     // Kiểm tra roomName
     if (!roomName) {
