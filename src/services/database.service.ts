@@ -13,6 +13,7 @@ import { IPromotion } from '~/models/schemas/Promotion.schema'
 import { IBill } from '~/models/schemas/Bill.schema'
 import { ObjectId } from 'mongodb'
 import { IHoliday } from '~/models/schemas/Holiday.schema'
+import { VirtualRoom } from '~/models/schemas/VirtualRoom.schema'
 dotenv.config()
 
 // Interface cho Client Booking
@@ -113,6 +114,10 @@ class DatabaseService {
 
   get holidays(): Collection<IHoliday> {
     return this.db.collection('holidays')
+  }
+
+  get virtualRooms(): Collection<VirtualRoom> {
+    return this.db.collection('virtualRooms')
   }
 
   // Cho phép lấy collection bất kỳ

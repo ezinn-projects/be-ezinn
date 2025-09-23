@@ -42,6 +42,160 @@ class BookingService {
   }
 
   /**
+   * Validate dữ liệu booking từ client
+   * @param body - Dữ liệu từ request body
+   * @returns Validation result
+   */
+  validateBookingData(body: any): { isValid: boolean; error?: string } {
+    if (
+      !body.customer_name ||
+      !body.customer_phone ||
+      !body.room_type ||
+      !body.booking_date ||
+      !body.time_slots ||
+      !body.time_slots.length
+    ) {
+      return {
+        isValid: false,
+        error: 'Missing required fields'
+      }
+    }
+
+    // Kiểm tra phòng bị khóa
+    if (body.room_id && LOCKED_ROOM_IDS.includes(body.room_id)) {
+      return {
+        isValid: false,
+        error: 'This room is not available for booking'
+      }
+    }
+
+    return { isValid: true }
+  }
+
+  /**
+   * Tạo booking mới từ client và tự động chuyển đổi thành room schedules
+   * @param body - Dữ liệu booking từ client
+   * @returns Kết quả tạo booking
+   */
+  async createBooking(body: any): Promise<{
+    success: boolean
+    bookingId?: string
+    scheduleIds?: string[]
+    status: string
+    message: string
+    error?: string
+  }> {
+    try {
+      // Validate dữ liệu
+      const validation = this.validateBookingData(body)
+      if (!validation.isValid) {
+        return {
+          success: false,
+          status: 'error',
+          message: validation.error!,
+          error: validation.error
+        }
+      }
+
+      // Tạo booking mới với status pending
+      const bookingData = {
+        customer_name: body.customer_name,
+        customer_phone: body.customer_phone,
+        customer_email: body.customer_email || null,
+        room_type: body.room_type,
+        booking_date: body.booking_date,
+        time_slots: body.time_slots,
+        status: 'pending',
+        total_price: body.total_price || 0,
+        created_at: new Date().toISOString()
+      }
+
+      // Lưu booking vào DB
+      const result = await databaseService.bookings.insertOne(bookingData)
+      const bookingId = result.insertedId
+
+      // Cố gắng chuyển đổi booking ngay lập tức
+      try {
+        // Lấy booking vừa tạo
+        const booking = await databaseService.bookings.findOne({ _id: bookingId })
+        if (booking) {
+          console.log('Found booking to convert:', bookingId)
+
+          // Chuyển đổi _id từ ObjectId sang string để phù hợp với định nghĩa IClientBooking
+          const bookingWithStringId = {
+            ...booking,
+            _id: booking._id.toString()
+          }
+
+          console.log('Attempting to convert booking to room schedules...')
+
+          // Chuyển đổi booking thành room schedules
+          const scheduleIds = await this.convertClientBookingToRoomSchedule(bookingWithStringId)
+
+          console.log('Conversion successful, created schedule IDs:', scheduleIds)
+
+          return {
+            success: true,
+            bookingId: bookingId.toString(),
+            scheduleIds: scheduleIds,
+            status: 'confirmed',
+            message: 'Booking created and automatically converted to room schedules successfully'
+          }
+        } else {
+          console.error('Could not find the booking that was just created:', bookingId)
+        }
+      } catch (conversionError) {
+        console.error('Error auto-converting booking:', conversionError)
+        if (conversionError instanceof Error) {
+          console.error('Error details:', conversionError.message)
+          console.error('Error stack:', conversionError.stack)
+        }
+
+        // Send real-time notification for failed booking conversion
+        try {
+          // Find any room matching the room type to send notification
+          const rooms = await databaseService.rooms
+            .find({
+              roomType: { $regex: new RegExp(body.room_type, 'i') }
+            })
+            .toArray()
+
+          if (rooms && rooms.length > 0) {
+            emitBookingNotification(rooms[0]._id.toString(), {
+              bookingId: bookingId.toString(),
+              customer: body.customer_name,
+              phone: body.customer_phone,
+              roomType: body.room_type,
+              timeSlots: body.time_slots,
+              bookingDate: body.booking_date,
+              status: 'pending',
+              error: conversionError instanceof Error ? conversionError.message : 'Unknown error'
+            })
+          }
+        } catch (notificationError) {
+          console.error('Error sending real-time notification:', notificationError)
+        }
+      }
+
+      // Nếu không thể tự động chuyển đổi, trả về kết quả mặc định
+      return {
+        success: true,
+        bookingId: bookingId.toString(),
+        status: 'pending',
+        message: 'Booking created successfully but could not be automatically converted'
+      }
+    } catch (error) {
+      console.error('Error in createBooking:', error)
+      return {
+        success: false,
+        status: 'error',
+        message: 'Failed to create booking',
+        error: error instanceof Error ? error.message : 'Unknown error'
+      }
+    }
+  }
+
+  /**
    * Chuyển đổi booking của client thành các RoomSchedule entries
    * @param clientBooking - Thông tin booking từ client
    */

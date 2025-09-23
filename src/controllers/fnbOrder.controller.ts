@@ -187,7 +187,7 @@ export const addItemsToOrder = async (req: Request, res: Response, next: NextFun
       }
     }
 
-    // Step 3: Update or create order
+    // Step 3: Update or create order using upsertFnbOrder
     let orderResult
     if (currentOrder) {
       // Merge with existing order
@@ -197,8 +197,8 @@ export const addItemsToOrder = async (req: Request, res: Response, next: NextFun
       }
       orderResult = await fnbOrderService.upsertFnbOrder(roomScheduleId, mergedOrder, createdBy)
     } else {
-      // Create new order
-      orderResult = await fnbOrderService.createFnbOrder(roomScheduleId, newItems, createdBy)
+      // Create new order using upsertFnbOrder (sẽ tự động tạo mới nếu chưa có)
+      orderResult = await fnbOrderService.upsertFnbOrder(roomScheduleId, newItems, createdBy)
     }
 
     // Step 4: Generate updated bill
@@ -487,7 +487,7 @@ export const completeOrder = async (req: Request, res: Response, next: NextFunct
     console.log('Final order:', order)
     console.log('=== END DEBUG ===')
 
-    const orderResult = await fnbOrderService.createFnbOrder(roomScheduleId, order, createdBy)
+    const orderResult = await fnbOrderService.upsertFnbOrder(roomScheduleId, order, createdBy)
 
     // Step 3: Save to history (NEW)
     const historyRecord = await fnbOrderService.saveOrderHistory(roomScheduleId, order, createdBy || 'system')
@@ -622,15 +622,17 @@ export const upsertOrderItem = async (req: Request, res: Response, next: NextFun
         drinks: {},
         snacks: {}
       }
-      currentOrder = await fnbOrderService.createFnbOrder(roomScheduleId, newOrder, createdBy)
+      currentOrder = await fnbOrderService.upsertFnbOrder(roomScheduleId, newOrder, createdBy)
     }
 
     // Lấy số lượng cũ của item (nếu có)
     let oldQuantity = 0
-    if (category === 'drink') {
-      oldQuantity = currentOrder.order.drinks[itemId] || 0
-    } else {
-      oldQuantity = currentOrder.order.snacks[itemId] || 0
+    if (currentOrder) {
+      if (category === 'drink') {
+        oldQuantity = currentOrder.order.drinks[itemId] || 0
+      } else {
+        oldQuantity = currentOrder.order.snacks[itemId] || 0
+      }
     }
     const delta = quantity - oldQuantity
 

@@ -10,6 +10,7 @@ import utc from 'dayjs/plugin/utc'
 import { RoomScheduleStatus, RoomStatus, RoomType } from '~/constants/enum'
 import { RoomSchedule, BookingSource } from '~/models/schemas/RoomSchdedule.schema'
 import { emitBookingNotification } from '~/services/room.service'
+import { ErrorWithStatus } from '~/models/Error'
 
 dayjs.extend(utc)
 dayjs.extend(timezone)
@@ -138,120 +139,27 @@ export const createBooking = async (req: Request, res: Response, next: NextFunct
   try {
     const body = req.body
 
-    // Validate dữ liệu
-    if (
-      !body.customer_name ||
-      !body.customer_phone ||
-      !body.room_type ||
-      !body.booking_date ||
-      !body.time_slots ||
-      !body.time_slots.length
-    ) {
-      return res.status(HTTP_STATUS_CODE.BAD_REQUEST).json({
-        message: 'Missing required fields'
-      })
-    }
+    // Sử dụng service để tạo booking
+    const result = await bookingService.createBooking(body)
 
-    // Nếu client đã chỉ định rõ phòng cụ thể thay vì chỉ yêu cầu loại phòng
-    if (body.room_id) {
-      // Kiểm tra xem phòng có nằm trong danh sách khóa không
-      if (LOCKED_ROOM_IDS.includes(body.room_id)) {
-        return res.status(HTTP_STATUS_CODE.BAD_REQUEST).json({
-          message: 'This room is not available for booking',
-          error: 'ROOM_LOCKED'
-        })
-      }
-    }
-
-    // Tạo booking mới với status pending
-    const bookingData = {
-      customer_name: body.customer_name,
-      customer_phone: body.customer_phone,
-      customer_email: body.customer_email || null,
-      room_type: body.room_type,
-      booking_date: body.booking_date,
-      time_slots: body.time_slots,
-      status: 'pending',
-      total_price: body.total_price || 0,
-      created_at: new Date().toISOString()
-    }
-
-    // Lưu booking vào DB
-    const result = await databaseService.bookings.insertOne(bookingData)
-    const bookingId = result.insertedId
-
-    // Cố gắng chuyển đổi booking ngay lập tức
-    try {
-      // Lấy booking vừa tạo
-      const booking = await databaseService.bookings.findOne({ _id: bookingId })
-      if (booking) {
-        console.log('Found booking to convert:', bookingId)
-
-        // Chuyển đổi _id từ ObjectId sang string để phù hợp với định nghĩa IClientBooking
-        const bookingWithStringId = {
-          ...booking,
-          _id: booking._id.toString()
-        }
-
-        console.log('Attempting to convert booking to room schedules...')
-
-        // Chuyển đổi booking thành room schedules
-        const scheduleIds = await bookingService.convertClientBookingToRoomSchedule(bookingWithStringId)
-
-        console.log('Conversion successful, created schedule IDs:', scheduleIds)
-
-        // Trả về kết quả thành công
-        return res.status(HTTP_STATUS_CODE.CREATED).json({
-          message: 'Booking created and automatically converted to room schedules successfully',
-          result: {
-            booking_id: bookingId,
-            schedule_ids: scheduleIds,
-            status: 'confirmed'
-          }
-        })
-      } else {
-        console.error('Could not find the booking that was just created:', bookingId)
-      }
-    } catch (conversionError) {
-      console.error('Error auto-converting booking:', conversionError)
-      if (conversionError instanceof Error) {
-        console.error('Error details:', conversionError.message)
-        console.error('Error stack:', conversionError.stack)
+    if (!result.success) {
+      // Xử lý lỗi validation
+      if (result.error === 'This room is not available for booking') {
+        return new ErrorWithStatus({ message: result.message, status: HTTP_STATUS_CODE.BAD_REQUEST })
       }
 
-      // Send real-time notification for failed booking conversion
-      try {
-        // Find any room matching the room type to send notification
-        // Use existing database query instead of calling private method
-        const rooms = await databaseService.rooms
-          .find({
-            roomType: { $regex: new RegExp(body.room_type, 'i') }
-          })
-          .toArray()
-
-        if (rooms && rooms.length > 0) {
-          emitBookingNotification(rooms[0]._id.toString(), {
-            bookingId: bookingId.toString(),
-            customer: body.customer_name,
-            phone: body.customer_phone,
-            roomType: body.room_type,
-            timeSlots: body.time_slots,
-            bookingDate: body.booking_date,
-            status: 'pending',
-            error: conversionError instanceof Error ? conversionError.message : 'Unknown error'
-          })
-        }
-      } catch (notificationError) {
-        console.error('Error sending real-time notification:', notificationError)
-      }
+      return new ErrorWithStatus({ message: result.message, status: HTTP_STATUS_CODE.BAD_REQUEST })
     }
 
-    // Nếu không thể tự động chuyển đổi, trả về kết quả mặc định
+    // Trả về kết quả thành công
+    // Cả confirmed và pending đều trả về CREATED vì booking đã được tạo thành công
+    // Sự khác biệt chỉ là ở việc có chuyển đổi được sang room schedule hay không
     return res.status(HTTP_STATUS_CODE.CREATED).json({
-      message: 'Booking created successfully but could not be automatically converted',
+      message: result.message,
       result: {
-        booking_id: bookingId,
-        status: 'pending'
+        booking_id: result.bookingId,
+        schedule_ids: result.scheduleIds,
+        status: result.status
       }
     })
   } catch (error) {
