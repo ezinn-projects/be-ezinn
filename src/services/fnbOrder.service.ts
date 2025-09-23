@@ -4,6 +4,70 @@ import databaseService from './database.service'
 import fnbMenuItemService from './fnbMenuItem.service'
 
 class FnbOrderService {
+  /**
+   * Đảm bảo unique index trên roomScheduleId để tránh duplicate orders
+   */
+  async ensureUniqueIndex(): Promise<void> {
+    try {
+      await databaseService.fnbOrder.createIndex({ roomScheduleId: 1 }, { unique: true, name: 'unique_roomScheduleId' })
+      console.log('Unique index on roomScheduleId created successfully')
+    } catch (error) {
+      // Index có thể đã tồn tại, không cần throw error
+      console.log('Unique index on roomScheduleId already exists or error:', error)
+    }
+  }
+
+  /**
+   * Xóa các duplicate orders cho cùng một room schedule (giữ lại order mới nhất)
+   */
+  async cleanupDuplicateOrders(): Promise<void> {
+    try {
+      // Tìm các room schedule có nhiều hơn 1 order
+      const duplicates = await databaseService.fnbOrder
+        .aggregate([
+          {
+            $group: {
+              _id: '$roomScheduleId',
+              count: { $sum: 1 },
+              orders: { $push: '$$ROOT' }
+            }
+          },
+          {
+            $match: {
+              count: { $gt: 1 }
+            }
+          }
+        ])
+        .toArray()
+
+      console.log(`Found ${duplicates.length} room schedules with duplicate orders`)
+
+      for (const duplicate of duplicates) {
+        const orders = duplicate.orders
+        // Sắp xếp theo createdAt (mới nhất trước)
+        orders.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+
+        // Giữ lại order đầu tiên (mới nhất), xóa các order còn lại
+        const keepOrder = orders[0]
+        const deleteOrders = orders.slice(1)
+
+        console.log(
+          `Room schedule ${duplicate._id}: keeping order ${keepOrder._id}, deleting ${deleteOrders.length} duplicates`
+        )
+
+        // Xóa các duplicate orders
+        for (const orderToDelete of deleteOrders) {
+          await databaseService.fnbOrder.deleteOne({ _id: orderToDelete._id })
+          console.log(`Deleted duplicate order: ${orderToDelete._id}`)
+        }
+      }
+
+      console.log('Cleanup duplicate orders completed')
+    } catch (error) {
+      console.error('Error cleaning up duplicate orders:', error)
+    }
+  }
+
   async createFnbOrder(roomScheduleId: string, order: FNBOrder, createdBy?: string): Promise<RoomScheduleFNBOrder> {
     const newOrder = new RoomScheduleFNBOrder(roomScheduleId, order, createdBy, createdBy)
     const result = await databaseService.fnbOrder.insertOne(newOrder)
@@ -151,88 +215,97 @@ class FnbOrderService {
   ): Promise<RoomScheduleFNBOrder | null> {
     const filter = { roomScheduleId: new ObjectId(roomScheduleId) }
 
-    // Lấy dữ liệu hiện tại để merge
+    // Kiểm tra xem đã có order nào tồn tại chưa
     const existingOrder = await databaseService.fnbOrder.findOne(filter)
-    const currentDrinks = existingOrder?.order?.drinks || {}
-    const currentSnacks = existingOrder?.order?.snacks || {}
 
-    // Merge drinks: giữ nguyên items cũ, chỉ cập nhật/xóa items có trong request
-    let mergedDrinks = { ...currentDrinks }
-    if (order.drinks) {
-      console.log('=== DEBUG UPSERT FNB ORDER - DRINKS ===')
-      console.log('Current drinks:', currentDrinks)
-      console.log('Order drinks:', order.drinks)
+    if (existingOrder) {
+      // Nếu đã có order, chỉ update
+      const currentDrinks = existingOrder.order?.drinks || {}
+      const currentSnacks = existingOrder.order?.snacks || {}
 
-      // Chỉ cập nhật/xóa những items có trong request hiện tại
-      for (const [itemId, quantity] of Object.entries(order.drinks)) {
-        if (quantity > 0) {
-          mergedDrinks[itemId] = quantity
-          console.log(`Set drink ${itemId} = ${quantity}`)
-        } else {
-          delete mergedDrinks[itemId]
-          console.log(`Deleted drink ${itemId}`)
+      // Merge drinks: giữ nguyên items cũ, chỉ cập nhật/xóa items có trong request
+      let mergedDrinks = { ...currentDrinks }
+      if (order.drinks) {
+        console.log('=== DEBUG UPSERT FNB ORDER - DRINKS ===')
+        console.log('Current drinks:', currentDrinks)
+        console.log('Order drinks:', order.drinks)
+
+        // Chỉ cập nhật/xóa những items có trong request hiện tại
+        for (const [itemId, quantity] of Object.entries(order.drinks)) {
+          if (quantity > 0) {
+            mergedDrinks[itemId] = quantity
+            console.log(`Set drink ${itemId} = ${quantity}`)
+          } else {
+            delete mergedDrinks[itemId]
+            console.log(`Deleted drink ${itemId}`)
+          }
+        }
+
+        console.log('Merged drinks:', mergedDrinks)
+        console.log('=== END DEBUG DRINKS ===')
+      }
+
+      // Merge snacks: giữ nguyên items cũ, chỉ cập nhật/xóa items có trong request
+      let mergedSnacks = { ...currentSnacks }
+      if (order.snacks) {
+        console.log('=== DEBUG UPSERT FNB ORDER - SNACKS ===')
+        console.log('Current snacks:', currentSnacks)
+        console.log('Order snacks:', order.snacks)
+
+        // Chỉ cập nhật/xóa những items có trong request hiện tại
+        for (const [itemId, quantity] of Object.entries(order.snacks)) {
+          if (quantity > 0) {
+            mergedSnacks[itemId] = quantity
+            console.log(`Set snack ${itemId} = ${quantity}`)
+          } else {
+            delete mergedSnacks[itemId]
+            console.log(`Deleted snack ${itemId}`)
+          }
+        }
+
+        console.log('Merged snacks:', mergedSnacks)
+        console.log('=== END DEBUG SNACKS ===')
+      }
+
+      const validUpdate = {
+        $set: {
+          'order.drinks': mergedDrinks,
+          'order.snacks': mergedSnacks,
+          updatedAt: new Date(),
+          updatedBy: user || 'system'
+        },
+        $push: {
+          history: {
+            timestamp: new Date(),
+            updatedBy: user || 'system',
+            changes: order
+          }
         }
       }
 
-      console.log('Merged drinks:', mergedDrinks)
-      console.log('=== END DEBUG DRINKS ===')
-    }
+      const updatedOrder = await databaseService.fnbOrder.findOneAndUpdate(filter, validUpdate, {
+        returnDocument: 'after' as const
+      })
+      if (!updatedOrder) return null
 
-    // Merge snacks: giữ nguyên items cũ, chỉ cập nhật/xóa items có trong request
-    let mergedSnacks = { ...currentSnacks }
-    if (order.snacks) {
-      console.log('=== DEBUG UPSERT FNB ORDER - SNACKS ===')
-      console.log('Current snacks:', currentSnacks)
-      console.log('Order snacks:', order.snacks)
-
-      // Chỉ cập nhật/xóa những items có trong request hiện tại
-      for (const [itemId, quantity] of Object.entries(order.snacks)) {
-        if (quantity > 0) {
-          mergedSnacks[itemId] = quantity
-          console.log(`Set snack ${itemId} = ${quantity}`)
-        } else {
-          delete mergedSnacks[itemId]
-          console.log(`Deleted snack ${itemId}`)
-        }
+      return new RoomScheduleFNBOrder(
+        updatedOrder.roomScheduleId.toString(),
+        updatedOrder.order,
+        updatedOrder.createdBy,
+        updatedOrder.updatedBy,
+        updatedOrder.history || []
+      )
+    } else {
+      // Nếu chưa có order, tạo mới
+      const fullOrder: FNBOrder = {
+        drinks: order.drinks || {},
+        snacks: order.snacks || {}
       }
-
-      console.log('Merged snacks:', mergedSnacks)
-      console.log('=== END DEBUG SNACKS ===')
+      const newOrder = new RoomScheduleFNBOrder(roomScheduleId, fullOrder, user, user)
+      const result = await databaseService.fnbOrder.insertOne(newOrder)
+      newOrder._id = result.insertedId
+      return newOrder
     }
-
-    const validUpdate = {
-      $set: {
-        'order.drinks': mergedDrinks,
-        'order.snacks': mergedSnacks,
-        updatedAt: new Date(),
-        updatedBy: user || 'system'
-      },
-      $setOnInsert: {
-        createdAt: new Date(),
-        createdBy: user || 'system'
-      },
-      $push: {
-        history: {
-          timestamp: new Date(),
-          updatedBy: user || 'system',
-          changes: order
-        }
-      }
-    }
-
-    const updatedOrder = await databaseService.fnbOrder.findOneAndUpdate(filter, validUpdate, {
-      upsert: true,
-      returnDocument: 'after' as const
-    })
-    if (!updatedOrder) return null
-
-    return new RoomScheduleFNBOrder(
-      updatedOrder.roomScheduleId.toString(),
-      updatedOrder.order,
-      updatedOrder.createdBy,
-      updatedOrder.updatedBy,
-      updatedOrder.history || []
-    )
   }
 }
 

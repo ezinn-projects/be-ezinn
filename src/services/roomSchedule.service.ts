@@ -11,6 +11,7 @@ import { parseDate } from '~/utils/common'
 import redis from './redis.service'
 import { roomEventEmitter } from './room.service'
 import billService from './bill.service'
+import fnbOrderService from './fnbOrder.service'
 
 /**
  * RoomScheduleService
@@ -206,6 +207,20 @@ class RoomScheduleService {
     )
 
     const result = await databaseService.roomSchedule.insertOne(scheduleData)
+
+    // Tự động tạo FNB order trống cho room schedule từ admin/staff
+    try {
+      const emptyOrder = {
+        drinks: {},
+        snacks: {}
+      }
+      await fnbOrderService.createFnbOrder(result.insertedId.toString(), emptyOrder, schedule.createdBy || 'system')
+      console.log(`Đã tạo FNB order tự động cho room schedule: ${result.insertedId}`)
+    } catch (fnbOrderError) {
+      console.error('Lỗi khi tạo FNB order tự động:', fnbOrderError)
+      // Không fail toàn bộ request nếu chỉ lỗi tạo FNB order
+    }
+
     return result.insertedId
   }
 
@@ -498,6 +513,19 @@ class RoomScheduleService {
         // Lưu trực tiếp vào database không qua hàm createSchedule
         const result = await databaseService.roomSchedule.insertOne(newSchedule)
         createdScheduleIds.push(result.insertedId)
+
+        // Tự động tạo FNB order trống cho mỗi room schedule từ booking
+        try {
+          const emptyOrder = {
+            drinks: {},
+            snacks: {}
+          }
+          await fnbOrderService.createFnbOrder(result.insertedId.toString(), emptyOrder, 'web_customer')
+          console.log(`Đã tạo FNB order tự động cho booking schedule: ${result.insertedId}`)
+        } catch (fnbOrderError) {
+          console.error('Lỗi khi tạo FNB order tự động:', fnbOrderError)
+          // Không fail toàn bộ request nếu chỉ lỗi tạo FNB order
+        }
       }
 
       // Cập nhật trạng thái booking
@@ -616,6 +644,19 @@ class RoomScheduleService {
         // Lưu trực tiếp vào database không qua hàm createSchedule
         const result = await databaseService.roomSchedule.insertOne(newSchedule)
         createdScheduleIds.push(result.insertedId)
+
+        // Tự động tạo FNB order trống cho mỗi room schedule từ auto booking
+        try {
+          const emptyOrder = {
+            drinks: {},
+            snacks: {}
+          }
+          await fnbOrderService.createFnbOrder(result.insertedId.toString(), emptyOrder, 'web_customer')
+          console.log(`Đã tạo FNB order tự động cho auto booking schedule: ${result.insertedId}`)
+        } catch (fnbOrderError) {
+          console.error('Lỗi khi tạo FNB order tự động:', fnbOrderError)
+          // Không fail toàn bộ request nếu chỉ lỗi tạo FNB order
+        }
       }
 
       // Cập nhật trạng thái booking thành confirmed ngay

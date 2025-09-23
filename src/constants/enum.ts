@@ -24,6 +24,12 @@ export enum RoomType {
   Large = 'Large'
 }
 
+export enum RoomSize {
+  S = 'S',
+  M = 'M',
+  L = 'L'
+}
+
 export enum RoomStatus {
   Available = 'available',
   Occupied = 'occupied',
@@ -39,10 +45,8 @@ export enum DayType {
 }
 
 export enum RoomScheduleStatus {
-  Available = 'available',
   Booked = 'booked',
   InUse = 'in use',
-  Maintenance = 'maintenance',
   Locked = 'locked',
   Cancelled = 'cancelled',
   Finished = 'finished'
