@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express'
 import { ObjectId } from 'mongodb'
 import { HTTP_STATUS_CODE } from '~/constants/httpStatus'
+import { RoomScheduleStatus, RoomType } from '~/constants/enum'
 import { virtualRoomService } from '~/services/virtualRoom.service'
 import databaseService from '~/services/database.service'
 
@@ -22,7 +23,7 @@ export const getVirtualRoomDashboard = async (req: Request, res: Response, next:
 
           const currentBooking = await databaseService.roomSchedule.findOne({
             'virtualRoomInfo.virtualRoomId': virtualRoom._id,
-            status: { $in: ['booked', 'in use'] }
+            status: { $in: [RoomScheduleStatus.Booked, RoomScheduleStatus.InUse] }
           })
 
           return {
@@ -48,9 +49,9 @@ export const getVirtualRoomDashboard = async (req: Request, res: Response, next:
       summary: {
         totalVirtualRooms: virtualRooms.length,
         virtualRoomsBySize: {
-          S: virtualRooms.filter((r) => r.virtualSize === 'S').length,
-          M: virtualRooms.filter((r) => r.virtualSize === 'M').length,
-          L: virtualRooms.filter((r) => r.virtualSize === 'L').length
+          S: virtualRooms.filter((r) => r.virtualSize === RoomType.Small).length,
+          M: virtualRooms.filter((r) => r.virtualSize === RoomType.Medium).length,
+          L: virtualRooms.filter((r) => r.virtualSize === RoomType.Large).length
         },
         availableRooms: virtualRooms.filter((r) => r.isActive).length
       }
