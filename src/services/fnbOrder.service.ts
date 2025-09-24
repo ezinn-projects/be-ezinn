@@ -4,16 +4,50 @@ import databaseService from './database.service'
 import fnbMenuItemService from './fnbMenuItem.service'
 
 class FnbOrderService {
+  private initialized = false
+
+  /**
+   * Khởi tạo service - đảm bảo unique index được tạo
+   */
+  async initialize(): Promise<void> {
+    if (this.initialized) return
+
+    try {
+      console.log('=== INITIALIZING FNB ORDER SERVICE ===')
+      await this.ensureUniqueIndex()
+      this.initialized = true
+      console.log('=== FNB ORDER SERVICE INITIALIZED ===')
+    } catch (error) {
+      console.error('Failed to initialize FNB Order Service:', error)
+      throw error
+    }
+  }
   /**
    * Đảm bảo unique index trên roomScheduleId để tránh duplicate orders
    */
   async ensureUniqueIndex(): Promise<void> {
     try {
+      console.log('=== ENSURING UNIQUE INDEX ===')
+
+      // Bước 1: Cleanup duplicate orders trước
+      await this.cleanupDuplicateOrders()
+
+      // Bước 2: Xóa index cũ nếu có để tạo lại
+      try {
+        await databaseService.fnbOrder.dropIndex('unique_roomScheduleId')
+        console.log('Dropped existing unique index')
+      } catch (dropError) {
+        console.log('No existing index to drop:', dropError)
+      }
+
+      // Bước 3: Tạo unique index mới
       await databaseService.fnbOrder.createIndex({ roomScheduleId: 1 }, { unique: true, name: 'unique_roomScheduleId' })
       console.log('Unique index on roomScheduleId created successfully')
+
+      console.log('=== UNIQUE INDEX ENSURED ===')
     } catch (error) {
-      // Index có thể đã tồn tại, không cần throw error
-      console.log('Unique index on roomScheduleId already exists or error:', error)
+      console.error('Error creating unique index:', error)
+      throw error
     }
   }
 
@@ -22,6 +56,8 @@ class FnbOrderService {
    */
   async cleanupDuplicateOrders(): Promise<void> {
     try {
+      console.log('=== STARTING CLEANUP DUPLICATE ORDERS ===')
+
       // Tìm các room schedule có nhiều hơn 1 order
       const duplicates = await databaseService.fnbOrder
         .aggregate([
@@ -44,6 +80,8 @@ class FnbOrderService {
 
       for (const duplicate of duplicates) {
         const orders = duplicate.orders
+        console.log(`Processing room schedule ${duplicate._id} with ${orders.length} orders`)
+
         // Sắp xếp theo createdAt (mới nhất trước)
         orders.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
 
@@ -52,19 +90,20 @@ class FnbOrderService {
         const deleteOrders = orders.slice(1)
 
         console.log(
-          `Room schedule ${duplicate._id}: keeping order ${keepOrder._id}, deleting ${deleteOrders.length} duplicates`
+          `Room schedule ${duplicate._id}: keeping order ${keepOrder._id} (created: ${keepOrder.createdAt}), deleting ${deleteOrders.length} duplicates`
         )
 
         // Xóa các duplicate orders
         for (const orderToDelete of deleteOrders) {
+          console.log(`Deleting duplicate order: ${orderToDelete._id} (created: ${orderToDelete.createdAt})`)
           await databaseService.fnbOrder.deleteOne({ _id: orderToDelete._id })
-          console.log(`Deleted duplicate order: ${orderToDelete._id}`)
         }
       }
 
-      console.log('Cleanup duplicate orders completed')
+      console.log('=== CLEANUP DUPLICATE ORDERS COMPLETED ===')
     } catch (error) {
       console.error('Error cleaning up duplicate orders:', error)
+      throw error
     }
   }
 
@@ -213,10 +252,23 @@ class FnbOrderService {
     order: Partial<FNBOrder>,
     user?: string
   ): Promise<RoomScheduleFNBOrder | null> {
+    console.log('=== DEBUG UPSERT FNB ORDER START ===')
+    console.log('RoomScheduleId:', roomScheduleId)
+    console.log('Order:', order)
+    console.log('User:', user)
+
+    // Đảm bảo service đã được khởi tạo
+    await this.initialize()
+
     const filter = { roomScheduleId: new ObjectId(roomScheduleId) }
 
     // Kiểm tra xem đã có order nào tồn tại chưa
     const existingOrder = await databaseService.fnbOrder.findOne(filter)
+    console.log('Existing order found:', existingOrder ? 'YES' : 'NO')
+    if (existingOrder) {
+      console.log('Existing order ID:', existingOrder._id)
+      console.log('Existing order data:', JSON.stringify(existingOrder, null, 2))
+    }
 
     if (existingOrder) {
       // Nếu đã có order, chỉ update
@@ -283,27 +335,49 @@ class FnbOrderService {
         }
       }
 
+      console.log('Update operation:', JSON.stringify(validUpdate, null, 2))
+
       const updatedOrder = await databaseService.fnbOrder.findOneAndUpdate(filter, validUpdate, {
         returnDocument: 'after' as const
       })
+
+      console.log('Updated order result:', updatedOrder ? 'SUCCESS' : 'FAILED')
+      if (updatedOrder) {
+        console.log('Updated order ID:', updatedOrder._id)
+        console.log('Updated order data:', JSON.stringify(updatedOrder, null, 2))
+      }
+
       if (!updatedOrder) return null
 
-      return new RoomScheduleFNBOrder(
+      const result = new RoomScheduleFNBOrder(
         updatedOrder.roomScheduleId.toString(),
         updatedOrder.order,
         updatedOrder.createdBy,
         updatedOrder.updatedBy,
         updatedOrder.history || []
       )
+      result._id = updatedOrder._id
+
+      console.log('Returning updated order with ID:', result._id)
+      console.log('=== END DEBUG UPSERT FNB ORDER ===')
+      return result
     } else {
       // Nếu chưa có order, tạo mới
+      console.log('Creating new order...')
       const fullOrder: FNBOrder = {
         drinks: order.drinks || {},
         snacks: order.snacks || {}
       }
       const newOrder = new RoomScheduleFNBOrder(roomScheduleId, fullOrder, user, user)
+
+      console.log('New order before insert:', JSON.stringify(newOrder, null, 2))
+
       const result = await databaseService.fnbOrder.insertOne(newOrder)
+      console.log('Insert result:', result)
+
       newOrder._id = result.insertedId
+      console.log('New order after insert with ID:', newOrder._id)
+      console.log('=== END DEBUG UPSERT FNB ORDER ===')
       return newOrder
     }
   }

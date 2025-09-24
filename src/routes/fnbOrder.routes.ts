@@ -1,9 +1,11 @@
 import { Router } from 'express'
 import {
   addItemsToOrder,
+  cleanupDuplicateOrders,
   completeOrder,
   createFnbOrder,
   deleteFnbOrder,
+  ensureUniqueIndex,
   getBillDetails,
   getFnbOrderById,
   getFnbOrdersByRoomSchedule,
@@ -48,5 +50,9 @@ fnbOrderRouter.get(
   checkRoomScheduleExists,
   getBillDetails
 )
+
+// Admin routes for maintenance
+fnbOrderRouter.post('/cleanup-duplicates', cleanupDuplicateOrders)
+fnbOrderRouter.post('/ensure-unique-index', ensureUniqueIndex)
 
 export default fnbOrderRouter

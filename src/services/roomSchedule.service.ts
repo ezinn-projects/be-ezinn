@@ -520,7 +520,7 @@ class RoomScheduleService {
             drinks: {},
             snacks: {}
           }
-          await fnbOrderService.createFnbOrder(result.insertedId.toString(), emptyOrder, 'web_customer')
+          await fnbOrderService.upsertFnbOrder(result.insertedId.toString(), emptyOrder, 'web_customer')
           console.log(`Đã tạo FNB order tự động cho booking schedule: ${result.insertedId}`)
         } catch (fnbOrderError) {
           console.error('Lỗi khi tạo FNB order tự động:', fnbOrderError)
@@ -651,7 +651,7 @@ class RoomScheduleService {
             drinks: {},
             snacks: {}
           }
-          await fnbOrderService.createFnbOrder(result.insertedId.toString(), emptyOrder, 'web_customer')
+          await fnbOrderService.upsertFnbOrder(result.insertedId.toString(), emptyOrder, 'web_customer')
           console.log(`Đã tạo FNB order tự động cho auto booking schedule: ${result.insertedId}`)
         } catch (fnbOrderError) {
           console.error('Lỗi khi tạo FNB order tự động:', fnbOrderError)

@@ -315,7 +315,7 @@ class OnlineBookingService {
           drinks: {},
           snacks: {}
         }
-        await fnbOrderService.createFnbOrder(result.insertedId.toString(), emptyOrder, 'online_customer')
+        await fnbOrderService.upsertFnbOrder(result.insertedId.toString(), emptyOrder, 'online_customer')
       } catch (fnbOrderError) {
         console.error('Lỗi khi tạo FNB order tự động:', fnbOrderError)
       }

@@ -23,7 +23,8 @@ export const createFnbOrder = async (
 ) => {
   try {
     const { roomScheduleId, order, createdBy } = req.body
-    const result = await fnbOrderService.createFnbOrder(roomScheduleId, order, createdBy)
+    // Sử dụng upsertFnbOrder thay vì createFnbOrder để tránh duplicate
+    const result = await fnbOrderService.upsertFnbOrder(roomScheduleId, order, createdBy)
     return res.status(HTTP_STATUS_CODE.CREATED).json({
       message: FNB_MESSAGES.CREATE_FNB_ORDER_SUCCESS,
       result
@@ -622,19 +623,18 @@ export const getOrderDetail = async (req: Request, res: Response, next: NextFunc
 
     const currentOrder = currentOrders[currentOrders.length - 1]
 
-    // Lấy menu items để có thông tin chi tiết
-    const menu = await databaseService.fnbMenu.find({}).toArray()
-
     // Xử lý drinks
     const drinksDetail = []
     if (currentOrder.order.drinks && Object.keys(currentOrder.order.drinks).length > 0) {
       for (const [itemId, quantity] of Object.entries(currentOrder.order.drinks)) {
-        const menuItem = await fnbMenuItemService.getMenuItemById(itemId)
-        if (menuItem) {
+        // Chỉ kiểm tra fnb_menu_item (không dùng fnb_menu nữa)
+        const item = await fnbMenuItemService.getMenuItemById(itemId)
+
+        if (item) {
           drinksDetail.push({
             itemId,
-            name: menuItem.name,
-            price: menuItem.price,
+            name: item.name,
+            price: item.price,
             quantity,
             category: 'drink'
           })
@@ -646,12 +646,14 @@ export const getOrderDetail = async (req: Request, res: Response, next: NextFunc
     const snacksDetail = []
     if (currentOrder.order.snacks && Object.keys(currentOrder.order.snacks).length > 0) {
       for (const [itemId, quantity] of Object.entries(currentOrder.order.snacks)) {
-        const menuItem = await fnbMenuItemService.getMenuItemById(itemId)
-        if (menuItem) {
+        // Chỉ kiểm tra fnb_menu_item (không dùng fnb_menu nữa)
+        const item = await fnbMenuItemService.getMenuItemById(itemId)
+
+        if (item) {
           snacksDetail.push({
             itemId,
-            name: menuItem.name,
-            price: menuItem.price,
+            name: item.name,
+            price: item.price,
             quantity,
             category: 'snack'
           })
@@ -688,6 +690,44 @@ export const getOrderDetail = async (req: Request, res: Response, next: NextFunc
 }
 
 /**
+ * @description Cleanup duplicate FNB orders
+ * @path /fnb-orders/cleanup-duplicates
+ * @method POST
+ */
+export const cleanupDuplicateOrders = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    console.log('=== CLEANUP DUPLICATE ORDERS ENDPOINT ===')
+    await fnbOrderService.cleanupDuplicateOrders()
+
+    return res.status(HTTP_STATUS_CODE.OK).json({
+      message: 'Cleanup duplicate orders thành công',
+      result: { success: true }
+    })
+  } catch (error) {
+    next(error)
+  }
+}
+
+/**
+ * @description Ensure unique index for FNB orders
+ * @path /fnb-orders/ensure-unique-index
+ * @method POST
+ */
+export const ensureUniqueIndex = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    console.log('=== ENSURE UNIQUE INDEX ENDPOINT ===')
+    await fnbOrderService.ensureUniqueIndex()
+
+    return res.status(HTTP_STATUS_CODE.OK).json({
+      message: 'Ensure unique index thành công',
+      result: { success: true }
+    })
+  } catch (error) {
+    next(error)
+  }
+}
+
+/**
  * @description Upsert FNB Order Item (add/update quantity)
  * @path /fnb-orders/upsert-item
  * @method POST
@@ -696,9 +736,15 @@ export const upsertOrderItem = async (req: Request, res: Response, next: NextFun
   try {
     const { roomScheduleId, itemId, quantity, category, createdBy } = req.body
 
+    console.log('=== DEBUG UPSERT ORDER ITEM ===')
+    console.log('Request body:', { roomScheduleId, itemId, quantity, category, createdBy })
+
     // Lấy order hiện tại
     const currentOrders = await fnbOrderService.getFnbOrdersByRoomSchedule(roomScheduleId)
     let currentOrder = currentOrders.length > 0 ? currentOrders[currentOrders.length - 1] : null
+
+    console.log('Current orders found:', currentOrders.length)
+    console.log('Current order:', currentOrder ? JSON.stringify(currentOrder, null, 2) : 'NULL')
 
     // Tạo order mới nếu chưa có
     if (!currentOrder) {
@@ -720,61 +766,70 @@ export const upsertOrderItem = async (req: Request, res: Response, next: NextFun
     }
     const delta = quantity - oldQuantity
 
+    console.log('Old quantity:', oldQuantity)
+    console.log('New quantity:', quantity)
+    console.log('Delta:', delta)
+
     // Nếu không thay đổi thì trả về luôn
     if (delta === 0) {
+      console.log('No change in quantity, returning current order')
       return res.status(HTTP_STATUS_CODE.OK).json({
         message: 'Số lượng không thay đổi',
         result: currentOrder
       })
     }
 
-    // Lấy item từ menu chính hoặc menu item
-    let item: any = await databaseService.fnbMenu.findOne({ _id: new ObjectId(itemId) })
-    let isVariant = false
+    // Lấy item từ fnb_menu_item (không dùng fnb_menu nữa)
+    const item = await fnbMenuItemService.getMenuItemById(itemId)
+    console.log('Item from fnb_menu_item:', item ? 'FOUND' : 'NOT FOUND')
+
     if (!item) {
-      const menuItem = await fnbMenuItemService.getMenuItemById(itemId)
-      if (!menuItem) {
-        return res.status(HTTP_STATUS_CODE.NOT_FOUND).json({
-          message: `Không tìm thấy item ${itemId}`
-        })
-      }
-      item = menuItem
-      isVariant = true
+      console.log('Item not found in fnb_menu_item collection')
+      console.log('Available items in fnb_menu_item:', await fnbMenuItemService.getAllMenuItems())
+      return res.status(HTTP_STATUS_CODE.NOT_FOUND).json({
+        message: `Không tìm thấy item ${itemId} trong fnb_menu_item. Vui lòng kiểm tra lại item ID.`
+      })
     }
+
+    console.log('Final item:', {
+      id: item._id,
+      name: item.name,
+      inventory: item.inventory
+    })
 
     // Kiểm tra tồn kho nếu tăng số lượng
     if (delta > 0) {
+      console.log('Checking inventory for delta > 0')
+      console.log('Item inventory quantity:', item.inventory?.quantity ?? 0)
+      console.log('Delta:', delta)
+
       if ((item.inventory?.quantity ?? 0) < delta) {
+        console.log('Insufficient inventory')
         return res.status(HTTP_STATUS_CODE.BAD_REQUEST).json({
           message: `Item ${item.name} không đủ hàng (còn ${item.inventory?.quantity || 0}, cần thêm ${delta})`
         })
       }
     }
 
-    // Cập nhật tồn kho
+    // Cập nhật tồn kho trong fnb_menu_item
     if (item.inventory) {
       const newInventoryQuantity = item.inventory.quantity - delta
-      if (isVariant) {
-        await fnbMenuItemService.updateMenuItem(itemId, {
-          inventory: {
-            ...item.inventory,
-            quantity: newInventoryQuantity,
-            lastUpdated: new Date()
-          },
-          updatedAt: new Date()
-        })
-      } else {
-        await databaseService.fnbMenu.updateOne(
-          { _id: new ObjectId(itemId) },
-          {
-            $set: {
-              'inventory.quantity': newInventoryQuantity,
-              'inventory.lastUpdated': new Date(),
-              updatedAt: new Date()
-            }
-          }
-        )
-      }
+      console.log('Updating inventory in fnb_menu_item:', {
+        current: item.inventory.quantity,
+        delta: delta,
+        new: newInventoryQuantity
+      })
+
+      await fnbMenuItemService.updateMenuItem(itemId, {
+        inventory: {
+          ...item.inventory,
+          quantity: newInventoryQuantity,
+          lastUpdated: new Date()
+        },
+        updatedAt: new Date()
+      })
+    } else {
+      console.log('Item has no inventory, skipping inventory update')
     }
 
     // Tạo order object với item cần cập nhật
@@ -783,8 +838,13 @@ export const upsertOrderItem = async (req: Request, res: Response, next: NextFun
       snacks: category === 'snack' ? { [itemId]: quantity } : {}
     }
 
+    console.log('Order update object:', orderUpdate)
+
     // Upsert order
     const result = await fnbOrderService.upsertFnbOrder(roomScheduleId, orderUpdate, createdBy)
+
+    console.log('Upsert result:', result ? JSON.stringify(result, null, 2) : 'NULL')
+    console.log('=== END DEBUG UPSERT ORDER ITEM ===')
 
     return res.status(HTTP_STATUS_CODE.OK).json({
       message: 'Upsert order item successfully',
