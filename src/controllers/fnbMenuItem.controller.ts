@@ -292,9 +292,27 @@ export const getAllMenuItems = async (req: Request, res: Response, next: NextFun
       result = await fnBMenuItemService.getAllMenuItems()
     }
 
+    // Parse variants nếu chúng là JSON string
+    const parsedResult = result.map((item) => {
+      if (item.hasVariant) {
+        // Lấy variants cho từng parent item
+        return fnBMenuItemService.getVariantsByParentId(item._id!.toString()).then((variants) => ({
+          ...item,
+          variants: variants
+        }))
+      }
+      return {
+        ...item,
+        variants: []
+      }
+    })
+
+    // Chờ tất cả promises resolve
+    const finalResult = await Promise.all(parsedResult)
+
     return res.status(HttpStatusCode.Ok).json({
       message: 'Lấy menu items thành công',
-      result
+      result: finalResult
     })
   } catch (error) {
     next(error)

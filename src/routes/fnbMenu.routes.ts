@@ -9,6 +9,7 @@ import {
 } from '~/controllers/fnbMenu.controller'
 import { protect } from '~/middlewares/auth.middleware'
 import { validateFnBMenuFiles } from '~/middlewares/fnbMenu.middleware'
+import { parseFnbMenuJsonFields } from '~/middlewares/parseJsonFields.middleware'
 import { upload } from '~/utils/common'
 import { wrapRequestHandler } from '~/utils/handlers'
 
@@ -22,6 +23,7 @@ fnbMenuRouter.post(
   protect([UserRole.Admin]),
   validateFnBMenuFiles,
   upload.any(),
+  parseFnbMenuJsonFields,
   wrapRequestHandler(createMenuItem)
 )
 fnbMenuRouter.put(
@@ -29,6 +31,7 @@ fnbMenuRouter.put(
   protect([UserRole.Admin]),
   validateFnBMenuFiles,
   upload.any(),
+  parseFnbMenuJsonFields,
   wrapRequestHandler(updateMenuItem)
 )
 fnbMenuRouter.delete('/:id', protect([UserRole.Admin]), wrapRequestHandler(deleteMenuItem))

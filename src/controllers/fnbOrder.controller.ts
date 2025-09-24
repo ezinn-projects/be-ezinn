@@ -3,6 +3,7 @@ import { type ParamsDictionary } from 'express-serve-static-core'
 import { HTTP_STATUS_CODE } from '~/constants/httpStatus'
 import { FNB_MESSAGES } from '~/constants/messages'
 import { ICreateFNBOrderRequestBody } from '~/models/requests/FNB.request'
+import { ErrorWithStatus } from '~/models/Error'
 import fnbOrderService from '~/services/fnbOrder.service'
 import fnbMenuItemService from '~/services/fnbMenuItem.service'
 import databaseService from '~/services/database.service'
@@ -95,6 +96,89 @@ export const getFnbOrdersByRoomSchedule = async (req: Request, res: Response, ne
 export const upsertFnbOrder = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { roomScheduleId, order, createdBy } = req.body
+
+    // Get current order to calculate delta
+    const existingOrders = await fnbOrderService.getFnbOrdersByRoomSchedule(roomScheduleId)
+    const currentOrder = existingOrders.length > 0 ? existingOrders[0] : null
+
+    // Calculate inventory changes and update inventory
+    const allItems = { ...order.drinks, ...order.snacks }
+    const inventoryUpdates: Array<{ itemId: string; delta: number; item: any; isVariant: boolean }> = []
+
+    // Get all items that were in the current order (including those being removed)
+    const currentItems = {
+      ...(currentOrder?.order.drinks || {}),
+      ...(currentOrder?.order.snacks || {})
+    }
+
+    // Create a set of all item IDs (current + new)
+    const allItemIds = new Set([...Object.keys(currentItems), ...Object.keys(allItems)])
+
+    // Calculate deltas for each item
+    for (const itemId of allItemIds) {
+      const newQuantity = allItems[itemId] || 0
+      const currentQuantity = currentItems[itemId] || 0
+      const delta = newQuantity - currentQuantity
+
+      if (delta !== 0) {
+        // Find item
+        let item: any = await databaseService.fnbMenu.findOne({ _id: new ObjectId(itemId) })
+        let isVariant = false
+
+        if (!item) {
+          const menuItem = await fnbMenuItemService.getMenuItemById(itemId)
+          if (menuItem) {
+            item = menuItem
+            isVariant = true
+          }
+        }
+
+        if (item) {
+          inventoryUpdates.push({ itemId, delta, item, isVariant })
+        }
+      }
+    }
+
+    // Check inventory availability and update inventory
+    for (const { itemId, delta, item, isVariant } of inventoryUpdates) {
+      // Check inventory if increasing quantity
+      if (delta > 0) {
+        const availableQuantity = item.inventory?.quantity ?? 0
+        if (availableQuantity < delta) {
+          throw new ErrorWithStatus({
+            message: `Not enough inventory for item ${item.name}. Available: ${availableQuantity}, Required: ${delta}`,
+            status: HTTP_STATUS_CODE.BAD_REQUEST
+          })
+        }
+      }
+
+      // Update inventory
+      if (item.inventory && delta !== 0) {
+        const newInventoryQuantity = item.inventory.quantity - delta
+        if (isVariant) {
+          await fnbMenuItemService.updateMenuItem(itemId, {
+            inventory: {
+              ...item.inventory,
+              quantity: newInventoryQuantity,
+              lastUpdated: new Date()
+            },
+            updatedAt: new Date()
+          })
+        } else {
+          await databaseService.fnbMenu.updateOne(
+            { _id: new ObjectId(itemId) },
+            {
+              $set: {
+                'inventory.quantity': newInventoryQuantity,
+                'inventory.lastUpdated': new Date(),
+                updatedAt: new Date()
+              }
+            }
+          )
+        }
+      }
+    }
+
     const result = await fnbOrderService.upsertFnbOrder(roomScheduleId, order, createdBy)
     return res.status(HTTP_STATUS_CODE.OK).json({
       message: FNB_MESSAGES.UPSERT_FNB_ORDER_SUCCESS,

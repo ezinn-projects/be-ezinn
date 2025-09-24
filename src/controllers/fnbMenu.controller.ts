@@ -86,17 +86,8 @@ export const createMenuItem = async (req: Request, res: Response, next: NextFunc
     let processedInventory: any = undefined
 
     if (hasVariants && variants) {
-      let variantsData = variants
-
-      // Kiểm tra nếu variants là chuỗi JSON (từ FormData)
-      if (typeof variants === 'string') {
-        try {
-          variantsData = JSON.parse(variants)
-        } catch (error) {
-          console.error('Lỗi khi parse variants JSON:', error)
-          variantsData = []
-        }
-      }
+      // Variants đã được parse bởi middleware, không cần parse lại
+      const variantsData = variants
 
       // Validate variants inventory
       if (!variantsData.every((v: any) => v.inventory && typeof v.inventory.quantity === 'number')) {
@@ -214,17 +205,8 @@ export const updateMenuItem = async (req: Request, res: Response, next: NextFunc
       menuItem.hasVariants = hasVariants
 
       if (hasVariants && variants) {
-        let variantsData = variants
-
-        // Kiểm tra nếu variants là chuỗi JSON (từ FormData)
-        if (typeof variants === 'string') {
-          try {
-            variantsData = JSON.parse(variants)
-          } catch (error) {
-            console.error('Lỗi khi parse variants JSON:', error)
-            variantsData = []
-          }
-        }
+        // Variants đã được parse bởi middleware, không cần parse lại
+        const variantsData = variants
 
         // Tạo map để lưu trữ file theo tên
         const fileMap = new Map<string, Express.Multer.File>()
@@ -279,16 +261,8 @@ export const updateMenuItem = async (req: Request, res: Response, next: NextFunc
 
         // Xử lý inventory ở cấp độ sản phẩm
         if (inventory) {
-          let inventoryData = inventory
-
-          if (typeof inventory === 'string') {
-            try {
-              inventoryData = JSON.parse(inventory)
-            } catch (error) {
-              console.error('Lỗi khi parse inventory JSON:', error)
-              inventoryData = { quantity: 0, unit: 'piece', minStock: 0, maxStock: 0 }
-            }
-          }
+          // Inventory đã được parse bởi middleware, không cần parse lại
+          const inventoryData = inventory
 
           menuItem.inventory = {
             quantity: inventoryData.quantity !== undefined ? inventoryData.quantity : 0,
