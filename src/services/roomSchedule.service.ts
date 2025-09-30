@@ -288,6 +288,10 @@ class RoomScheduleService {
       updateData.updatedBy = schedule.updatedBy
     }
 
+    if (schedule.note) {
+      updateData.note = schedule.note
+    }
+
     const result = await databaseService.roomSchedule.updateOne({ _id: new ObjectId(id) }, { $set: updateData })
 
     // Nếu đang cập nhật trạng thái thành "Finished", xóa tất cả cache của phòng
