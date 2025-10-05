@@ -6,4 +6,8 @@ export interface AddSongRequestBody {
   url?: string
   position?: 'top' | 'end'
   duration?: number
+  // Thêm các trường mới cho HLS support
+  format_type?: 'hls' | 'progressive'
+  headers?: Record<string, string>
+  required_headers?: Record<string, string>
 }

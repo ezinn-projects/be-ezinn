@@ -83,7 +83,7 @@
     "play-dl": "^1.9.7",
     "socket.io": "^4.8.1",
     "usb": "^2.15.0",
-    "youtube-dl-exec": "^3.0.23",
+    "youtube-dl-exec": "^3.0.25",
     "yt-search": "^2.13.1",
     "ytdl-core": "^4.11.5"
   }

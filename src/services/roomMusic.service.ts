@@ -176,6 +176,8 @@ class RoomMusicServices {
   async getVideoInfo(videoId: string): Promise<AddSongRequestBody> {
     const videoUrl = `https://youtu.be/${videoId}`
 
+    console.log('videoUrl', videoUrl)
+
     /** Gọi yt‑dlp qua youtube‑dl‑exec – mất ~400 ms */
     const info = (await ytdl(videoUrl, {
       dumpSingleJson: true, // JSON duy nhất
@@ -183,15 +185,60 @@ class RoomMusicServices {
       noCheckCertificates: true,
       forceIpv4: true, // tránh IPv6 timeout
       geoBypassCountry: 'VN', // né khoá vùng
-      // progressive ≤1080p; fallback 720p (22) → 360p (18)
-      format: 'bestvideo[height<=1080][vcodec^=avc1][ext=mp4]+bestaudio[ext=m4a]/22/18',
+      // Ưu tiên progressive formats (có cả video và audio trong một file)
+      format: 'best[height<=1080][ext=mp4][protocol!=m3u8_native][protocol!=m3u8]/best[height<=1080]/best',
       // để yt‑dlp tự thêm header vào kết quả
       addHeader: [`User-Agent: ${UA}`, 'Referer: https://www.youtube.com/']
     })) as any
 
-    /** tìm format đã "có sẵn audio" (progressive) */
-    const playable = info.formats.find((f: any) => f.vcodec !== 'none' && f.acodec !== 'none')
-    if (!playable) throw new Error('Không tìm thấy format MP4 phù hợp')
+    console.log('info', info)
+
+    /** Tìm format tốt nhất có thể phát được */
+    // Ưu tiên progressive formats (không phải HLS)
+    let playable = info.formats?.find(
+      (f: any) =>
+        f.vcodec !== 'none' &&
+        f.acodec !== 'none' &&
+        f.ext === 'mp4' &&
+        f.protocol !== 'm3u8_native' &&
+        f.protocol !== 'm3u8'
+    )
+
+    // Nếu không có progressive MP4, tìm format khác có cả video và audio
+    if (!playable) {
+      playable = info.formats?.find(
+        (f: any) =>
+          f.vcodec !== 'none' &&
+          f.acodec !== 'none' &&
+          f.protocol === 'https' &&
+          f.protocol !== 'm3u8_native' &&
+          f.protocol !== 'm3u8'
+      )
+    }
+
+    // Nếu vẫn không có, chấp nhận HLS stream (m3u8)
+    if (!playable) {
+      playable = info.formats?.find((f: any) => f.vcodec !== 'none' && f.acodec !== 'none')
+    }
+
+    // Fallback cuối cùng - lấy format đầu tiên có video
+    if (!playable) {
+      playable = info.formats?.find((f: any) => f.vcodec !== 'none')
+    }
+
+    if (!playable) throw new Error('Không tìm thấy format video phù hợp')
+
+    console.log('Selected format:', {
+      url: playable.url,
+      ext: playable.ext,
+      protocol: playable.protocol,
+      vcodec: playable.vcodec,
+      acodec: playable.acodec,
+      headers: playable.http_headers
+    })
+
+    // Xác định loại format
+    const isHLS = playable.protocol === 'm3u8_native' || playable.protocol === 'm3u8' || playable.url.includes('.m3u8')
 
     // Tạo và trả về đối tượng phù hợp với AddSongRequestBody
     return {
@@ -200,7 +247,18 @@ class RoomMusicServices {
       duration: info.duration,
       url: playable.url,
       thumbnail: info.thumbnail ?? info.thumbnails?.[0]?.url,
-      author: info.uploader ?? 'Jozo music - recording'
+      author: info.uploader ?? 'Jozo music - recording',
+      // Thêm thông tin cần thiết cho frontend
+      format_type: isHLS ? 'hls' : 'progressive',
+      headers: playable.http_headers || {},
+      // Thêm các headers cần thiết cho HLS
+      required_headers: isHLS
+        ? {
+            'User-Agent': UA || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            Referer: 'https://www.youtube.com/',
+            Origin: 'https://www.youtube.com'
+          }
+        : {}
     }
   }
 
