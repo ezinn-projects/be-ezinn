@@ -6,6 +6,8 @@ import { RoomType, RoomScheduleStatus } from '~/constants/enum'
 import { HTTP_STATUS_CODE } from '~/constants/httpStatus'
 import { ErrorWithStatus } from '~/models/Error'
 import { RoomSchedule, BookingSource } from '~/models/schemas/RoomSchdedule.schema'
+import { AddSongRequestBody } from '~/models/requests/Song.request'
+import { generateUniqueBookingCode } from '~/utils/common'
 import databaseService from './database.service'
 import { emitBookingNotification } from './room.service'
 import fnbOrderService from './fnbOrder.service'
@@ -288,6 +290,12 @@ class OnlineBookingService {
       // Tạo booking note đơn giản
       const autoNote = `Booking by ${request.customerName} (${request.customerPhone})${roomResult.upgraded ? ` - UPGRADE to ${roomResult.assignedRoomType}` : ''}`
 
+      // Sinh mã booking duy nhất
+      const bookingCode = await generateUniqueBookingCode(async (code) => {
+        const existingSchedule = await databaseService.roomSchedule.findOne({ bookingCode: code })
+        return !!existingSchedule
+      })
+
       // Tạo RoomSchedule
       const newSchedule = new RoomSchedule(
         roomResult.room._id.toString(),
@@ -298,12 +306,16 @@ class OnlineBookingService {
         'online_customer',
         autoNote,
         BookingSource.Customer,
+        bookingCode,
         request.customerName,
         request.customerPhone,
         request.customerEmail,
         request.roomType,
         roomResult.assignedRoomType,
-        roomResult.upgraded
+        roomResult.upgraded,
+        undefined, // virtualRoomInfo
+        undefined, // adminNotes
+        [] // queueSongs - luôn khởi tạo là mảng rỗng
       )
 
       // Lưu vào database
@@ -336,7 +348,8 @@ class OnlineBookingService {
         createdAt: new Date().toISOString(),
         upgraded: roomResult.upgraded,
         originalRequest: roomResult.originalRequest,
-        assignedRoomType: roomResult.assignedRoomType
+        assignedRoomType: roomResult.assignedRoomType,
+        queueSongs: []
       }
 
       emitBookingNotification(roomResult.room._id.toString(), bookingNotification)
@@ -345,13 +358,15 @@ class OnlineBookingService {
         success: true,
         booking: {
           _id: result.insertedId.toString(),
+          bookingCode: bookingCode,
           roomName: roomResult.room.roomName,
           originalRequest: roomResult.originalRequest,
           assignedRoomType: roomResult.assignedRoomType,
           upgraded: roomResult.upgraded,
           startTime: startTime.toISOString(),
           endTime: endTime.toISOString(),
-          note: autoNote
+          note: autoNote,
+          queueSongs: []
         }
       }
     } catch (error) {
@@ -416,6 +431,7 @@ class OnlineBookingService {
 
           return {
             _id: schedule._id?.toString(),
+            bookingCode: schedule.bookingCode,
             roomId: schedule.roomId.toString(),
             startTime: schedule.startTime.toISOString(),
             endTime: schedule.endTime?.toISOString(),
@@ -432,6 +448,7 @@ class OnlineBookingService {
             originalRoomType: schedule.originalRoomType,
             actualRoomType: schedule.actualRoomType,
             upgraded: schedule.upgraded,
+            queueSongs: schedule.queueSongs || [],
             // Thêm thông tin phòng và trạng thái cho frontend
             roomName: room?.roomName,
             canModify,
@@ -526,6 +543,158 @@ class OnlineBookingService {
       }
     } catch (error) {
       console.error('Error cancelling booking:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Thêm bài hát vào queue songs của booking
+   */
+  async updateQueueSongs(bookingId: string, songData: AddSongRequestBody): Promise<any> {
+    try {
+      if (!ObjectId.isValid(bookingId)) {
+        throw new ErrorWithStatus({
+          message: 'Invalid booking ID',
+          status: HTTP_STATUS_CODE.BAD_REQUEST
+        })
+      }
+
+      // Validate songData
+      if (!songData || typeof songData !== 'object') {
+        throw new ErrorWithStatus({
+          message: 'Song data is required',
+          status: HTTP_STATUS_CODE.BAD_REQUEST
+        })
+      }
+
+      // Validate required fields
+      if (!songData.video_id || !songData.title || !songData.author) {
+        throw new ErrorWithStatus({
+          message: 'Song must have video_id, title, and author',
+          status: HTTP_STATUS_CODE.BAD_REQUEST
+        })
+      }
+
+      // Tìm booking
+      const schedule = await databaseService.roomSchedule.findOne({
+        _id: new ObjectId(bookingId)
+      })
+
+      if (!schedule) {
+        throw new ErrorWithStatus({
+          message: 'Booking not found',
+          status: HTTP_STATUS_CODE.NOT_FOUND
+        })
+      }
+
+      // Lấy queueSongs hiện tại hoặc tạo mới
+      const currentQueueSongs = schedule.queueSongs || []
+
+      // Thêm song mới vào queue
+      let updatedQueueSongs: AddSongRequestBody[]
+
+      if (songData.position === 'top') {
+        // Thêm vào đầu queue
+        updatedQueueSongs = [songData, ...currentQueueSongs]
+      } else {
+        // Thêm vào cuối queue (mặc định)
+        updatedQueueSongs = [...currentQueueSongs, songData]
+      }
+
+      // Cập nhật queueSongs
+      await databaseService.roomSchedule.updateOne(
+        { _id: new ObjectId(bookingId) },
+        {
+          $set: {
+            queueSongs: updatedQueueSongs,
+            updatedAt: new Date(),
+            updatedBy: 'customer'
+          }
+        }
+      )
+
+      return {
+        success: true,
+        message: 'Song added to queue successfully',
+        bookingId: bookingId,
+        queueSongs: updatedQueueSongs
+      }
+    } catch (error) {
+      console.error('Error updating queue songs:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Xóa bài hát khỏi queue songs của booking theo index
+   */
+  async removeSongFromQueue(bookingId: string, index: number): Promise<any> {
+    try {
+      if (!ObjectId.isValid(bookingId)) {
+        throw new ErrorWithStatus({
+          message: 'Invalid booking ID',
+          status: HTTP_STATUS_CODE.BAD_REQUEST
+        })
+      }
+
+      if (index < 0) {
+        throw new ErrorWithStatus({
+          message: 'Index must be a non-negative number',
+          status: HTTP_STATUS_CODE.BAD_REQUEST
+        })
+      }
+
+      // Tìm booking
+      const schedule = await databaseService.roomSchedule.findOne({
+        _id: new ObjectId(bookingId)
+      })
+
+      if (!schedule) {
+        throw new ErrorWithStatus({
+          message: 'Booking not found',
+          status: HTTP_STATUS_CODE.NOT_FOUND
+        })
+      }
+
+      // Lấy queueSongs hiện tại
+      const currentQueueSongs = schedule.queueSongs || []
+
+      // Kiểm tra index có hợp lệ không
+      if (index >= currentQueueSongs.length) {
+        throw new ErrorWithStatus({
+          message: 'Index out of range',
+          status: HTTP_STATUS_CODE.BAD_REQUEST
+        })
+      }
+
+      // Lưu thông tin bài hát sẽ bị xóa
+      const removedSong = currentQueueSongs[index]
+
+      // Xóa bài hát theo index
+      const updatedQueueSongs = currentQueueSongs.filter((_, i) => i !== index)
+
+      // Cập nhật queueSongs
+      await databaseService.roomSchedule.updateOne(
+        { _id: new ObjectId(bookingId) },
+        {
+          $set: {
+            queueSongs: updatedQueueSongs,
+            updatedAt: new Date(),
+            updatedBy: 'customer'
+          }
+        }
+      )
+
+      return {
+        success: true,
+        message: 'Song removed from queue successfully',
+        bookingId: bookingId,
+        removedIndex: index,
+        removedSong: removedSong,
+        queueSongs: updatedQueueSongs
+      }
+    } catch (error) {
+      console.error('Error removing song from queue:', error)
       throw error
     }
   }

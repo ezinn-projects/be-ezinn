@@ -95,3 +95,37 @@ export function cleanOrderDetail(orderDetail: any) {
   }
   return orderDetail
 }
+
+/**
+ * Sinh mã booking 4 chữ số ngẫu nhiên (1000-9999)
+ * Tránh các mã đặc biệt như 0000, 0123, v.v.
+ * @returns string - mã booking 4 chữ số
+ */
+export function rand4(): string {
+  // luôn 4 chữ số, tránh 0000, 0123, v.v. -> dùng 1000–9999
+  return String(Math.floor(1000 + Math.random() * 9000))
+}
+
+/**
+ * Sinh mã booking duy nhất với kiểm tra trùng lặp
+ * @param checkDuplicate - hàm kiểm tra trùng lặp trong database
+ * @returns Promise<string> - mã booking duy nhất
+ */
+export async function generateUniqueBookingCode(checkDuplicate: (code: string) => Promise<boolean>): Promise<string> {
+  let attempts = 0
+  const maxAttempts = 100 // Tránh vòng lặp vô hạn
+
+  while (attempts < maxAttempts) {
+    const code = rand4()
+    const isDuplicate = await checkDuplicate(code)
+
+    if (!isDuplicate) {
+      return code
+    }
+
+    attempts++
+  }
+
+  // Nếu không tìm được mã duy nhất sau maxAttempts lần thử
+  throw new Error('Không thể sinh mã booking duy nhất sau nhiều lần thử')
+}

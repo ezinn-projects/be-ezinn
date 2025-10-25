@@ -3,6 +3,8 @@ import {
   createOnlineBooking,
   lookupBookingByPhone,
   cancelBooking,
+  updateQueueSongs,
+  removeSongFromQueue,
   checkRoomAvailability
 } from '~/controllers/onlineBooking.controller'
 import { wrapRequestHandler } from '~/utils/handlers'
@@ -30,6 +32,20 @@ onlineBookingRouter.get('/lookup', wrapRequestHandler(lookupBookingByPhone))
  * @method PUT
  */
 onlineBookingRouter.put('/:bookingId/cancel', wrapRequestHandler(cancelBooking))
+
+/**
+ * @description Thêm bài hát vào queue songs của booking
+ * @path /api/bookings/:bookingId/queue-songs
+ * @method PUT
+ */
+onlineBookingRouter.put('/:bookingId/queue-songs', wrapRequestHandler(updateQueueSongs))
+
+/**
+ * @description Xóa bài hát khỏi queue songs của booking theo index
+ * @path /api/bookings/:bookingId/queue-songs/:index
+ * @method DELETE
+ */
+onlineBookingRouter.delete('/:bookingId/queue-songs/:index', wrapRequestHandler(removeSongFromQueue))
 
 /**
  * @description Kiểm tra phòng trống theo thời gian
