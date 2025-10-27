@@ -99,8 +99,7 @@ export const upsertFnbOrder = async (req: Request, res: Response, next: NextFunc
     const { roomScheduleId, order, createdBy } = req.body
 
     // Get current order to calculate delta
-    const existingOrders = await fnbOrderService.getFnbOrdersByRoomSchedule(roomScheduleId)
-    const currentOrder = existingOrders.length > 0 ? existingOrders[0] : null
+    const currentOrder = await fnbOrderService.getFnbOrdersByRoomSchedule(roomScheduleId)
 
     // Calculate inventory changes and update inventory
     const allItems = { ...order.drinks, ...order.snacks }
@@ -252,8 +251,7 @@ export const addItemsToOrder = async (req: Request, res: Response, next: NextFun
     }
 
     // Step 2: Get existing order or create new one
-    let existingOrder = await fnbOrderService.getFnbOrdersByRoomSchedule(roomScheduleId)
-    let currentOrder = existingOrder.length > 0 ? existingOrder[0] : null
+    let currentOrder = await fnbOrderService.getFnbOrdersByRoomSchedule(roomScheduleId)
 
     // Prepare new items to add
     const newItems: { snacks: Record<string, number>; drinks: Record<string, number> } = {
@@ -323,17 +321,15 @@ export const getBillDetails = async (req: Request, res: Response, next: NextFunc
     const billService = new BillService()
     const bill = await billService.getBill(roomScheduleId)
 
-    // Get FNB orders for this room schedule
-    const fnbOrders = await fnbOrderService.getFnbOrdersByRoomSchedule(roomScheduleId)
+    // Get FNB order for this room schedule
+    const order = await fnbOrderService.getFnbOrdersByRoomSchedule(roomScheduleId)
 
     // Get menu items for reference
     const menu = await databaseService.fnbMenu.find({}).toArray()
 
     // Process FNB items for detailed breakdown
     const fnbItemsBreakdown = []
-    if (fnbOrders.length > 0) {
-      const order = fnbOrders[0]
-
+    if (order) {
       // Process drinks
       if (order.order.drinks && Object.keys(order.order.drinks).length > 0) {
         for (const [itemId, quantity] of Object.entries(order.order.drinks)) {
@@ -613,15 +609,13 @@ export const getOrderDetail = async (req: Request, res: Response, next: NextFunc
     const { roomScheduleId } = req.params
 
     // Lấy order hiện tại
-    const currentOrders = await fnbOrderService.getFnbOrdersByRoomSchedule(roomScheduleId)
+    const currentOrder = await fnbOrderService.getFnbOrdersByRoomSchedule(roomScheduleId)
 
-    if (currentOrders.length === 0) {
+    if (!currentOrder) {
       return res.status(HTTP_STATUS_CODE.NOT_FOUND).json({
         message: 'Không tìm thấy order cho room schedule này'
       })
     }
-
-    const currentOrder = currentOrders[currentOrders.length - 1]
 
     // Xử lý drinks
     const drinksDetail = []
@@ -740,10 +734,9 @@ export const upsertOrderItem = async (req: Request, res: Response, next: NextFun
     console.log('Request body:', { roomScheduleId, itemId, quantity, category, createdBy })
 
     // Lấy order hiện tại
-    const currentOrders = await fnbOrderService.getFnbOrdersByRoomSchedule(roomScheduleId)
-    let currentOrder = currentOrders.length > 0 ? currentOrders[currentOrders.length - 1] : null
+    let currentOrder = await fnbOrderService.getFnbOrdersByRoomSchedule(roomScheduleId)
 
-    console.log('Current orders found:', currentOrders.length)
+    console.log('Current order found:', currentOrder ? 'YES' : 'NO')
     console.log('Current order:', currentOrder ? JSON.stringify(currentOrder, null, 2) : 'NULL')
 
     // Tạo order mới nếu chưa có
@@ -848,6 +841,336 @@ export const upsertOrderItem = async (req: Request, res: Response, next: NextFun
 
     return res.status(HTTP_STATUS_CODE.OK).json({
       message: 'Upsert order item successfully',
+      result
+    })
+  } catch (error) {
+    next(error)
+  }
+}
+
+// ============================================
+// NEW SEMANTIC ACTIONS API FOR ADMIN
+// ============================================
+
+/**
+ * @description ADD items to FNB Order for admin (cộng dồn số lượng)
+ * @path POST /fnb-orders/:roomScheduleId/add
+ * @method POST
+ */
+export const addAdminFnbOrderItems = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { roomScheduleId } = req.params
+    const { order, createdBy } = req.body
+
+    // Validate roomScheduleId
+    if (!ObjectId.isValid(roomScheduleId)) {
+      throw new ErrorWithStatus({
+        message: 'Invalid room schedule ID',
+        status: HTTP_STATUS_CODE.BAD_REQUEST
+      })
+    }
+
+    // Get current order to calculate delta
+    const currentOrder = await fnbOrderService.getFnbOrdersByRoomSchedule(roomScheduleId)
+
+    // Calculate inventory changes - delta là số lượng thêm trong request
+    const allItems = { ...order.drinks, ...order.snacks }
+    const inventoryUpdates: Array<{ itemId: string; delta: number; item: any; isVariant: boolean }> = []
+
+    // Cache để tránh query lại các items đã có thông tin
+    const itemsCache = new Map<string, { item: any; isVariant: boolean }>()
+
+    // Calculate deltas for each item (delta = số lượng thêm trong request)
+    for (const itemId of Object.keys(allItems)) {
+      const delta = allItems[itemId] || 0
+
+      if (delta !== 0) {
+        // Find item
+        let item: any = await databaseService.fnbMenu.findOne({ _id: new ObjectId(itemId) })
+        let isVariant = false
+
+        if (!item) {
+          const menuItem = await fnbMenuItemService.getMenuItemById(itemId)
+          if (menuItem) {
+            item = menuItem
+            isVariant = true
+          }
+        }
+
+        if (item) {
+          inventoryUpdates.push({ itemId, delta, item, isVariant })
+          itemsCache.set(itemId, { item, isVariant })
+        }
+      }
+    }
+
+    // Check inventory availability and update inventory
+    for (const { itemId, delta, item, isVariant } of inventoryUpdates) {
+      // Check inventory if increasing quantity
+      if (delta > 0) {
+        const availableQuantity = item.inventory?.quantity ?? 0
+        if (availableQuantity < delta) {
+          throw new ErrorWithStatus({
+            message: `Not enough inventory for item ${item.name}. Available: ${availableQuantity}, Required: ${delta}`,
+            status: HTTP_STATUS_CODE.BAD_REQUEST
+          })
+        }
+      }
+
+      // Update inventory
+      if (item.inventory && delta !== 0) {
+        const newInventoryQuantity = item.inventory.quantity - delta
+        if (isVariant) {
+          await fnbMenuItemService.updateMenuItem(itemId, {
+            inventory: {
+              ...item.inventory,
+              quantity: newInventoryQuantity,
+              lastUpdated: new Date()
+            },
+            updatedAt: new Date()
+          })
+        } else {
+          await databaseService.fnbMenu.updateOne(
+            { _id: new ObjectId(itemId) },
+            {
+              $set: {
+                'inventory.quantity': newInventoryQuantity,
+                'inventory.lastUpdated': new Date(),
+                updatedAt: new Date()
+              }
+            }
+          )
+        }
+      }
+    }
+
+    // ADD mode: Cộng dồn số lượng
+    const result = await fnbOrderService.upsertFnbOrder(roomScheduleId, order, createdBy, 'add')
+
+    // Validate that order was saved successfully
+    if (!result) {
+      throw new ErrorWithStatus({
+        message: 'Failed to save order to database',
+        status: HTTP_STATUS_CODE.INTERNAL_SERVER_ERROR
+      })
+    }
+
+    return res.status(HTTP_STATUS_CODE.OK).json({
+      message: 'Add items to order successfully',
+      result
+    })
+  } catch (error) {
+    next(error)
+  }
+}
+
+/**
+ * @description REMOVE items from FNB Order for admin (giảm số lượng)
+ * @path POST /fnb-orders/:roomScheduleId/remove
+ * @method POST
+ */
+export const removeAdminFnbOrderItems = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { roomScheduleId } = req.params
+    const { order, createdBy } = req.body
+
+    // Validate roomScheduleId
+    if (!ObjectId.isValid(roomScheduleId)) {
+      throw new ErrorWithStatus({
+        message: 'Invalid room schedule ID',
+        status: HTTP_STATUS_CODE.BAD_REQUEST
+      })
+    }
+
+    // Get current order
+    const currentOrder = await fnbOrderService.getFnbOrdersByRoomSchedule(roomScheduleId)
+
+    // Calculate inventory changes - delta là số lượng GIẢM (số dương)
+    const allItems = { ...order.drinks, ...order.snacks }
+    const inventoryUpdates: Array<{ itemId: string; delta: number; item: any; isVariant: boolean }> = []
+
+    // Calculate deltas for each item (delta = số lượng giảm)
+    for (const itemId of Object.keys(allItems)) {
+      const removeQuantity = allItems[itemId] || 0
+
+      if (removeQuantity !== 0) {
+        // Find item
+        let item: any = await databaseService.fnbMenu.findOne({ _id: new ObjectId(itemId) })
+        let isVariant = false
+
+        if (!item) {
+          const menuItem = await fnbMenuItemService.getMenuItemById(itemId)
+          if (menuItem) {
+            item = menuItem
+            isVariant = true
+          }
+        }
+
+        if (item) {
+          // Delta âm vì đang trả lại inventory
+          inventoryUpdates.push({ itemId, delta: -removeQuantity, item, isVariant })
+        }
+      }
+    }
+
+    // Update inventory (trả lại kho)
+    for (const { itemId, delta, item, isVariant } of inventoryUpdates) {
+      if (item.inventory) {
+        const newInventoryQuantity = item.inventory.quantity - delta // delta âm nên sẽ CỘNG vào kho
+        if (isVariant) {
+          await fnbMenuItemService.updateMenuItem(itemId, {
+            inventory: {
+              ...item.inventory,
+              quantity: newInventoryQuantity,
+              lastUpdated: new Date()
+            },
+            updatedAt: new Date()
+          })
+        } else {
+          await databaseService.fnbMenu.updateOne(
+            { _id: new ObjectId(itemId) },
+            {
+              $set: {
+                'inventory.quantity': newInventoryQuantity,
+                'inventory.lastUpdated': new Date(),
+                updatedAt: new Date()
+              }
+            }
+          )
+        }
+      }
+    }
+
+    // REMOVE mode: Giảm số lượng
+    const result = await fnbOrderService.upsertFnbOrder(roomScheduleId, order, createdBy, 'remove')
+
+    // Validate that order was saved successfully
+    if (!result) {
+      throw new ErrorWithStatus({
+        message: 'Failed to save order to database',
+        status: HTTP_STATUS_CODE.INTERNAL_SERVER_ERROR
+      })
+    }
+
+    return res.status(HTTP_STATUS_CODE.OK).json({
+      message: 'Remove items from order successfully',
+      result
+    })
+  } catch (error) {
+    next(error)
+  }
+}
+
+/**
+ * @description SET FNB Order for admin (ghi đè toàn bộ order)
+ * @path PUT /fnb-orders/:roomScheduleId
+ * @method PUT
+ */
+export const setAdminFnbOrder = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { roomScheduleId } = req.params
+    const { order, createdBy } = req.body
+
+    // Validate roomScheduleId
+    if (!ObjectId.isValid(roomScheduleId)) {
+      throw new ErrorWithStatus({
+        message: 'Invalid room schedule ID',
+        status: HTTP_STATUS_CODE.BAD_REQUEST
+      })
+    }
+
+    // Get current order to calculate delta
+    const currentOrder = await fnbOrderService.getFnbOrdersByRoomSchedule(roomScheduleId)
+
+    // Calculate inventory changes
+    const newItems = { ...order.drinks, ...order.snacks }
+    const currentItems = {
+      ...(currentOrder?.order.drinks || {}),
+      ...(currentOrder?.order.snacks || {})
+    }
+
+    const inventoryUpdates: Array<{ itemId: string; delta: number; item: any; isVariant: boolean }> = []
+
+    // Calculate delta for all items (new and old)
+    const allItemIds = new Set([...Object.keys(currentItems), ...Object.keys(newItems)])
+
+    for (const itemId of allItemIds) {
+      const newQuantity = newItems[itemId] || 0
+      const currentQuantity = currentItems[itemId] || 0
+      const delta = newQuantity - currentQuantity
+
+      if (delta !== 0) {
+        // Find item
+        let item: any = await databaseService.fnbMenu.findOne({ _id: new ObjectId(itemId) })
+        let isVariant = false
+
+        if (!item) {
+          const menuItem = await fnbMenuItemService.getMenuItemById(itemId)
+          if (menuItem) {
+            item = menuItem
+            isVariant = true
+          }
+        }
+
+        if (item) {
+          inventoryUpdates.push({ itemId, delta, item, isVariant })
+        }
+      }
+    }
+
+    // Check inventory availability and update inventory
+    for (const { itemId, delta, item, isVariant } of inventoryUpdates) {
+      // Check inventory if increasing quantity
+      if (delta > 0) {
+        const availableQuantity = item.inventory?.quantity ?? 0
+        if (availableQuantity < delta) {
+          throw new ErrorWithStatus({
+            message: `Not enough inventory for item ${item.name}. Available: ${availableQuantity}, Required: ${delta}`,
+            status: HTTP_STATUS_CODE.BAD_REQUEST
+          })
+        }
+      }
+
+      // Update inventory
+      if (item.inventory && delta !== 0) {
+        const newInventoryQuantity = item.inventory.quantity - delta
+        if (isVariant) {
+          await fnbMenuItemService.updateMenuItem(itemId, {
+            inventory: {
+              ...item.inventory,
+              quantity: newInventoryQuantity,
+              lastUpdated: new Date()
+            },
+            updatedAt: new Date()
+          })
+        } else {
+          await databaseService.fnbMenu.updateOne(
+            { _id: new ObjectId(itemId) },
+            {
+              $set: {
+                'inventory.quantity': newInventoryQuantity,
+                'inventory.lastUpdated': new Date(),
+                updatedAt: new Date()
+              }
+            }
+          )
+        }
+      }
+    }
+
+    // SET mode: Ghi đè toàn bộ order
+    const result = await fnbOrderService.upsertFnbOrder(roomScheduleId, order, createdBy, 'set')
+
+    // Validate that order was saved successfully
+    if (!result) {
+      throw new ErrorWithStatus({
+        message: 'Failed to save order to database',
+        status: HTTP_STATUS_CODE.INTERNAL_SERVER_ERROR
+      })
+    }
+
+    return res.status(HTTP_STATUS_CODE.OK).json({
+      message: FNB_MESSAGES.UPSERT_FNB_ORDER_SUCCESS,
       result
     })
   } catch (error) {

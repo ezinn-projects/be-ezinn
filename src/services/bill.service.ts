@@ -374,16 +374,14 @@ export class BillService {
     const id = new ObjectId(scheduleId)
     const schedule = await databaseService.roomSchedule.findOne({ _id: id })
 
-    // Lấy FNB orders từ collection hiện tại trước
-    console.log('=== LẤY FNB ORDERS TỪ COLLECTION HIỆN TẠI ===')
+    // Lấy FNB order từ collection hiện tại trước
+    console.log('=== LẤY FNB ORDER TỪ COLLECTION HIỆN TẠI ===')
     console.log('ScheduleId:', scheduleId)
 
-    const currentOrders = await fnbOrderService.getFnbOrdersByRoomSchedule(scheduleId)
-    console.log('Số lượng orders hiện tại tìm thấy:', currentOrders.length)
+    let order = await fnbOrderService.getFnbOrdersByRoomSchedule(scheduleId)
+    console.log('Order hiện tại tìm thấy:', order ? 'YES' : 'NO')
 
-    let order = null
-    if (currentOrders.length > 0) {
-      order = currentOrders[currentOrders.length - 1] // Lấy order mới nhất
+    if (order) {
       console.log('=== ORDER HIỆN TẠI ĐƯỢC TÌM THẤY ===')
       console.log('Order ID:', order._id)
       console.log('RoomScheduleId:', order.roomScheduleId)
@@ -398,10 +396,15 @@ export class BillService {
       console.log('Số lượng order history tìm thấy:', orderHistory.length)
 
       if (orderHistory.length > 0) {
-        order = orderHistory[orderHistory.length - 1]
-        console.log('=== ORDER TỪ HISTORY ĐƯỢC TÌM THẤY ===')
-        console.log('Order ID:', order._id)
-        console.log('Completed at:', (order as any).completedAt)
+        const historyOrder = orderHistory[orderHistory.length - 1]
+        // Convert history record to RoomScheduleFNBOrder format
+        order = {
+          _id: historyOrder._id,
+          roomScheduleId: historyOrder.roomScheduleId,
+          order: historyOrder.order,
+          createdBy: historyOrder.completedBy,
+          updatedBy: historyOrder.completedBy
+        } as any
       }
     }
 

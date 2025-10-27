@@ -12,7 +12,11 @@ import {
   getOrderDetail,
   getUpdatedBill,
   upsertFnbOrder,
-  upsertOrderItem
+  upsertOrderItem,
+  // New semantic actions API
+  addAdminFnbOrderItems,
+  removeAdminFnbOrderItems,
+  setAdminFnbOrder
 } from '~/controllers/fnbOrder.controller'
 import {
   addItemsToOrderValidator,
@@ -28,7 +32,34 @@ import {
 
 const fnbOrderRouter = Router()
 
-// Routes
+// ============================================
+// NEW SEMANTIC ACTIONS API (Recommended)
+// ============================================
+
+// ADD items to order (cộng dồn số lượng)
+fnbOrderRouter.post(
+  '/:roomScheduleId/add',
+  checkRoomScheduleIdValidator,
+  checkRoomScheduleExists,
+  addAdminFnbOrderItems
+)
+
+// REMOVE items from order (giảm số lượng)
+fnbOrderRouter.post(
+  '/:roomScheduleId/remove',
+  checkRoomScheduleIdValidator,
+  checkRoomScheduleExists,
+  removeAdminFnbOrderItems
+)
+
+// SET order (ghi đè toàn bộ order)
+fnbOrderRouter.put('/:roomScheduleId', checkRoomScheduleIdValidator, checkRoomScheduleExists, setAdminFnbOrder)
+
+// ============================================
+// LEGACY ROUTES (Backward Compatibility)
+// ============================================
+
+// Legacy routes - deprecated but kept for backward compatibility
 fnbOrderRouter.post('/', createFNBOrderValidator, createFnbOrder)
 fnbOrderRouter.get('/:id', checkFNBOrderIdValidator, checkFNBOrderNotExists, getFnbOrderById)
 fnbOrderRouter.delete('/:id', checkFNBOrderIdValidator, checkFNBOrderNotExists, deleteFnbOrder)
@@ -36,6 +67,11 @@ fnbOrderRouter.post('/upsert', upsertFnbOrderValidator, upsertFnbOrder)
 fnbOrderRouter.post('/upsert-item', upsertOrderItemValidator, upsertOrderItem)
 fnbOrderRouter.post('/complete', completeOrderValidator, completeOrder)
 fnbOrderRouter.post('/add-items', addItemsToOrderValidator, addItemsToOrder)
+
+// ============================================
+// QUERY & UTILITY ROUTES
+// ============================================
+
 fnbOrderRouter.get('/detail/:roomScheduleId', checkRoomScheduleIdValidator, checkRoomScheduleExists, getOrderDetail)
 fnbOrderRouter.get(
   '/room-schedule/:roomScheduleId',
