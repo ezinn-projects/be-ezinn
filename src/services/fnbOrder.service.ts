@@ -252,11 +252,6 @@ class FnbOrderService {
     order: Partial<FNBOrder>,
     user?: string
   ): Promise<RoomScheduleFNBOrder | null> {
-    console.log('=== DEBUG UPSERT FNB ORDER START ===')
-    console.log('RoomScheduleId:', roomScheduleId)
-    console.log('Order:', order)
-    console.log('User:', user)
-
     // Đảm bảo service đã được khởi tạo
     await this.initialize()
 
@@ -278,10 +273,6 @@ class FnbOrderService {
       // Merge drinks: giữ nguyên items cũ, chỉ cập nhật/xóa items có trong request
       let mergedDrinks = { ...currentDrinks }
       if (order.drinks) {
-        console.log('=== DEBUG UPSERT FNB ORDER - DRINKS ===')
-        console.log('Current drinks:', currentDrinks)
-        console.log('Order drinks:', order.drinks)
-
         // Chỉ cập nhật/xóa những items có trong request hiện tại
         for (const [itemId, quantity] of Object.entries(order.drinks)) {
           if (quantity > 0) {
@@ -370,14 +361,8 @@ class FnbOrderService {
       }
       const newOrder = new RoomScheduleFNBOrder(roomScheduleId, fullOrder, user, user)
 
-      console.log('New order before insert:', JSON.stringify(newOrder, null, 2))
-
       const result = await databaseService.fnbOrder.insertOne(newOrder)
-      console.log('Insert result:', result)
-
       newOrder._id = result.insertedId
-      console.log('New order after insert with ID:', newOrder._id)
-      console.log('=== END DEBUG UPSERT FNB ORDER ===')
       return newOrder
     }
   }

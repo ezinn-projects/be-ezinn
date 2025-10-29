@@ -81,6 +81,33 @@ export const addSong = async (
 }
 
 /**
+ * @description Add songs to queue
+ * @path /song-queue/rooms/:roomId/add-songs
+ * @method POST
+ * @body {songs: AddSongRequestBody[]} @type {AddSongRequestBody[]}
+ * @author QuangDoo
+ */
+export const addSongsToQueue = async (
+  req: Request<ParamsDictionary, any, { songs: AddSongRequestBody[] }>,
+  res: Response,
+  next: NextFunction
+) => {
+  const { roomId } = req.params
+  const { songs } = req.body
+
+  try {
+    const updatedQueue = await roomMusicServices.addSongsToQueue(roomId, songs)
+    return res.status(HTTP_STATUS_CODE.CREATED).json({
+      message: SONG_QUEUE_MESSAGES.ADD_SONGS_TO_QUEUE_SUCCESS,
+      result: {
+        queue: updatedQueue
+      }
+    })
+  } catch (error) {
+    next(error)
+  }
+}
+/**
  * @description Remove song from queue
  * @path /song-queue/rooms/:roomId/queue
  * @method DELETE

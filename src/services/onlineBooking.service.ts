@@ -290,10 +290,15 @@ class OnlineBookingService {
       // Tạo booking note đơn giản
       const autoNote = `Booking by ${request.customerName} (${request.customerPhone})${roomResult.upgraded ? ` - UPGRADE to ${roomResult.assignedRoomType}` : ''}`
 
-      // Sinh mã booking duy nhất
+      // Sinh mã booking 4 chữ số và dateOfUse
+      const dateOfUse = dayjs.tz(startTime, 'Asia/Ho_Chi_Minh').format('YYYY-MM-DD')
       const bookingCode = await generateUniqueBookingCode(async (code) => {
-        const existingSchedule = await databaseService.roomSchedule.findOne({ bookingCode: code })
-        return !!existingSchedule
+        // Kiểm tra mã đã tồn tại trong cùng ngày chưa
+        const existingSchedule = await databaseService.roomSchedule.findOne({
+          dateOfUse,
+          bookingCode: code
+        })
+        return !!existingSchedule // return true nếu trùng
       })
 
       // Tạo RoomSchedule
@@ -306,7 +311,7 @@ class OnlineBookingService {
         'online_customer',
         autoNote,
         BookingSource.Customer,
-        bookingCode,
+        bookingCode, // Mã 4 chữ số
         request.customerName,
         request.customerPhone,
         request.customerEmail,
@@ -315,7 +320,8 @@ class OnlineBookingService {
         roomResult.upgraded,
         undefined, // virtualRoomInfo
         undefined, // adminNotes
-        [] // queueSongs - luôn khởi tạo là mảng rỗng
+        [], // queueSongs - luôn khởi tạo là mảng rỗng
+        dateOfUse // Ngày sử dụng
       )
 
       // Lưu vào database
@@ -336,6 +342,8 @@ class OnlineBookingService {
       const bookingNotification = {
         action: 'booked',
         bookingId: result.insertedId.toString(),
+        bookingCode: bookingCode, // Mã 4 chữ số
+        dateOfUse: dateOfUse, // Ngày sử dụng
         roomId: roomResult.room._id.toString(),
         roomName: roomResult.room.roomName,
         customerName: request.customerName,
@@ -358,7 +366,8 @@ class OnlineBookingService {
         success: true,
         booking: {
           _id: result.insertedId.toString(),
-          bookingCode: bookingCode,
+          bookingCode: bookingCode, // Mã 4 chữ số (0000-9999)
+          dateOfUse: dateOfUse, // Ngày sử dụng (YYYY-MM-DD)
           roomName: roomResult.room.roomName,
           originalRequest: roomResult.originalRequest,
           assignedRoomType: roomResult.assignedRoomType,
@@ -431,7 +440,8 @@ class OnlineBookingService {
 
           return {
             _id: schedule._id?.toString(),
-            bookingCode: schedule.bookingCode,
+            bookingCode: schedule.bookingCode, // Mã 4 chữ số
+            dateOfUse: schedule.dateOfUse, // Ngày sử dụng
             roomId: schedule.roomId.toString(),
             startTime: schedule.startTime.toISOString(),
             endTime: schedule.endTime?.toISOString(),
@@ -695,6 +705,29 @@ class OnlineBookingService {
       }
     } catch (error) {
       console.error('Error removing song from queue:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Get videos by booking code
+   */
+  async getVideosByBookingCode(bookingCode: string): Promise<AddSongRequestBody[]> {
+    try {
+      const schedule = await databaseService.roomSchedule.findOne({
+        bookingCode: bookingCode
+      })
+
+      if (!schedule) {
+        throw new ErrorWithStatus({
+          message: 'Booking not found',
+          status: HTTP_STATUS_CODE.NOT_FOUND
+        })
+      }
+
+      return schedule.queueSongs || []
+    } catch (error) {
+      console.error('Error getting videos by booking code:', error)
       throw error
     }
   }

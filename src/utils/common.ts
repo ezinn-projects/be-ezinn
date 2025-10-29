@@ -1,4 +1,5 @@
 import multer from 'multer'
+import { randomInt } from 'crypto'
 import { HTTP_STATUS_CODE } from '~/constants/httpStatus'
 import { ErrorWithStatus } from '~/models/Error'
 
@@ -97,35 +98,46 @@ export function cleanOrderDetail(orderDetail: any) {
 }
 
 /**
- * Sinh mã booking 4 chữ số ngẫu nhiên (1000-9999)
- * Tránh các mã đặc biệt như 0000, 0123, v.v.
- * @returns string - mã booking 4 chữ số
+ * Sinh mã booking 4 chữ số ngẫu nhiên an toàn bằng crypto.randomInt
+ * @param min - Giá trị nhỏ nhất (mặc định: 0)
+ * @param max - Giá trị lớn nhất (mặc định: 10000 cho mã 0000-9999)
+ * @returns string - mã booking 4 chữ số với padding (ví dụ: "0042", "1234", "9999")
+ * @example
+ * generateBookingCode() // "0042" (0-9999)
+ * generateBookingCode(1000, 10000) // "5678" (1000-9999, tránh mã bắt đầu bằng 0)
  */
-export function rand4(): string {
-  // luôn 4 chữ số, tránh 0000, 0123, v.v. -> dùng 1000–9999
-  return String(Math.floor(1000 + Math.random() * 9000))
+export function generateBookingCode(min: number = 0, max: number = 10000): string {
+  const code = randomInt(min, max) // sinh số ngẫu nhiên an toàn
+  return code.toString().padStart(4, '0') // đảm bảo luôn 4 chữ số
 }
 
 /**
  * Sinh mã booking duy nhất với kiểm tra trùng lặp
- * @param checkDuplicate - hàm kiểm tra trùng lặp trong database
- * @returns Promise<string> - mã booking duy nhất
+ * @param checkDuplicate - hàm kiểm tra trùng lặp trong database (return true nếu trùng)
+ * @param maxAttempts - số lần thử tối đa (mặc định: 10)
+ * @returns Promise<string> - mã booking 4 chữ số duy nhất
+ * @example
+ * const code = await generateUniqueBookingCode(async (code) => {
+ *   const exists = await db.bookings.findOne({ bookingCode: code, dateOfUse: '2025-10-27' })
+ *   return !!exists
+ * })
  */
-export async function generateUniqueBookingCode(checkDuplicate: (code: string) => Promise<boolean>): Promise<string> {
-  let attempts = 0
-  const maxAttempts = 100 // Tránh vòng lặp vô hạn
+export async function generateUniqueBookingCode(
+  checkDuplicate: (code: string) => Promise<boolean>,
+  maxAttempts: number = 10
+): Promise<string> {
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    // Sinh mã 4 chữ số an toàn bằng crypto.randomInt
+    const code = generateBookingCode()
 
-  while (attempts < maxAttempts) {
-    const code = rand4()
+    // Kiểm tra trùng lặp
     const isDuplicate = await checkDuplicate(code)
 
     if (!isDuplicate) {
-      return code
+      return code // Tìm được mã duy nhất
     }
-
-    attempts++
   }
 
   // Nếu không tìm được mã duy nhất sau maxAttempts lần thử
-  throw new Error('Không thể sinh mã booking duy nhất sau nhiều lần thử')
+  throw new Error(`Không thể sinh mã booking duy nhất sau ${maxAttempts} lần thử`)
 }

@@ -10,6 +10,7 @@ import utc from 'dayjs/plugin/utc'
 import timezone from 'dayjs/plugin/timezone'
 import { emitBookingNotification } from './room.service'
 import { LOCKED_ROOM_IDS } from '~/controllers/booking.controller'
+import { generateUniqueBookingCode } from '~/utils/common'
 
 dayjs.extend(utc)
 dayjs.extend(timezone)
@@ -26,6 +27,8 @@ interface IClientBooking {
   status: string // 'pending'
   total_price: number
   created_at: string
+  bookingCode?: string // Mã booking 4 chữ số (0000-9999)
+  dateOfUse?: string // Ngày sử dụng (YYYY-MM-DD)
 }
 
 class BookingService {
@@ -97,6 +100,17 @@ class BookingService {
         }
       }
 
+      // Sinh mã booking duy nhất cho ngày sử dụng
+      const dateOfUse = body.booking_date // YYYY-MM-DD
+      const bookingCode = await generateUniqueBookingCode(async (code) => {
+        // Kiểm tra mã đã tồn tại trong cùng ngày chưa
+        const existingBooking = await databaseService.bookings.findOne({
+          dateOfUse,
+          bookingCode: code
+        })
+        return !!existingBooking // return true nếu trùng
+      })
+
       // Tạo booking mới với status pending
       const bookingData = {
         customer_name: body.customer_name,
@@ -107,7 +121,9 @@ class BookingService {
         time_slots: body.time_slots,
         status: 'pending',
         total_price: body.total_price || 0,
-        created_at: new Date().toISOString()
+        created_at: new Date().toISOString(),
+        bookingCode, // Mã booking 4 chữ số (0000-9999)
+        dateOfUse // Ngày sử dụng (YYYY-MM-DD)
       }
 
       // Lưu booking vào DB

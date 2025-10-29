@@ -21,8 +21,9 @@ export class RoomSchedule {
   note?: string
   source?: BookingSource
 
-  // 🆕 Mã booking duy nhất cho khách hàng
-  bookingCode?: string
+  // 🆕 Mã booking 4 chữ số cho khách hàng (dễ nhớ, dễ tra cứu)
+  bookingCode?: string // Mã 4 chữ số (0000-9999) - unique trong cùng ngày
+  dateOfUse?: string // Ngày sử dụng (YYYY-MM-DD) - kết hợp với bookingCode để đảm bảo unique
 
   // Thông tin khách hàng cho online booking
   customerName?: string
@@ -68,7 +69,8 @@ export class RoomSchedule {
     upgraded?: boolean,
     virtualRoomInfo?: any,
     adminNotes?: any,
-    queueSongs?: AddSongRequestBody[]
+    queueSongs?: AddSongRequestBody[],
+    dateOfUse?: string
   ) {
     this.roomId = new ObjectId(roomId)
     this.startTime = startTime
@@ -81,8 +83,9 @@ export class RoomSchedule {
     this.note = note
     this.source = source || BookingSource.Staff
 
-    // Mã booking duy nhất
+    // Mã booking 4 chữ số
     this.bookingCode = bookingCode
+    this.dateOfUse = dateOfUse
 
     // Thông tin khách hàng
     this.customerName = customerName

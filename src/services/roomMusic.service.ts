@@ -1,5 +1,7 @@
 import { EventEmitter } from 'events'
 import ytdl from 'youtube-dl-exec'
+import { HTTP_STATUS_CODE } from '~/constants/httpStatus'
+import { ErrorWithStatus } from '~/models/Error'
 import { AddSongRequestBody } from '~/models/requests/Song.request'
 import { CacheService } from '~/services/cache.service'
 import redis from '~/services/redis.service'
@@ -34,7 +36,11 @@ class RoomMusicServices {
       }
 
       const results = await pipeline.exec()
-      if (!results) throw new Error('Failed to add song to queue')
+      if (!results)
+        throw new ErrorWithStatus({
+          message: 'Failed to add song to queue',
+          status: HTTP_STATUS_CODE.INTERNAL_SERVER_ERROR
+        })
 
       return (await redis.lrange(queueKey, 0, -1)).map((item: string) => JSON.parse(item))
     } catch (error) {
@@ -175,9 +181,6 @@ class RoomMusicServices {
    */
   async getVideoInfo(videoId: string): Promise<AddSongRequestBody> {
     const videoUrl = `https://youtu.be/${videoId}`
-
-    console.log('videoUrl', videoUrl)
-
     /** Gọi yt‑dlp qua youtube‑dl‑exec – mất ~400 ms */
     const info = (await ytdl(videoUrl, {
       dumpSingleJson: true, // JSON duy nhất
@@ -227,15 +230,6 @@ class RoomMusicServices {
     }
 
     if (!playable) throw new Error('Không tìm thấy format video phù hợp')
-
-    console.log('Selected format:', {
-      url: playable.url,
-      ext: playable.ext,
-      protocol: playable.protocol,
-      vcodec: playable.vcodec,
-      acodec: playable.acodec,
-      headers: playable.http_headers
-    })
 
     // Xác định loại format
     const isHLS = playable.protocol === 'm3u8_native' || playable.protocol === 'm3u8' || playable.url.includes('.m3u8')
@@ -479,7 +473,25 @@ class RoomMusicServices {
       return notification
     } catch (error) {
       this.logger.error(`Error sending new order notification to room ${roomId}:`, error)
-      throw new Error('Failed to send new order notification')
+      throw new ErrorWithStatus({
+        message: 'Failed to send new order notification',
+        status: HTTP_STATUS_CODE.INTERNAL_SERVER_ERROR
+      })
+    }
+  }
+  async addSongsToQueue(roomId: string, songs: AddSongRequestBody[]) {
+    try {
+      const queueKey = `room_${roomId}_queue`
+      await redis.del(queueKey)
+      await redis.rpush(queueKey, ...songs.map((song) => JSON.stringify(song)))
+
+      return songs
+    } catch (error) {
+      this.logger.error(`Error adding songs to queue for room ${roomId}:`, error)
+      throw new ErrorWithStatus({
+        message: 'Failed to add songs to queue',
+        status: HTTP_STATUS_CODE.INTERNAL_SERVER_ERROR
+      })
     }
   }
 }

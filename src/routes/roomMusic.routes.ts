@@ -3,6 +3,7 @@ import ytSearch from 'yt-search'
 import { HTTP_STATUS_CODE } from '~/constants/httpStatus'
 import {
   addSong,
+  addSongsToQueue,
   controlPlayback,
   getSongName,
   getSongsInQueue,
@@ -15,6 +16,7 @@ import {
   streamVideo,
   updateQueue
 } from '~/controllers/roomMusic.controller'
+import { updateLimiter } from '~/middlewares/rateLimiter.middleware'
 import { VideoSchema } from '~/models/schemas/Video.schema'
 import { roomMusicServices } from '~/services/roomMusic.service'
 import { getMediaUrls } from '~/services/video.service'
@@ -252,5 +254,14 @@ roomMusicRouter.get('/:roomId/song-info/:videoId', async (req, res) => {
     })
   }
 })
+
+/**
+ * @description Add multiple songs to queue
+ * @path /room-music/:roomId/add-songs
+ * @method POST
+ * @rate_limit 30 requests per minute
+ * @author QuangDoo
+ */
+roomMusicRouter.post('/:roomId/add-songs', updateLimiter(), wrapRequestHandler(addSongsToQueue))
 
 export default roomMusicRouter

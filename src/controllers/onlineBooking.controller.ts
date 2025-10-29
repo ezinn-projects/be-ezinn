@@ -192,3 +192,22 @@ export const removeSongFromQueue = async (req: Request, res: Response, next: Nex
     next(error)
   }
 }
+
+/**
+ * @description Get videos by booking code
+ * @path /api/bookings/:bookingCode/videos
+ * @method GET
+ * @query bookingCode
+ */
+export const getVideosByBookingCode = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { bookingCode } = req.params
+    const result = await onlineBookingService.getVideosByBookingCode(bookingCode)
+    res.status(HTTP_STATUS_CODE.OK).json({
+      result,
+      message: 'Get videos by booking code successfully'
+    })
+  } catch (error) {
+    next(error)
+  }
+}
