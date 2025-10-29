@@ -38,9 +38,8 @@ class FnBMenuItemService {
   }
 
   async getVariantsByParentId(parentId: string): Promise<FnBMenuItem[]> {
-    console.log('Getting variants for parentId:', parentId)
     const variants = await this.collection.find({ parentId: parentId }).toArray()
-    console.log('Found variants in service:', JSON.stringify(variants, null, 2))
+
     return variants
   }
 
