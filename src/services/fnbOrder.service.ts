@@ -13,10 +13,8 @@ class FnbOrderService {
     if (this.initialized) return
 
     try {
-      console.log('=== INITIALIZING FNB ORDER SERVICE ===')
       await this.ensureUniqueIndex()
       this.initialized = true
-      console.log('=== FNB ORDER SERVICE INITIALIZED ===')
     } catch (error) {
       console.error('Failed to initialize FNB Order Service:', error)
       throw error
@@ -259,11 +257,6 @@ class FnbOrderService {
 
     // Kiểm tra xem đã có order nào tồn tại chưa
     const existingOrder = await databaseService.fnbOrder.findOne(filter)
-    console.log('Existing order found:', existingOrder ? 'YES' : 'NO')
-    if (existingOrder) {
-      console.log('Existing order ID:', existingOrder._id)
-      console.log('Existing order data:', JSON.stringify(existingOrder, null, 2))
-    }
 
     if (existingOrder) {
       // Nếu đã có order, chỉ update
@@ -271,37 +264,14 @@ class FnbOrderService {
       const currentSnacks = existingOrder.order?.snacks || {}
 
       let mergedDrinks = { ...currentDrinks }
-      if (order.drinks) {
-        // Chỉ cập nhật/xóa những items có trong request hiện tại
-        for (const [itemId, quantity] of Object.entries(order.drinks)) {
-          if (quantity > 0) {
-            mergedDrinks[itemId] = quantity
-            console.log(`Set drink ${itemId} = ${quantity}`)
-          } else {
-            delete mergedDrinks[itemId]
-            console.log(`Deleted drink ${itemId}`)
-          }
-        }
-
-        console.log('Merged drinks:', mergedDrinks)
-        console.log('=== END DEBUG DRINKS ===')
-      }
-
-      // Merge snacks: giữ nguyên items cũ, chỉ cập nhật/xóa items có trong request
       let mergedSnacks = { ...currentSnacks }
 
       if (mode === 'set') {
-        // SET MODE: Ghi đè hoàn toàn với order mới
-        console.log('=== SET MODE: Overwriting entire order ===')
         mergedDrinks = order.drinks || {}
         mergedSnacks = order.snacks || {}
       } else if (mode === 'add') {
         // ADD MODE: Cộng dồn số lượng
         if (order.drinks) {
-          console.log('=== ADD MODE - DRINKS ===')
-          console.log('Current drinks:', currentDrinks)
-          console.log('Adding drinks:', order.drinks)
-
           for (const [itemId, addQuantity] of Object.entries(order.drinks)) {
             const currentQuantity = mergedDrinks[itemId] || 0
             const newQuantity = currentQuantity + (addQuantity as number)
@@ -314,15 +284,9 @@ class FnbOrderService {
               console.log(`  🗑️ ${itemId}: deleted (quantity <= 0)`)
             }
           }
-
-          console.log('Result drinks:', mergedDrinks)
         }
 
         if (order.snacks) {
-          console.log('=== ADD MODE - SNACKS ===')
-          console.log('Current snacks:', currentSnacks)
-          console.log('Adding snacks:', order.snacks)
-
           for (const [itemId, addQuantity] of Object.entries(order.snacks)) {
             const currentQuantity = mergedSnacks[itemId] || 0
             const newQuantity = currentQuantity + (addQuantity as number)
@@ -341,10 +305,6 @@ class FnbOrderService {
       } else if (mode === 'remove') {
         // REMOVE MODE: Giảm số lượng
         if (order.drinks) {
-          console.log('=== REMOVE MODE - DRINKS ===')
-          console.log('Current drinks:', currentDrinks)
-          console.log('Removing drinks:', order.drinks)
-
           for (const [itemId, removeQuantity] of Object.entries(order.drinks)) {
             const currentQuantity = mergedDrinks[itemId] || 0
             const newQuantity = currentQuantity - (removeQuantity as number)
