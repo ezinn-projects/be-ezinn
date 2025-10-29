@@ -7,7 +7,7 @@ import { ErrorWithStatus } from '~/models/Error'
 import { IRoomScheduleRequestBody, IRoomScheduleRequestQuery } from '~/models/requests/RoomSchedule.request'
 import { BookingSource, RoomSchedule } from '~/models/schemas/RoomSchdedule.schema'
 import databaseService from './database.service'
-import { parseDate } from '~/utils/common'
+import { parseDate, generateUniqueBookingCode } from '~/utils/common'
 import redis from './redis.service'
 import { roomEventEmitter } from './room.service'
 import billService from './bill.service'
@@ -195,6 +195,15 @@ class RoomScheduleService {
     }
 
     // Nếu không có overlap, tiến hành tạo event mới
+    // Sinh bookingCode nếu status là Booked
+    let bookingCode: string | undefined
+    if (schedule.status === RoomScheduleStatus.Booked) {
+      bookingCode = await generateUniqueBookingCode(async (code) => {
+        const existingSchedule = await databaseService.roomSchedule.findOne({ bookingCode: code })
+        return !!existingSchedule
+      })
+    }
+
     const scheduleData = new RoomSchedule(
       schedule.roomId,
       startTime,
@@ -203,7 +212,8 @@ class RoomScheduleService {
       schedule.createdBy || 'system',
       schedule.updatedBy || 'system',
       schedule.note,
-      schedule.source || BookingSource.Staff // Sử dụng source được cung cấp hoặc mặc định là Staff
+      schedule.source || BookingSource.Staff, // Sử dụng source được cung cấp hoặc mặc định là Staff
+      bookingCode
     )
 
     const result = await databaseService.roomSchedule.insertOne(scheduleData)
@@ -502,6 +512,12 @@ class RoomScheduleService {
         const startTime = dayjs.tz(`${bookingDate} ${startTimeStr}`, 'YYYY-MM-DD HH:mm', timeZone).toDate()
         const endTime = dayjs.tz(`${bookingDate} ${endTimeStr}`, 'YYYY-MM-DD HH:mm', timeZone).toDate()
 
+        // Sinh bookingCode cho booking từ web customer
+        const bookingCode = await generateUniqueBookingCode(async (code) => {
+          const existingSchedule = await databaseService.roomSchedule.findOne({ bookingCode: code })
+          return !!existingSchedule
+        })
+
         // Tạo đối tượng RoomSchedule mới đánh dấu là từ khách hàng
         const newSchedule = new RoomSchedule(
           room._id.toString(),
@@ -511,7 +527,8 @@ class RoomScheduleService {
           'web_customer', // createdBy - đánh dấu người tạo là khách web
           'web_customer', // updatedBy
           `Booking by ${booking.customer_name} (${booking.customer_phone})`, // note
-          BookingSource.Customer // đánh dấu nguồn đặt phòng là từ khách hàng
+          BookingSource.Customer, // đánh dấu nguồn đặt phòng là từ khách hàng
+          bookingCode
         )
 
         // Lưu trực tiếp vào database không qua hàm createSchedule
@@ -633,6 +650,12 @@ class RoomScheduleService {
           })
         }
 
+        // Sinh bookingCode cho auto booking từ web customer
+        const bookingCode = await generateUniqueBookingCode(async (code) => {
+          const existingSchedule = await databaseService.roomSchedule.findOne({ bookingCode: code })
+          return !!existingSchedule
+        })
+
         // Tạo đối tượng RoomSchedule mới đánh dấu là từ khách hàng
         const newSchedule = new RoomSchedule(
           room._id.toString(),
@@ -642,7 +665,8 @@ class RoomScheduleService {
           'web_customer', // createdBy - đánh dấu người tạo là khách web
           'web_customer', // updatedBy
           `Booking by ${booking.customer_name} (${booking.customer_phone})`, // note
-          BookingSource.Customer // đánh dấu nguồn đặt phòng là từ khách hàng
+          BookingSource.Customer, // đánh dấu nguồn đặt phòng là từ khách hàng
+          bookingCode
         )
 
         // Lưu trực tiếp vào database không qua hàm createSchedule

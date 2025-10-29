@@ -86,7 +86,8 @@ export const SONG_QUEUE_MESSAGES = {
   GET_VIDEO_INFO_SUCCESS: 'Get video info success',
   UPDATE_QUEUE_SUCCESS: 'Update queue success',
   GET_SONG_NAME_SUCCESS: 'Get song name success',
-  SEARCH_SONGS_SUCCESS: 'Search songs success'
+  SEARCH_SONGS_SUCCESS: 'Search songs success',
+  ADD_SONGS_TO_QUEUE_SUCCESS: 'Add songs to queue success'
 } as const
 
 export const Price_MESSAGES = {
@@ -148,3 +149,11 @@ export const FNB_MENU_MESSAGES = {
   FNB_MENU_NOT_FOUND: 'FNB menu not found',
   FNB_MENU_EXISTS: 'FNB menu already exists'
 }
+
+export const RATE_LIMIT_MESSAGES = {
+  TOO_MANY_REQUESTS: 'Bạn đã gửi quá nhiều yêu cầu. Vui lòng thử lại sau.',
+  AUTH_TOO_MANY_REQUESTS: 'Quá nhiều lần đăng nhập thất bại. Vui lòng thử lại sau 15 phút để bảo vệ tài khoản của bạn.',
+  BOOKING_TOO_MANY_REQUESTS: 'Bạn đã tạo quá nhiều đặt phòng trong thời gian ngắn. Vui lòng thử lại sau.',
+  LOOKUP_TOO_MANY_REQUESTS: 'Bạn đã tra cứu quá nhiều lần. Vui lòng thử lại sau.',
+  UPDATE_TOO_MANY_REQUESTS: 'Bạn đã cập nhật quá nhiều lần. Vui lòng thử lại sau.'
+} as const

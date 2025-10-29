@@ -1,5 +1,6 @@
 import { ObjectId } from 'mongodb'
 import { RoomScheduleStatus, RoomType, RoomSize } from '~/constants/enum'
+import { AddSongRequestBody } from '~/models/requests/Song.request'
 
 export enum BookingSource {
   Staff = 'staff',
@@ -19,6 +20,10 @@ export class RoomSchedule {
   updatedBy?: string
   note?: string
   source?: BookingSource
+
+  // 🆕 Mã booking 4 chữ số cho khách hàng (dễ nhớ, dễ tra cứu)
+  bookingCode?: string // Mã 4 chữ số (0000-9999) - unique trong cùng ngày
+  dateOfUse?: string // Ngày sử dụng (YYYY-MM-DD) - kết hợp với bookingCode để đảm bảo unique
 
   // Thông tin khách hàng cho online booking
   customerName?: string
@@ -43,6 +48,9 @@ export class RoomSchedule {
     staffInstructions: string // Hướng dẫn cho staff
   }
 
+  // 🆕 Queue Songs cho preorder video
+  queueSongs?: AddSongRequestBody[]
+
   constructor(
     roomId: string,
     startTime: Date,
@@ -52,6 +60,7 @@ export class RoomSchedule {
     updatedBy?: string,
     note?: string,
     source?: BookingSource,
+    bookingCode?: string,
     customerName?: string,
     customerPhone?: string,
     customerEmail?: string,
@@ -59,7 +68,9 @@ export class RoomSchedule {
     actualRoomType?: RoomType,
     upgraded?: boolean,
     virtualRoomInfo?: any,
-    adminNotes?: any
+    adminNotes?: any,
+    queueSongs?: AddSongRequestBody[],
+    dateOfUse?: string
   ) {
     this.roomId = new ObjectId(roomId)
     this.startTime = startTime
@@ -72,6 +83,10 @@ export class RoomSchedule {
     this.note = note
     this.source = source || BookingSource.Staff
 
+    // Mã booking 4 chữ số
+    this.bookingCode = bookingCode
+    this.dateOfUse = dateOfUse
+
     // Thông tin khách hàng
     this.customerName = customerName
     this.customerPhone = customerPhone
@@ -83,5 +98,6 @@ export class RoomSchedule {
     // Virtual room info
     this.virtualRoomInfo = virtualRoomInfo
     this.adminNotes = adminNotes
+    this.queueSongs = queueSongs || []
   }
 }

@@ -23,6 +23,7 @@ import {
   resetPasswordValidator,
   updateUserValidator
 } from '~/middlewares/users.middleware'
+import { strictAuthLimiter } from '~/middlewares/rateLimiter.middleware'
 import { wrapRequestHandler } from '~/utils/handlers'
 
 const usersRouter = Router()
@@ -32,18 +33,32 @@ const usersRouter = Router()
  * @path /users/register
  * @method POST
  * @body {name: string, username: string, email?: string, password: string, confirm_password: string, date_of_birth: ISOString, role: UserRole, phone_number: string}
+ * @rate_limit 3 requests per hour
  * @author QuangDoo
  */
-usersRouter.post('/register', checkRegisterUserExists, registerValidator, wrapRequestHandler(registerController))
+usersRouter.post(
+  '/register',
+  strictAuthLimiter({ windowMs: 60 * 60 * 1000, max: 3 }), // 3 requests/hour
+  checkRegisterUserExists,
+  registerValidator,
+  wrapRequestHandler(registerController)
+)
 
 /**
  * @description Login user
  * @path /users/login
  * @method POST
  * @body {username: string, password: string}
+ * @rate_limit 5 failed attempts per 15 minutes
  * @author QuangDoo
  */
-usersRouter.post('/login', checkLoginUserExists, loginValidator, loginController)
+usersRouter.post(
+  '/login',
+  strictAuthLimiter(), // 5 failed attempts/15 minutes (chỉ đếm failed)
+  checkLoginUserExists,
+  loginValidator,
+  loginController
+)
 
 /**
  * @description Logout user
@@ -60,9 +75,15 @@ usersRouter.post('/logout', accessTokenValidator, wrapRequestHandler(logoutContr
  * @path /users/forgot-password
  * @method POST
  * @body {email: string}
+ * @rate_limit 3 requests per hour
  * @author QuangDoo
  */
-usersRouter.post('/forgot-password', forgotPasswordValidator, wrapRequestHandler(forgotPasswordController))
+usersRouter.post(
+  '/forgot-password',
+  strictAuthLimiter({ windowMs: 60 * 60 * 1000, max: 3, skipSuccessfulRequests: false }), // 3 requests/hour
+  forgotPasswordValidator,
+  wrapRequestHandler(forgotPasswordController)
+)
 
 /**
  * @description Reset password

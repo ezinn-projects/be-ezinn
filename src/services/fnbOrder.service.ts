@@ -252,12 +252,6 @@ class FnbOrderService {
     user?: string,
     mode: 'add' | 'remove' | 'set' = 'add' // add = cộng dồn, remove = giảm đi, set = ghi đè
   ): Promise<RoomScheduleFNBOrder | null> {
-    console.log('=== DEBUG UPSERT FNB ORDER START ===')
-    console.log('RoomScheduleId:', roomScheduleId)
-    console.log('Order:', order)
-    console.log('User:', user)
-    console.log('Mode:', mode)
-
     // Đảm bảo service đã được khởi tạo
     await this.initialize()
 
@@ -277,6 +271,23 @@ class FnbOrderService {
       const currentSnacks = existingOrder.order?.snacks || {}
 
       let mergedDrinks = { ...currentDrinks }
+      if (order.drinks) {
+        // Chỉ cập nhật/xóa những items có trong request hiện tại
+        for (const [itemId, quantity] of Object.entries(order.drinks)) {
+          if (quantity > 0) {
+            mergedDrinks[itemId] = quantity
+            console.log(`Set drink ${itemId} = ${quantity}`)
+          } else {
+            delete mergedDrinks[itemId]
+            console.log(`Deleted drink ${itemId}`)
+          }
+        }
+
+        console.log('Merged drinks:', mergedDrinks)
+        console.log('=== END DEBUG DRINKS ===')
+      }
+
+      // Merge snacks: giữ nguyên items cũ, chỉ cập nhật/xóa items có trong request
       let mergedSnacks = { ...currentSnacks }
 
       if (mode === 'set') {
@@ -423,14 +434,8 @@ class FnbOrderService {
       }
       const newOrder = new RoomScheduleFNBOrder(roomScheduleId, fullOrder, user, user)
 
-      console.log('New order before insert:', JSON.stringify(newOrder, null, 2))
-
       const result = await databaseService.fnbOrder.insertOne(newOrder)
-      console.log('Insert result:', result)
-
       newOrder._id = result.insertedId
-      console.log('New order after insert with ID:', newOrder._id)
-      console.log('=== END DEBUG UPSERT FNB ORDER ===')
       return newOrder
     }
   }
