@@ -382,8 +382,6 @@ class FnbOrderService {
       )
       result._id = updatedOrder._id
 
-      console.log('Returning updated order with ID:', result._id)
-      console.log('=== END DEBUG UPSERT FNB ORDER ===')
       return result
     } else {
       // Nếu chưa có order, tạo mới

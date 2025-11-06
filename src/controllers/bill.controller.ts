@@ -4,12 +4,16 @@ import billService, { printUnicodeWithEscpos, printBitmapUnicode, printBitmapWit
 import dayjs from 'dayjs'
 import weekOfYear from 'dayjs/plugin/weekOfYear'
 import weekday from 'dayjs/plugin/weekday'
+import utc from 'dayjs/plugin/utc'
+import timezone from 'dayjs/plugin/timezone'
 import { ObjectId } from 'mongodb'
 import databaseService from '~/services/database.service'
 
 // Extend dayjs with the required plugins
 dayjs.extend(weekOfYear)
 dayjs.extend(weekday)
+dayjs.extend(utc)
+dayjs.extend(timezone)
 
 export const getBill = async (req: Request, res: Response) => {
   const { scheduleId } = req.params
@@ -534,9 +538,9 @@ export const getBillById = async (req: Request, res: Response) => {
       roomName: room?.roomName || 'Unknown Room',
       roomType: room?.roomType || 'Unknown Type',
       customerName: schedule?.note || '',
-      formattedStartTime: dayjs(bill.startTime).format('DD/MM/YYYY HH:mm'),
-      formattedEndTime: dayjs(bill.endTime).format('DD/MM/YYYY HH:mm'),
-      formattedCreatedAt: dayjs(bill.createdAt).format('DD/MM/YYYY HH:mm'),
+      formattedStartTime: dayjs(bill.startTime).tz('Asia/Ho_Chi_Minh').format('DD/MM/YYYY HH:mm'),
+      formattedEndTime: dayjs(bill.endTime).tz('Asia/Ho_Chi_Minh').format('DD/MM/YYYY HH:mm'),
+      formattedCreatedAt: dayjs(bill.createdAt).tz('Asia/Ho_Chi_Minh').format('DD/MM/YYYY HH:mm'),
       usageDuration: billService.calculateHours(bill.startTime, bill.endTime).toFixed(2),
       invoiceCode: bill.invoiceCode || 'N/A'
     }
