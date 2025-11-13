@@ -11,6 +11,7 @@ import serverService from '~/services/server.service'
 import billRouter from '~/routes/bill.routes'
 import bookingRouter from '~/routes/booking.routes'
 import clientFnbRouter from '~/routes/clientFnb.routes'
+import employeeScheduleRouter from '~/routes/employeeSchedule.routes'
 import fileRouter from '~/routes/file.routes'
 import fnbMenuRouter from '~/routes/fnbMenu.routes'
 import fnbMenuItemRouter from '~/routes/fnbMenuItem.routes'
@@ -28,6 +29,7 @@ import roomTypeRouter from '~/routes/roomType.routes'
 import usersRouter from '~/routes/users.routes'
 
 import { finishSchedulerInADay } from '~/jobs/bookingScheduler'
+import { startShiftScheduler } from '~/jobs/shiftScheduler'
 
 // Thiết lập timezone cho dayjs
 dayjs.extend(utc)
@@ -142,6 +144,7 @@ app.use('/recruitments', recruitmentRouter)
 app.use('/client/fnb', clientFnbRouter)
 app.use('/print', printRouter)
 app.use('/fnb-menu-item', fnbMenuItemRouter)
+app.use('/employee-schedules', employeeScheduleRouter)
 
 // Error handler
 app.use(defaultErrorHandler)
@@ -149,6 +152,7 @@ app.use(defaultErrorHandler)
 // Scheduler jobs
 // startBookingScheduler()
 finishSchedulerInADay()
+startShiftScheduler()
 
 app.listen(port, () => {
   console.log(`Server is running at http://localhost:${port}`)

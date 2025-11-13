@@ -157,3 +157,33 @@ export const RATE_LIMIT_MESSAGES = {
   LOOKUP_TOO_MANY_REQUESTS: 'Bạn đã tra cứu quá nhiều lần. Vui lòng thử lại sau.',
   UPDATE_TOO_MANY_REQUESTS: 'Bạn đã cập nhật quá nhiều lần. Vui lòng thử lại sau.'
 } as const
+
+export const EMPLOYEE_SCHEDULE_MESSAGES = {
+  CREATE_SCHEDULE_SUCCESS: 'Đăng ký lịch thành công, chờ admin phê duyệt',
+  ADMIN_CREATE_SCHEDULE_SUCCESS: 'Đăng ký lịch cho nhân viên thành công',
+  GET_SCHEDULES_SUCCESS: 'Lấy danh sách lịch thành công',
+  GET_SCHEDULE_BY_ID_SUCCESS: 'Lấy chi tiết lịch thành công',
+  UPDATE_SCHEDULE_SUCCESS: 'Cập nhật lịch thành công',
+  DELETE_SCHEDULE_SUCCESS: 'Xóa lịch thành công',
+  APPROVE_SCHEDULE_SUCCESS: 'Phê duyệt lịch thành công',
+  REJECT_SCHEDULE_SUCCESS: 'Từ chối lịch thành công',
+  MARK_ABSENT_SUCCESS: 'Đánh dấu vắng mặt thành công',
+  MARK_COMPLETED_SUCCESS: 'Đánh dấu hoàn thành thành công',
+  SCHEDULE_NOT_FOUND: 'Không tìm thấy lịch',
+  SCHEDULE_CONFLICT: 'Bạn đã đăng ký ca này cho ngày này rồi',
+  INVALID_DATE: 'Ngày không hợp lệ',
+  DATE_IN_PAST: 'Không thể đăng ký lịch cho ngày trong quá khứ',
+  INVALID_SHIFT_TYPE: 'Loại ca không hợp lệ',
+  INVALID_STATUS: 'Trạng thái không hợp lệ',
+  INVALID_TIME_FORMAT: 'Định dạng thời gian không hợp lệ (phải là HH:mm)',
+  INVALID_TIME_RANGE: 'Thời gian bắt đầu phải nhỏ hơn thời gian kết thúc',
+  CANNOT_UPDATE_APPROVED: 'Không thể cập nhật lịch đã được phê duyệt',
+  CANNOT_DELETE_APPROVED: 'Không thể xóa lịch đã được phê duyệt',
+  ONLY_PENDING_CAN_APPROVE: 'Chỉ có thể phê duyệt lịch đang chờ duyệt',
+  UNAUTHORIZED_ACCESS: 'Bạn không có quyền truy cập lịch này',
+  REJECTED_REASON_REQUIRED: 'Vui lòng nhập lý do từ chối',
+  ALREADY_STARTED: 'Ca làm việc đã bắt đầu',
+  ALREADY_COMPLETED: 'Ca làm việc đã hoàn thành',
+  ALREADY_ABSENT: 'Đã được đánh dấu vắng mặt'
+} as const
+

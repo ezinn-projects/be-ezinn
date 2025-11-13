@@ -14,6 +14,7 @@ import { IBill } from '~/models/schemas/Bill.schema'
 import { ObjectId } from 'mongodb'
 import { IHoliday } from '~/models/schemas/Holiday.schema'
 import { VirtualRoom } from '~/models/schemas/VirtualRoom.schema'
+import { EmployeeSchedule } from '~/models/schemas/EmployeeSchedule.schema'
 dotenv.config()
 
 // Interface cho Client Booking
@@ -118,6 +119,10 @@ class DatabaseService {
 
   get virtualRooms(): Collection<VirtualRoom> {
     return this.db.collection('virtualRooms')
+  }
+
+  get employeeSchedules(): Collection<EmployeeSchedule> {
+    return this.db.collection('employee_schedules')
   }
 
   // Cho phép lấy collection bất kỳ
