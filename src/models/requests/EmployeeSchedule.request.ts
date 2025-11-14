@@ -23,6 +23,8 @@ export interface IAdminCreateScheduleBody {
 export interface IUpdateScheduleBody {
   date?: string // ISO date string
   shiftType?: ShiftType
+  customStartTime?: string // HH:mm - Override default start time
+  customEndTime?: string // HH:mm - Override default end time
   note?: string
 }
 

@@ -281,7 +281,8 @@ class EmployeeScheduleService {
   }
 
   /**
-   * Cập nhật schedule (chỉ Pending hoặc Rejected)
+   * Cập nhật schedule
+   * Note: Validation status đã được handle ở middleware (Admin bypass, Staff restricted)
    */
   async updateSchedule(id: string, data: IUpdateScheduleBody) {
     if (!ObjectId.isValid(id)) {
@@ -299,13 +300,8 @@ class EmployeeScheduleService {
       })
     }
 
-    // Chỉ cho update Pending hoặc Rejected
-    if (schedule.status === EmployeeScheduleStatus.Approved || schedule.status === EmployeeScheduleStatus.InProgress || schedule.status === EmployeeScheduleStatus.Completed) {
-      throw new ErrorWithStatus({
-        message: EMPLOYEE_SCHEDULE_MESSAGES.CANNOT_UPDATE_APPROVED,
-        status: HTTP_STATUS_CODE.BAD_REQUEST
-      })
-    }
+    // Status validation đã được handle ở middleware
+    // Admin có thể update bất kỳ, Staff chỉ update được pending/rejected
 
     const updateData: any = {
       updatedAt: new Date()
@@ -343,6 +339,19 @@ class EmployeeScheduleService {
 
     if (data.note !== undefined) {
       updateData.note = data.note
+    }
+
+    if (data.customStartTime !== undefined) {
+      updateData.customStartTime = data.customStartTime
+    }
+
+    if (data.customEndTime !== undefined) {
+      updateData.customEndTime = data.customEndTime
+    }
+
+    // Validate custom time nếu có
+    if (data.customStartTime || data.customEndTime) {
+      this.validateCustomTime(data.customStartTime, data.customEndTime)
     }
 
     const result = await databaseService.employeeSchedules.updateOne(
@@ -490,7 +499,8 @@ class EmployeeScheduleService {
   }
 
   /**
-   * Xóa schedule (chỉ Pending hoặc Rejected)
+   * Xóa schedule
+   * Note: Validation status đã được handle ở middleware (Admin bypass, Staff restricted)
    */
   async deleteSchedule(id: string) {
     if (!ObjectId.isValid(id)) {
@@ -508,13 +518,8 @@ class EmployeeScheduleService {
       })
     }
 
-    // Chỉ xóa được Pending hoặc Rejected
-    if (schedule.status === EmployeeScheduleStatus.Approved || schedule.status === EmployeeScheduleStatus.InProgress || schedule.status === EmployeeScheduleStatus.Completed) {
-      throw new ErrorWithStatus({
-        message: EMPLOYEE_SCHEDULE_MESSAGES.CANNOT_DELETE_APPROVED,
-        status: HTTP_STATUS_CODE.BAD_REQUEST
-      })
-    }
+    // Status validation đã được handle ở middleware
+    // Admin có thể delete bất kỳ, Staff chỉ delete được pending/rejected
 
     const result = await databaseService.employeeSchedules.deleteOne({ _id: new ObjectId(id) })
     return result.deletedCount

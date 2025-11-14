@@ -174,6 +174,44 @@ export const updateScheduleValidator = validate(
         }
       }
     },
+    customStartTime: {
+      optional: true,
+      custom: {
+        options: (value: string) => {
+          const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/
+          if (value && !timeRegex.test(value)) {
+            throw new Error(EMPLOYEE_SCHEDULE_MESSAGES.INVALID_TIME_FORMAT)
+          }
+          return true
+        }
+      }
+    },
+    customEndTime: {
+      optional: true,
+      custom: {
+        options: (value: string, { req }) => {
+          const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/
+          if (value && !timeRegex.test(value)) {
+            throw new Error(EMPLOYEE_SCHEDULE_MESSAGES.INVALID_TIME_FORMAT)
+          }
+
+          // Validate startTime < endTime
+          const startTime = req.body.customStartTime
+          if (startTime && value) {
+            const [startHour, startMin] = startTime.split(':').map(Number)
+            const [endHour, endMin] = value.split(':').map(Number)
+            const startMinutes = startHour * 60 + startMin
+            const endMinutes = endHour * 60 + endMin
+
+            if (startMinutes >= endMinutes) {
+              throw new Error(EMPLOYEE_SCHEDULE_MESSAGES.INVALID_TIME_RANGE)
+            }
+          }
+
+          return true
+        }
+      }
+    },
     note: {
       optional: true,
       isString: {
@@ -297,12 +335,37 @@ export const checkScheduleOwnership = async (req: Request, res: Response, next: 
 
 /**
  * Middleware kiểm tra chỉ được update/delete lịch có status pending hoặc rejected
+ * Admin được bypass restriction này
  */
 export const checkCanModifySchedule = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const schedule = (req as any).schedule
+    const userId = req.decoded_authorization?.user_id
 
-    if (schedule.status === EmployeeScheduleStatus.Approved) {
+    if (!userId) {
+      return next(
+        new ErrorWithStatus({
+          message: EMPLOYEE_SCHEDULE_MESSAGES.UNAUTHORIZED_ACCESS,
+          status: HTTP_STATUS_CODE.FORBIDDEN
+        })
+      )
+    }
+
+    // Lấy user để check role
+    const user = await databaseService.users.findOne({ _id: new ObjectId(userId) })
+    
+    // Admin được bypass - có thể update/delete bất kỳ lúc nào
+    if (user?.role === 'admin') {
+      return next()
+    }
+
+    // Staff chỉ được update/delete khi status = pending hoặc rejected
+    if (
+      schedule.status === EmployeeScheduleStatus.Approved ||
+      schedule.status === EmployeeScheduleStatus.InProgress ||
+      schedule.status === EmployeeScheduleStatus.Completed ||
+      schedule.status === EmployeeScheduleStatus.Absent
+    ) {
       return next(
         new ErrorWithStatus({
           message: EMPLOYEE_SCHEDULE_MESSAGES.CANNOT_UPDATE_APPROVED,
