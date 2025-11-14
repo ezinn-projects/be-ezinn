@@ -28,7 +28,7 @@ const billRouter = Router()
  * @access Private
  * @author: AI Assistant
  */
-billRouter.get('/revenue/daily', protect([UserRole.Admin]), wrapRequestHandler(getDailyRevenue))
+billRouter.get('/revenue/daily', protect([UserRole.Admin, UserRole.Staff]), wrapRequestHandler(getDailyRevenue))
 
 /**
  * @route GET /bill/revenue/weekly
@@ -36,7 +36,7 @@ billRouter.get('/revenue/daily', protect([UserRole.Admin]), wrapRequestHandler(g
  * @access Private
  * @author: AI Assistant
  */
-billRouter.get('/revenue/weekly', protect([UserRole.Admin]), wrapRequestHandler(getWeeklyRevenue))
+billRouter.get('/revenue/weekly', protect([UserRole.Admin, UserRole.Staff]), wrapRequestHandler(getWeeklyRevenue))
 
 /**
  * @route GET /bill/revenue/monthly
@@ -44,7 +44,7 @@ billRouter.get('/revenue/weekly', protect([UserRole.Admin]), wrapRequestHandler(
  * @access Private
  * @author: AI Assistant
  */
-billRouter.get('/revenue/monthly', protect([UserRole.Admin]), wrapRequestHandler(getMonthlyRevenue))
+billRouter.get('/revenue/monthly', protect([UserRole.Admin, UserRole.Staff]), wrapRequestHandler(getMonthlyRevenue))
 
 /**
  * @route GET /bill/revenue/custom
@@ -52,7 +52,7 @@ billRouter.get('/revenue/monthly', protect([UserRole.Admin]), wrapRequestHandler
  * @access Private
  * @author: AI Assistant
  */
-billRouter.get('/revenue/custom', protect([UserRole.Admin]), wrapRequestHandler(getCustomRangeRevenue))
+billRouter.get('/revenue/custom', protect([UserRole.Admin, UserRole.Staff]), wrapRequestHandler(getCustomRangeRevenue))
 
 /**
  * @route GET /bill/revenue/bills
@@ -60,7 +60,7 @@ billRouter.get('/revenue/custom', protect([UserRole.Admin]), wrapRequestHandler(
  * @access Private
  * @author: AI Assistant
  */
-billRouter.get('/revenue/bills', protect([UserRole.Admin]), wrapRequestHandler(getRevenueFromBills))
+billRouter.get('/revenue/bills', protect([UserRole.Admin, UserRole.Staff]), wrapRequestHandler(getRevenueFromBills))
 
 /**
  * @route GET /bill/details/:billId
