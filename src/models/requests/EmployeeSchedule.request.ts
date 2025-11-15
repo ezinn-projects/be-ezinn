@@ -34,6 +34,12 @@ export interface IApproveScheduleBody {
   rejectedReason?: string
 }
 
+// Request body khi cập nhật status
+export interface IUpdateStatusBody {
+  status: EmployeeScheduleStatus
+  rejectedReason?: string // Bắt buộc khi status = rejected
+}
+
 // Query params khi lấy danh sách lịch
 export interface IGetSchedulesQuery {
   userId?: string

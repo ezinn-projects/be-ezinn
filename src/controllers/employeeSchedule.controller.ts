@@ -7,7 +7,8 @@ import {
   IApproveScheduleBody,
   ICreateEmployeeScheduleBody,
   IGetSchedulesQuery,
-  IUpdateScheduleBody
+  IUpdateScheduleBody,
+  IUpdateStatusBody
 } from '~/models/requests/EmployeeSchedule.request'
 import employeeScheduleService from '~/services/employeeSchedule.service'
 import { getShiftInfo } from '~/constants/shiftDefaults'
@@ -228,6 +229,41 @@ export const approveSchedule = async (
 
     return res.status(HTTP_STATUS_CODE.OK).json({
       message
+    })
+  } catch (error) {
+    next(error)
+  }
+}
+
+/**
+ * Cập nhật status của schedule (unified endpoint)
+ * PUT /api/employee-schedules/:id/status
+ */
+export const updateScheduleStatus = async (
+  req: Request<ParamsDictionary, any, IUpdateStatusBody>,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { id } = req.params
+    const adminId = req.decoded_authorization?.user_id
+
+    if (!adminId) {
+      return res.status(HTTP_STATUS_CODE.UNAUTHORIZED).json({
+        message: 'Unauthorized'
+      })
+    }
+
+    const modifiedCount = await employeeScheduleService.updateScheduleStatus(id, adminId, req.body)
+
+    if (modifiedCount === 0) {
+      return res.status(HTTP_STATUS_CODE.NOT_FOUND).json({
+        message: EMPLOYEE_SCHEDULE_MESSAGES.SCHEDULE_NOT_FOUND
+      })
+    }
+
+    return res.status(HTTP_STATUS_CODE.OK).json({
+      message: EMPLOYEE_SCHEDULE_MESSAGES.UPDATE_STATUS_SUCCESS
     })
   } catch (error) {
     next(error)

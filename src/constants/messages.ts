@@ -164,6 +164,7 @@ export const EMPLOYEE_SCHEDULE_MESSAGES = {
   GET_SCHEDULES_SUCCESS: 'Lấy danh sách lịch thành công',
   GET_SCHEDULE_BY_ID_SUCCESS: 'Lấy chi tiết lịch thành công',
   UPDATE_SCHEDULE_SUCCESS: 'Cập nhật lịch thành công',
+  UPDATE_STATUS_SUCCESS: 'Cập nhật trạng thái thành công',
   DELETE_SCHEDULE_SUCCESS: 'Xóa lịch thành công',
   APPROVE_SCHEDULE_SUCCESS: 'Phê duyệt lịch thành công',
   REJECT_SCHEDULE_SUCCESS: 'Từ chối lịch thành công',

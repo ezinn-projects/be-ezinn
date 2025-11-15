@@ -11,7 +11,8 @@ import {
   IAdminCreateScheduleBody,
   ICreateEmployeeScheduleBody,
   IGetSchedulesQuery,
-  IUpdateScheduleBody
+  IUpdateScheduleBody,
+  IUpdateStatusBody
 } from '~/models/requests/EmployeeSchedule.request'
 import { EmployeeSchedule } from '~/models/schemas/EmployeeSchedule.schema'
 import databaseService from './database.service'
@@ -405,6 +406,83 @@ class EmployeeScheduleService {
       updateData.rejectedByName = admin?.name
       updateData.rejectedAt = new Date()
       updateData.rejectedReason = rejectedReason
+    }
+
+    const result = await databaseService.employeeSchedules.updateOne(
+      { _id: new ObjectId(id) },
+      { $set: updateData }
+    )
+
+    return result.modifiedCount
+  }
+
+  /**
+   * Cập nhật status của schedule (unified endpoint)
+   * Admin có thể update bất kỳ status nào
+   */
+  async updateScheduleStatus(id: string, adminId: string, data: IUpdateStatusBody) {
+    if (!ObjectId.isValid(id)) {
+      throw new ErrorWithStatus({
+        message: EMPLOYEE_SCHEDULE_MESSAGES.SCHEDULE_NOT_FOUND,
+        status: HTTP_STATUS_CODE.NOT_FOUND
+      })
+    }
+
+    const schedule = await databaseService.employeeSchedules.findOne({ _id: new ObjectId(id) })
+    if (!schedule) {
+      throw new ErrorWithStatus({
+        message: EMPLOYEE_SCHEDULE_MESSAGES.SCHEDULE_NOT_FOUND,
+        status: HTTP_STATUS_CODE.NOT_FOUND
+      })
+    }
+
+    const admin = await databaseService.users.findOne({ _id: new ObjectId(adminId) })
+    const { status, rejectedReason } = data
+    const now = new Date()
+
+    const updateData: any = {
+      status,
+      updatedAt: now
+    }
+
+    // Xử lý theo từng loại status
+    switch (status) {
+      case EmployeeScheduleStatus.Approved:
+        updateData.approvedBy = new ObjectId(adminId)
+        updateData.approvedByName = admin?.name
+        updateData.approvedAt = now
+        break
+
+      case EmployeeScheduleStatus.Rejected:
+        updateData.rejectedBy = new ObjectId(adminId)
+        updateData.rejectedByName = admin?.name
+        updateData.rejectedAt = now
+        updateData.rejectedReason = rejectedReason
+        break
+
+      case EmployeeScheduleStatus.InProgress:
+        if (!schedule.startedAt) {
+          updateData.startedAt = now
+        }
+        break
+
+      case EmployeeScheduleStatus.Completed:
+        if (!schedule.completedAt) {
+          updateData.completedAt = now
+        }
+        break
+
+      case EmployeeScheduleStatus.Absent:
+        updateData.markedAbsentBy = new ObjectId(adminId)
+        updateData.markedAbsentAt = now
+        break
+
+      case EmployeeScheduleStatus.Cancelled:
+        // Cancelled không cần thêm field đặc biệt
+        break
+
+      default:
+        break
     }
 
     const result = await databaseService.employeeSchedules.updateOne(

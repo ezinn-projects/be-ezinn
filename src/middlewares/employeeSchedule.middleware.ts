@@ -259,6 +259,43 @@ export const approveScheduleValidator = validate(
 )
 
 /**
+ * Validate request body khi cập nhật status (unified endpoint)
+ */
+export const updateStatusValidator = validate(
+  checkSchema({
+    status: {
+      notEmpty: {
+        errorMessage: EMPLOYEE_SCHEDULE_MESSAGES.INVALID_STATUS
+      },
+      custom: {
+        options: (value: string) => {
+          const validStatuses = Object.values(EmployeeScheduleStatus)
+          if (!validStatuses.includes(value as EmployeeScheduleStatus)) {
+            throw new Error(EMPLOYEE_SCHEDULE_MESSAGES.INVALID_STATUS)
+          }
+          return true
+        }
+      }
+    },
+    rejectedReason: {
+      optional: true,
+      isString: {
+        errorMessage: 'Rejected reason phải là chuỗi'
+      },
+      trim: true,
+      custom: {
+        options: (value: string | undefined, { req }) => {
+          if (req.body.status === EmployeeScheduleStatus.Rejected && (!value || value.trim() === '')) {
+            throw new Error(EMPLOYEE_SCHEDULE_MESSAGES.REJECTED_REASON_REQUIRED)
+          }
+          return true
+        }
+      }
+    }
+  })
+)
+
+/**
  * Middleware kiểm tra schedule có tồn tại không
  */
 export const checkScheduleExists = async (req: Request, res: Response, next: NextFunction) => {
