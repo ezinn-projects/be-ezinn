@@ -78,3 +78,18 @@ export enum WorkTimeSlot {
   Evening = 'evening', // 18h-24h
   Weekend = 'weekend' // T7-CN
 }
+
+export enum ShiftType {
+  Morning = 'morning',
+  Afternoon = 'afternoon'
+}
+
+export enum EmployeeScheduleStatus {
+  Pending = 'pending',
+  Approved = 'approved',
+  InProgress = 'in-progress',
+  Completed = 'completed',
+  Absent = 'absent',
+  Rejected = 'rejected',
+  Cancelled = 'cancelled'
+}
