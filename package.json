@@ -24,6 +24,8 @@
     "lint-staged": "^15.2.10",
     "mongodb-memory-server": "^10.0.0",
     "nodemon": "^3.1.4",
+    "patch-package": "^8.0.1",
+    "postinstall-postinstall": "^2.1.0",
     "prettier": "^3.3.3",
     "rimraf": "^6.0.1",
     "supertest": "^7.0.0",
@@ -42,7 +44,8 @@
     "lint:fix": "eslint . --fix",
     "prettier": "prettier --check .",
     "prettier:fix": "prettier --write .",
-    "start:prod": "npm run build && npm run start"
+    "start:prod": "npm run build && npm run start",
+    "postinstall": "patch-package"
   },
   "keywords": [],
   "author": "",
@@ -86,5 +89,8 @@
     "youtube-dl-exec": "^3.0.26",
     "yt-search": "^2.13.1",
     "ytdl-core": "^4.11.5"
+  },
+  "overrides": {
+    "jwa": "^2.0.1"
   }
 }
