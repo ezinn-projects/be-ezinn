@@ -34,6 +34,9 @@ class EmployeeScheduleService {
   async createSchedule(userId: string, data: ICreateEmployeeScheduleBody) {
     const { date, shifts, customStartTime, customEndTime, note } = data
 
+    // Validate shifts array
+    this.validateShifts(shifts)
+
     // Validate custom time nếu có
     if (customStartTime || customEndTime) {
       this.validateCustomTime(customStartTime, customEndTime)
@@ -119,6 +122,9 @@ class EmployeeScheduleService {
    */
   async adminCreateSchedule(adminId: string, data: IAdminCreateScheduleBody) {
     const { userId, date, shifts, customStartTime, customEndTime, note } = data
+
+    // Validate shifts array
+    this.validateShifts(shifts)
 
     // Validate custom time nếu có
     if (customStartTime || customEndTime) {
@@ -362,7 +368,7 @@ class EmployeeScheduleService {
 
     // Status validation đã được handle ở middleware
     // Admin có thể update bất kỳ, Staff chỉ update được pending/rejected
-    // Chỉ cho phép cập nhật note
+    // Cho phép cập nhật note (Staff + Admin), customStartTime, customEndTime (chỉ Admin)
 
     const updateData: any = {
       updatedAt: new Date()
@@ -372,7 +378,27 @@ class EmployeeScheduleService {
       updateData.note = data.note
     }
 
+    if (data.customStartTime !== undefined) {
+      updateData.customStartTime = data.customStartTime
+    }
+
+    if (data.customEndTime !== undefined) {
+      updateData.customEndTime = data.customEndTime
+    }
+
     const result = await databaseService.employeeSchedules.updateOne({ _id: new ObjectId(id) }, { $set: updateData })
+
+    // Emit event để notify về việc cập nhật thời gian
+    if (data.customStartTime !== undefined || data.customEndTime !== undefined) {
+      const updatedSchedule = await databaseService.employeeSchedules.findOne({ _id: new ObjectId(id) })
+      if (updatedSchedule) {
+        employeeScheduleEventEmitter.emit('schedule_updated', {
+          userId: updatedSchedule.userId.toString(),
+          schedule: updatedSchedule,
+          type: 'time_update'
+        })
+      }
+    }
 
     return result.modifiedCount
   }
@@ -803,22 +829,33 @@ class EmployeeScheduleService {
   /**
    * Kiểm tra conflict - không cho đăng ký trùng ca trong cùng ngày
    * (trừ khi status = Rejected, Cancelled, Completed, Absent)
+   * Nếu đăng ký All, check conflict với cả Morning và Afternoon
+   * Nếu đăng ký Morning/Afternoon, check conflict với All
    */
   async checkConflict(userId: string, date: Date, shiftType: ShiftType, excludeId?: string) {
-    const query: any = {
+    const baseQuery: any = {
       userId: new ObjectId(userId),
       date: {
         $gte: dayjs(date).startOf('day').toDate(),
         $lte: dayjs(date).endOf('day').toDate()
       },
-      shiftType,
       status: {
         $in: [EmployeeScheduleStatus.Pending, EmployeeScheduleStatus.Approved, EmployeeScheduleStatus.InProgress]
       }
     }
 
     if (excludeId) {
-      query._id = { $ne: new ObjectId(excludeId) }
+      baseQuery._id = { $ne: new ObjectId(excludeId) }
+    }
+
+    // Nếu đăng ký All, check conflict với cả Morning, Afternoon và All
+    // Nếu đăng ký Morning/Afternoon, check conflict với cả shiftType đó và All
+    const conflictShiftTypes =
+      shiftType === ShiftType.All ? [ShiftType.Morning, ShiftType.Afternoon, ShiftType.All] : [shiftType, ShiftType.All]
+
+    const query = {
+      ...baseQuery,
+      shiftType: { $in: conflictShiftTypes }
     }
 
     const existingSchedule = await databaseService.employeeSchedules.findOne(query)
@@ -830,8 +867,10 @@ class EmployeeScheduleService {
           : existingSchedule.status === EmployeeScheduleStatus.Approved
             ? 'đã được phê duyệt'
             : 'đang trong ca'
+
+      const shiftName = existingSchedule.shiftType === ShiftType.All ? 'Cả ngày' : existingSchedule.shiftType
       throw new ErrorWithStatus({
-        message: `Bạn đã đăng ký ca ${shiftType} cho ngày ${dayjs(date).format('YYYY-MM-DD')} (${statusText})`,
+        message: `Bạn đã đăng ký ca ${shiftName} cho ngày ${dayjs(date).format('YYYY-MM-DD')} (${statusText})`,
         status: HTTP_STATUS_CODE.BAD_REQUEST
       })
     }
@@ -851,6 +890,28 @@ class EmployeeScheduleService {
       [EmployeeScheduleStatus.Cancelled]: 'đã hủy'
     }
     return statusMap[status] || status
+  }
+
+  /**
+   * Validate shifts array
+   */
+  private validateShifts(shifts: ShiftType[]) {
+    if (!shifts || shifts.length === 0) {
+      throw new ErrorWithStatus({
+        message: 'Shifts không được để trống',
+        status: HTTP_STATUS_CODE.BAD_REQUEST
+      })
+    }
+
+    // Nếu có ShiftType.All, phải là array 1 phần tử
+    if (shifts.includes(ShiftType.All)) {
+      if (shifts.length > 1) {
+        throw new ErrorWithStatus({
+          message: 'Không thể đăng ký ca "Cả ngày" cùng với các ca khác',
+          status: HTTP_STATUS_CODE.BAD_REQUEST
+        })
+      }
+    }
   }
 
   /**

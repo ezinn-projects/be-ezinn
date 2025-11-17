@@ -168,8 +168,10 @@ export const getScheduleById = async (req: Request, res: Response, next: NextFun
 }
 
 /**
- * Cập nhật note của lịch
+ * Cập nhật note và thời gian của lịch
  * PUT /api/employee-schedules/:id
+ * - Staff có thể update note
+ * - Chỉ Admin mới có thể update customStartTime và customEndTime
  */
 export const updateSchedule = async (
   req: Request<ParamsDictionary, any, IUpdateScheduleBody>,
@@ -354,4 +356,3 @@ export const markCompleted = async (req: Request, res: Response, next: NextFunct
     next(error)
   }
 }
-

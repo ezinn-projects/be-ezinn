@@ -19,6 +19,7 @@ import {
   approveScheduleValidator,
   checkCanApprove,
   checkCanModifySchedule,
+  checkCanUpdateTime,
   checkScheduleExists,
   checkScheduleOwnership,
   createEmployeeScheduleValidator,
@@ -76,7 +77,7 @@ employeeScheduleRouter.get(
 
 /**
  * @route   PUT /api/employee-schedules/:id
- * @desc    Cập nhật note của lịch (chỉ Pending/Rejected, check ownership)
+ * @desc    Cập nhật note và thời gian của lịch (chỉ Pending/Rejected, check ownership, chỉ Admin update thời gian)
  * @access  Private (Staff, Admin)
  */
 employeeScheduleRouter.put(
@@ -85,6 +86,7 @@ employeeScheduleRouter.put(
   checkScheduleExists,
   checkScheduleOwnership,
   checkCanModifySchedule,
+  checkCanUpdateTime,
   updateScheduleValidator,
   updateSchedule
 )
@@ -121,12 +123,7 @@ employeeScheduleRouter.put(
  * @desc    Xóa lịch (chỉ Admin mới được xóa)
  * @access  Private (Admin only)
  */
-employeeScheduleRouter.delete(
-  '/:id',
-  protect([UserRole.Admin]),
-  checkScheduleExists,
-  deleteSchedule
-)
+employeeScheduleRouter.delete('/:id', protect([UserRole.Admin]), checkScheduleExists, deleteSchedule)
 
 /**
  * @route   PUT /api/employee-schedules/:id/mark-absent

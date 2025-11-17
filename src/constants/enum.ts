@@ -81,7 +81,8 @@ export enum WorkTimeSlot {
 
 export enum ShiftType {
   Morning = 'morning',
-  Afternoon = 'afternoon'
+  Afternoon = 'afternoon',
+  All = 'all'
 }
 
 export enum EmployeeScheduleStatus {

@@ -44,9 +44,6 @@ export const createEmployeeScheduleValidator = validate(
           if (!Array.isArray(shifts) || shifts.length === 0) {
             throw new Error('Shifts không được rỗng')
           }
-          if (shifts.length > 2) {
-            throw new Error('Chỉ có thể đăng ký tối đa 2 ca')
-          }
           const validShifts = Object.values(ShiftType)
           for (const shift of shifts) {
             if (!validShifts.includes(shift)) {
@@ -56,6 +53,17 @@ export const createEmployeeScheduleValidator = validate(
           // Check duplicate shifts
           if (new Set(shifts).size !== shifts.length) {
             throw new Error('Không thể đăng ký cùng một ca 2 lần')
+          }
+          // Nếu có ShiftType.All, phải là array 1 phần tử
+          if (shifts.includes(ShiftType.All)) {
+            if (shifts.length > 1) {
+              throw new Error('Không thể đăng ký ca "Cả ngày" cùng với các ca khác')
+            }
+          } else {
+            // Nếu không có All, tối đa 2 ca (morning, afternoon)
+            if (shifts.length > 2) {
+              throw new Error('Chỉ có thể đăng ký tối đa 2 ca')
+            }
           }
           return true
         }
@@ -114,9 +122,6 @@ export const adminCreateScheduleValidator = validate(
           if (!Array.isArray(shifts) || shifts.length === 0) {
             throw new Error('Shifts không được rỗng')
           }
-          if (shifts.length > 2) {
-            throw new Error('Chỉ có thể đăng ký tối đa 2 ca')
-          }
           const validShifts = Object.values(ShiftType)
           for (const shift of shifts) {
             if (!validShifts.includes(shift)) {
@@ -126,6 +131,17 @@ export const adminCreateScheduleValidator = validate(
           // Check duplicate shifts
           if (new Set(shifts).size !== shifts.length) {
             throw new Error('Không thể đăng ký cùng một ca 2 lần')
+          }
+          // Nếu có ShiftType.All, phải là array 1 phần tử
+          if (shifts.includes(ShiftType.All)) {
+            if (shifts.length > 1) {
+              throw new Error('Không thể đăng ký ca "Cả ngày" cùng với các ca khác')
+            }
+          } else {
+            // Nếu không có All, tối đa 2 ca (morning, afternoon)
+            if (shifts.length > 2) {
+              throw new Error('Chỉ có thể đăng ký tối đa 2 ca')
+            }
           }
           return true
         }
@@ -142,7 +158,7 @@ export const adminCreateScheduleValidator = validate(
 )
 
 /**
- * Validate request body khi cập nhật schedule (chỉ cho phép cập nhật note)
+ * Validate request body khi cập nhật schedule (cho phép cập nhật note và thời gian)
  */
 export const updateScheduleValidator = validate(
   checkSchema({
@@ -152,9 +168,94 @@ export const updateScheduleValidator = validate(
         errorMessage: 'Note phải là chuỗi'
       },
       trim: true
+    },
+    customStartTime: {
+      optional: true,
+      isString: {
+        errorMessage: 'Custom start time phải là chuỗi'
+      },
+      custom: {
+        options: (value: string | undefined) => {
+          if (value) {
+            const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/
+            if (!timeRegex.test(value)) {
+              throw new Error('Custom start time phải có định dạng HH:mm')
+            }
+          }
+          return true
+        }
+      }
+    },
+    customEndTime: {
+      optional: true,
+      isString: {
+        errorMessage: 'Custom end time phải là chuỗi'
+      },
+      custom: {
+        options: (value: string | undefined, { req }) => {
+          if (value) {
+            const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/
+            if (!timeRegex.test(value)) {
+              throw new Error('Custom end time phải có định dạng HH:mm')
+            }
+            // Kiểm tra endTime phải sau startTime
+            if (req.body.customStartTime) {
+              const [startHour, startMin] = req.body.customStartTime.split(':').map(Number)
+              const [endHour, endMin] = value.split(':').map(Number)
+              const startMinutes = startHour * 60 + startMin
+              const endMinutes = endHour * 60 + endMin
+              if (endMinutes <= startMinutes) {
+                throw new Error('Thời gian kết thúc phải sau thời gian bắt đầu')
+              }
+            }
+          }
+          return true
+        }
+      }
     }
   })
 )
+
+/**
+ * Middleware kiểm tra chỉ admin mới có thể update thời gian
+ */
+export const checkCanUpdateTime = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { customStartTime, customEndTime } = req.body
+    const userId = req.decoded_authorization?.user_id
+
+    // Nếu không update thời gian thì không cần check
+    if (!customStartTime && !customEndTime) {
+      return next()
+    }
+
+    if (!userId) {
+      return next(
+        new ErrorWithStatus({
+          message: EMPLOYEE_SCHEDULE_MESSAGES.UNAUTHORIZED_ACCESS,
+          status: HTTP_STATUS_CODE.FORBIDDEN
+        })
+      )
+    }
+
+    // Lấy user để check role
+    const user = await databaseService.users.findOne({ _id: new ObjectId(userId) })
+
+    // Chỉ admin mới được update thời gian
+    if (user?.role !== 'admin') {
+      return next(
+        new ErrorWithStatus({
+          message: 'Chỉ admin mới có thể cập nhật thời gian ca làm việc',
+          status: HTTP_STATUS_CODE.FORBIDDEN
+        })
+      )
+    }
+
+    next()
+  } catch (error) {
+    next(error)
+  }
+}
 
 /**
  * Validate request body khi approve/reject schedule
@@ -282,7 +383,7 @@ export const checkScheduleOwnership = async (req: Request, res: Response, next: 
 
     // Lấy user để check role
     const user = await databaseService.users.findOne({ _id: new ObjectId(userId) })
-    
+
     // Admin được truy cập tất cả
     if (user?.role === 'admin') {
       return next()
@@ -324,7 +425,7 @@ export const checkCanModifySchedule = async (req: Request, res: Response, next: 
 
     // Lấy user để check role
     const user = await databaseService.users.findOne({ _id: new ObjectId(userId) })
-    
+
     // Admin được bypass - có thể update/delete bất kỳ lúc nào
     if (user?.role === 'admin') {
       return next()
@@ -373,4 +474,3 @@ export const checkCanApprove = async (req: Request, res: Response, next: NextFun
     next(error)
   }
 }
-

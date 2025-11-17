@@ -19,9 +19,13 @@ export interface IAdminCreateScheduleBody {
   note?: string
 }
 
-// Request body khi cập nhật lịch (chỉ cho phép cập nhật note)
+// Request body khi cập nhật lịch
+// - note: Staff và Admin đều có thể update
+// - customStartTime/customEndTime: Chỉ Admin mới có thể update
 export interface IUpdateScheduleBody {
   note?: string
+  customStartTime?: string // HH:mm - Override default start time (Admin only)
+  customEndTime?: string // HH:mm - Override default end time (Admin only)
 }
 
 // Request body khi approve/reject lịch
@@ -46,4 +50,3 @@ export interface IGetSchedulesQuery {
   shiftType?: ShiftType
   filterType?: 'day' | 'week'
 }
-

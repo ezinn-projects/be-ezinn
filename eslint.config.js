@@ -28,7 +28,15 @@ module.exports = [
     },
     rules: {
       '@typescript-eslint/no-explicit-any': 'error',
-      '@typescript-eslint/no-unused-vars': 'error',
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        {
+          argsIgnorePattern: '^_',
+          varsIgnorePattern: '^_',
+          caughtErrorsIgnorePattern: '^_',
+          ignoreRestSiblings: true
+        }
+      ],
       'prettier/prettier': [
         'error',
         {
@@ -55,6 +63,14 @@ module.exports = [
     },
     rules: {
       '@typescript-eslint/no-explicit-any': 'off',
+    },
+  },
+  {
+    // Tắt rule no-unused-vars cho file enum.ts vì enum members được export
+    files: ['**/constants/enum.ts', '**/constants/**/*.enum.ts'],
+    rules: {
+      'no-unused-vars': 'off',
+      '@typescript-eslint/no-unused-vars': 'off',
     },
   },
   prettier,
