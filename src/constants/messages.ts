@@ -188,3 +188,24 @@ export const EMPLOYEE_SCHEDULE_MESSAGES = {
   ALREADY_ABSENT: 'Đã được đánh dấu vắng mặt'
 } as const
 
+export const NOTIFICATION_MESSAGES = {
+  GET_NOTIFICATIONS_SUCCESS: 'Lấy danh sách thông báo thành công',
+  GET_UNREAD_COUNT_SUCCESS: 'Lấy số lượng thông báo chưa đọc thành công',
+  MARK_AS_READ_SUCCESS: 'Đánh dấu đã đọc thành công',
+  MARK_ALL_AS_READ_SUCCESS: 'Đánh dấu tất cả đã đọc thành công',
+  DELETE_NOTIFICATION_SUCCESS: 'Xóa thông báo thành công',
+  NOTIFICATION_NOT_FOUND: 'Không tìm thấy thông báo',
+  UNAUTHORIZED_ACCESS: 'Bạn không có quyền truy cập thông báo này',
+  // Notification content templates
+  SCHEDULE_CREATED_BY_EMPLOYEE_TITLE: 'Đăng ký ca mới',
+  SCHEDULE_CREATED_BY_EMPLOYEE_BODY: '{employeeName} đã đăng ký ca {shiftType} ngày {date}',
+  SCHEDULE_CREATED_BY_ADMIN_TITLE: 'Được phân ca mới',
+  SCHEDULE_CREATED_BY_ADMIN_BODY: 'Bạn được phân ca {shiftType} ngày {date}',
+  SCHEDULE_APPROVED_TITLE: 'Ca làm việc được phê duyệt',
+  SCHEDULE_APPROVED_BODY: 'Ca {shiftType} ngày {date} của bạn đã được phê duyệt',
+  SCHEDULE_REJECTED_TITLE: 'Ca làm việc bị từ chối',
+  SCHEDULE_REJECTED_BODY: 'Ca {shiftType} ngày {date} của bạn đã bị từ chối',
+  SCHEDULE_STATUS_UPDATED_TITLE: 'Cập nhật trạng thái ca làm việc',
+  SCHEDULE_STATUS_UPDATED_BODY: 'Ca {shiftType} ngày {date} đã chuyển sang trạng thái {status}'
+} as const
+

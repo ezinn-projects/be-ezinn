@@ -9,7 +9,6 @@ import databaseService from '~/services/database.service'
 import serverService from '~/services/server.service'
 
 import billRouter from '~/routes/bill.routes'
-import bookingRouter from '~/routes/booking.routes'
 import clientFnbRouter from '~/routes/clientFnb.routes'
 import employeeScheduleRouter from '~/routes/employeeSchedule.routes'
 import fileRouter from '~/routes/file.routes'
@@ -17,11 +16,12 @@ import fnbMenuRouter from '~/routes/fnbMenu.routes'
 import fnbMenuItemRouter from '~/routes/fnbMenuItem.routes'
 import fnbOrderRouter from '~/routes/fnbOrder.routes'
 import holidayRouter from '~/routes/holiday.routes'
+import notificationRouter from '~/routes/notification.routes'
 import onlineBookingRouter from '~/routes/onlineBooking.routes'
-import recruitmentRouter from '~/routes/recruitment.routes'
 import priceRouter from '~/routes/price.routes'
 import printRouter from '~/routes/print.routes'
 import promotionRouter from '~/routes/promotion.routes'
+import recruitmentRouter from '~/routes/recruitment.routes'
 import roomRouter from '~/routes/room.routes'
 import roomMusicRouter from '~/routes/roomMusic.routes'
 import roomScheduleRouter from '~/routes/roomSchedule.routes'
@@ -145,6 +145,7 @@ app.use('/client/fnb', clientFnbRouter)
 app.use('/print', printRouter)
 app.use('/fnb-menu-item', fnbMenuItemRouter)
 app.use('/employee-schedules', employeeScheduleRouter)
+app.use('/notifications', notificationRouter)
 
 // Error handler
 app.use(defaultErrorHandler)

@@ -81,7 +81,8 @@ export enum WorkTimeSlot {
 
 export enum ShiftType {
   Morning = 'morning',
-  Afternoon = 'afternoon'
+  Afternoon = 'afternoon',
+  All = 'all'
 }
 
 export enum EmployeeScheduleStatus {
@@ -92,4 +93,12 @@ export enum EmployeeScheduleStatus {
   Absent = 'absent',
   Rejected = 'rejected',
   Cancelled = 'cancelled'
+}
+
+export enum NotificationType {
+  SCHEDULE_CREATED_BY_EMPLOYEE = 'schedule_created_by_employee',
+  SCHEDULE_CREATED_BY_ADMIN = 'schedule_created_by_admin',
+  SCHEDULE_APPROVED = 'schedule_approved',
+  SCHEDULE_REJECTED = 'schedule_rejected',
+  SCHEDULE_STATUS_UPDATED = 'schedule_status_updated'
 }

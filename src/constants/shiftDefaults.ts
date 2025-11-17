@@ -10,6 +10,11 @@ export const DEFAULT_SHIFT_TIMES = {
     name: 'Ca Chiều',
     startTime: '17:00',
     endTime: '22:00'
+  },
+  [ShiftType.All]: {
+    name: 'Cả Ngày',
+    startTime: '12:00',
+    endTime: '22:00'
   }
 } as const
 
