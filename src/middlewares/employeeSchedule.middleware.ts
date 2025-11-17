@@ -142,76 +142,10 @@ export const adminCreateScheduleValidator = validate(
 )
 
 /**
- * Validate request body khi cập nhật schedule
+ * Validate request body khi cập nhật schedule (chỉ cho phép cập nhật note)
  */
 export const updateScheduleValidator = validate(
   checkSchema({
-    date: {
-      optional: true,
-      isISO8601: {
-        errorMessage: EMPLOYEE_SCHEDULE_MESSAGES.INVALID_DATE
-      },
-      custom: {
-        options: (value: string) => {
-          const inputDate = dayjs(value).startOf('day')
-          const today = dayjs().startOf('day')
-          if (inputDate.isBefore(today)) {
-            throw new Error(EMPLOYEE_SCHEDULE_MESSAGES.DATE_IN_PAST)
-          }
-          return true
-        }
-      }
-    },
-    shiftType: {
-      optional: true,
-      custom: {
-        options: (value: string) => {
-          const validShifts = Object.values(ShiftType)
-          if (!validShifts.includes(value as ShiftType)) {
-            throw new Error(EMPLOYEE_SCHEDULE_MESSAGES.INVALID_SHIFT_TYPE)
-          }
-          return true
-        }
-      }
-    },
-    customStartTime: {
-      optional: true,
-      custom: {
-        options: (value: string) => {
-          const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/
-          if (value && !timeRegex.test(value)) {
-            throw new Error(EMPLOYEE_SCHEDULE_MESSAGES.INVALID_TIME_FORMAT)
-          }
-          return true
-        }
-      }
-    },
-    customEndTime: {
-      optional: true,
-      custom: {
-        options: (value: string, { req }) => {
-          const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/
-          if (value && !timeRegex.test(value)) {
-            throw new Error(EMPLOYEE_SCHEDULE_MESSAGES.INVALID_TIME_FORMAT)
-          }
-
-          // Validate startTime < endTime
-          const startTime = req.body.customStartTime
-          if (startTime && value) {
-            const [startHour, startMin] = startTime.split(':').map(Number)
-            const [endHour, endMin] = value.split(':').map(Number)
-            const startMinutes = startHour * 60 + startMin
-            const endMinutes = endHour * 60 + endMin
-
-            if (startMinutes >= endMinutes) {
-              throw new Error(EMPLOYEE_SCHEDULE_MESSAGES.INVALID_TIME_RANGE)
-            }
-          }
-
-          return true
-        }
-      }
-    },
     note: {
       optional: true,
       isString: {

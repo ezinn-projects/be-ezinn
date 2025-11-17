@@ -168,7 +168,7 @@ export const getScheduleById = async (req: Request, res: Response, next: NextFun
 }
 
 /**
- * Cập nhật lịch
+ * Cập nhật note của lịch
  * PUT /api/employee-schedules/:id
  */
 export const updateSchedule = async (

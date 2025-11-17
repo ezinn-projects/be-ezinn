@@ -3,6 +3,8 @@ import express, { Express } from 'express'
 import { createServer, Server as HttpServer } from 'http'
 import { Server as SocketIOServer } from 'socket.io'
 import roomRoutes from '~/routes/room.routes'
+import { EmployeeScheduleSocket } from '~/sockets/employeeSchedule.socket'
+import { NotificationSocket } from '~/sockets/notification.socket'
 import { PrintSocket } from '~/sockets/print.socket'
 import { RoomSocket } from '~/sockets/room.socket'
 
@@ -129,6 +131,8 @@ class Server {
 
     RoomSocket(this.io)
     PrintSocket(this.io)
+    EmployeeScheduleSocket(this.io)
+    NotificationSocket(this.io)
   }
 
   // Chạy server

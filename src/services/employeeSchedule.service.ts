@@ -1,11 +1,12 @@
+import { EventEmitter } from 'events'
 import { ObjectId } from 'mongodb'
 import dayjs from 'dayjs'
 import utc from 'dayjs/plugin/utc'
 import timezone from 'dayjs/plugin/timezone'
 import isoWeek from 'dayjs/plugin/isoWeek'
-import { EmployeeScheduleStatus, ShiftType } from '~/constants/enum'
+import { EmployeeScheduleStatus, ShiftType, UserRole, NotificationType } from '~/constants/enum'
 import { HTTP_STATUS_CODE } from '~/constants/httpStatus'
-import { EMPLOYEE_SCHEDULE_MESSAGES } from '~/constants/messages'
+import { EMPLOYEE_SCHEDULE_MESSAGES, NOTIFICATION_MESSAGES } from '~/constants/messages'
 import { ErrorWithStatus } from '~/models/Error'
 import {
   IAdminCreateScheduleBody,
@@ -17,10 +18,14 @@ import {
 import { EmployeeSchedule } from '~/models/schemas/EmployeeSchedule.schema'
 import databaseService from './database.service'
 import { getShiftInfo } from '~/constants/shiftDefaults'
+import notificationService from './notification.service'
 
 dayjs.extend(utc)
 dayjs.extend(timezone)
 dayjs.extend(isoWeek)
+
+// EventEmitter cho employee schedule events
+export const employeeScheduleEventEmitter = new EventEmitter()
 
 class EmployeeScheduleService {
   /**
@@ -69,6 +74,41 @@ class EmployeeScheduleService {
 
       const result = await databaseService.employeeSchedules.insertOne(schedule)
       createdSchedules.push({ ...schedule, _id: result.insertedId })
+    }
+
+    // Emit event để notify admin về đăng ký ca mới
+    employeeScheduleEventEmitter.emit('schedule_created', {
+      userId,
+      schedules: createdSchedules,
+      type: 'employee_register'
+    })
+
+    // Tạo notification cho tất cả admins
+    const admins = await databaseService.users.find({ role: UserRole.Admin }).toArray()
+    const adminIds = admins.map((admin) => admin._id.toString())
+
+    if (adminIds.length > 0) {
+      const dateStr = dayjs(dateObj).format('DD/MM/YYYY')
+      const shiftStr = shifts.join(', ')
+      const title = notificationService.formatMessage(NOTIFICATION_MESSAGES.SCHEDULE_CREATED_BY_EMPLOYEE_TITLE, {})
+      const body = notificationService.formatMessage(NOTIFICATION_MESSAGES.SCHEDULE_CREATED_BY_EMPLOYEE_BODY, {
+        employeeName: user.name,
+        shiftType: shiftStr,
+        date: dateStr
+      })
+
+      await notificationService.createNotificationForMultipleUsers(
+        adminIds,
+        title,
+        body,
+        NotificationType.SCHEDULE_CREATED_BY_EMPLOYEE,
+        {
+          scheduleId: createdSchedules[0]._id?.toString(),
+          scheduleDate: dateStr,
+          shiftType: shiftStr,
+          userId
+        }
+      )
     }
 
     return createdSchedules
@@ -129,6 +169,28 @@ class EmployeeScheduleService {
       createdSchedules.push({ ...schedule, _id: result.insertedId })
     }
 
+    // Emit event để notify nhân viên về ca được admin tạo
+    employeeScheduleEventEmitter.emit('schedule_created', {
+      userId,
+      schedules: createdSchedules,
+      type: 'admin_create'
+    })
+
+    // Tạo notification cho nhân viên
+    const dateStr = dayjs(dateObj).format('DD/MM/YYYY')
+    const shiftStr = shifts.join(', ')
+    const title = notificationService.formatMessage(NOTIFICATION_MESSAGES.SCHEDULE_CREATED_BY_ADMIN_TITLE, {})
+    const body = notificationService.formatMessage(NOTIFICATION_MESSAGES.SCHEDULE_CREATED_BY_ADMIN_BODY, {
+      shiftType: shiftStr,
+      date: dateStr
+    })
+
+    await notificationService.createNotification(userId, title, body, NotificationType.SCHEDULE_CREATED_BY_ADMIN, {
+      scheduleId: createdSchedules[0]._id?.toString(),
+      scheduleDate: dateStr,
+      shiftType: shiftStr
+    })
+
     return createdSchedules
   }
 
@@ -175,10 +237,7 @@ class EmployeeScheduleService {
     }
 
     // Lấy schedules và sort theo date, shiftType
-    const schedules = await databaseService.employeeSchedules
-      .find(query)
-      .sort({ date: 1, shiftType: 1 })
-      .toArray()
+    const schedules = await databaseService.employeeSchedules.find(query).sort({ date: 1, shiftType: 1 }).toArray()
 
     // Group by date và populate shift info
     const schedulesByDate: Record<string, any[]> = {}
@@ -282,7 +341,7 @@ class EmployeeScheduleService {
   }
 
   /**
-   * Cập nhật schedule
+   * Cập nhật schedule (chỉ cho phép cập nhật note)
    * Note: Validation status đã được handle ở middleware (Admin bypass, Staff restricted)
    */
   async updateSchedule(id: string, data: IUpdateScheduleBody) {
@@ -303,62 +362,17 @@ class EmployeeScheduleService {
 
     // Status validation đã được handle ở middleware
     // Admin có thể update bất kỳ, Staff chỉ update được pending/rejected
+    // Chỉ cho phép cập nhật note
 
     const updateData: any = {
       updatedAt: new Date()
-    }
-
-    if (data.date) {
-      const newDate = dayjs(data.date).startOf('day').toDate()
-      
-      // Kiểm tra conflict nếu đổi ngày
-      if (newDate.getTime() !== schedule.date.getTime()) {
-        await this.checkConflict(
-          schedule.userId.toString(),
-          newDate,
-          data.shiftType || schedule.shiftType,
-          id
-        )
-      }
-      
-      updateData.date = newDate
-    }
-
-    if (data.shiftType) {
-      // Kiểm tra conflict nếu đổi ca
-      if (data.shiftType !== schedule.shiftType) {
-        await this.checkConflict(
-          schedule.userId.toString(),
-          data.date ? dayjs(data.date).startOf('day').toDate() : schedule.date,
-          data.shiftType,
-          id
-        )
-      }
-      
-      updateData.shiftType = data.shiftType
     }
 
     if (data.note !== undefined) {
       updateData.note = data.note
     }
 
-    if (data.customStartTime !== undefined) {
-      updateData.customStartTime = data.customStartTime
-    }
-
-    if (data.customEndTime !== undefined) {
-      updateData.customEndTime = data.customEndTime
-    }
-
-    // Validate custom time nếu có
-    if (data.customStartTime || data.customEndTime) {
-      this.validateCustomTime(data.customStartTime, data.customEndTime)
-    }
-
-    const result = await databaseService.employeeSchedules.updateOne(
-      { _id: new ObjectId(id) },
-      { $set: updateData }
-    )
+    const result = await databaseService.employeeSchedules.updateOne({ _id: new ObjectId(id) }, { $set: updateData })
 
     return result.modifiedCount
   }
@@ -408,10 +422,52 @@ class EmployeeScheduleService {
       updateData.rejectedReason = rejectedReason
     }
 
-    const result = await databaseService.employeeSchedules.updateOne(
-      { _id: new ObjectId(id) },
-      { $set: updateData }
-    )
+    const result = await databaseService.employeeSchedules.updateOne({ _id: new ObjectId(id) }, { $set: updateData })
+
+    if (result.modifiedCount > 0) {
+      // Emit event để notify nhân viên về status change
+      const updatedSchedule = await databaseService.employeeSchedules.findOne({ _id: new ObjectId(id) })
+      if (updatedSchedule) {
+        employeeScheduleEventEmitter.emit('schedule_status_changed', {
+          scheduleId: id,
+          userId: updatedSchedule.userId.toString(),
+          status: status === 'approved' ? EmployeeScheduleStatus.Approved : EmployeeScheduleStatus.Rejected,
+          schedule: updatedSchedule,
+          type: 'approve_reject'
+        })
+
+        // Tạo notification cho nhân viên
+        const dateStr = dayjs(updatedSchedule.date).format('DD/MM/YYYY')
+        const shiftType = updatedSchedule.shiftType
+        const title =
+          status === 'approved'
+            ? NOTIFICATION_MESSAGES.SCHEDULE_APPROVED_TITLE
+            : NOTIFICATION_MESSAGES.SCHEDULE_REJECTED_TITLE
+        const body = notificationService.formatMessage(
+          status === 'approved'
+            ? NOTIFICATION_MESSAGES.SCHEDULE_APPROVED_BODY
+            : NOTIFICATION_MESSAGES.SCHEDULE_REJECTED_BODY,
+          {
+            shiftType,
+            date: dateStr
+          }
+        )
+
+        await notificationService.createNotification(
+          updatedSchedule.userId.toString(),
+          title,
+          body,
+          status === 'approved' ? NotificationType.SCHEDULE_APPROVED : NotificationType.SCHEDULE_REJECTED,
+          {
+            scheduleId: id,
+            scheduleDate: dateStr,
+            shiftType,
+            status: status === 'approved' ? EmployeeScheduleStatus.Approved : EmployeeScheduleStatus.Rejected,
+            rejectedReason: status === 'rejected' ? rejectedReason : undefined
+          }
+        )
+      }
+    }
 
     return result.modifiedCount
   }
@@ -485,10 +541,45 @@ class EmployeeScheduleService {
         break
     }
 
-    const result = await databaseService.employeeSchedules.updateOne(
-      { _id: new ObjectId(id) },
-      { $set: updateData }
-    )
+    const result = await databaseService.employeeSchedules.updateOne({ _id: new ObjectId(id) }, { $set: updateData })
+
+    if (result.modifiedCount > 0) {
+      // Emit event để notify nhân viên về status change
+      const updatedSchedule = await databaseService.employeeSchedules.findOne({ _id: new ObjectId(id) })
+      if (updatedSchedule) {
+        employeeScheduleEventEmitter.emit('schedule_status_changed', {
+          scheduleId: id,
+          userId: updatedSchedule.userId.toString(),
+          status,
+          schedule: updatedSchedule,
+          type: 'status_update'
+        })
+
+        // Tạo notification cho nhân viên
+        const dateStr = dayjs(updatedSchedule.date).format('DD/MM/YYYY')
+        const shiftType = updatedSchedule.shiftType
+        const statusText = this.getStatusText(status)
+        const title = NOTIFICATION_MESSAGES.SCHEDULE_STATUS_UPDATED_TITLE
+        const body = notificationService.formatMessage(NOTIFICATION_MESSAGES.SCHEDULE_STATUS_UPDATED_BODY, {
+          shiftType,
+          date: dateStr,
+          status: statusText
+        })
+
+        await notificationService.createNotification(
+          updatedSchedule.userId.toString(),
+          title,
+          body,
+          NotificationType.SCHEDULE_STATUS_UPDATED,
+          {
+            scheduleId: id,
+            scheduleDate: dateStr,
+            shiftType,
+            status
+          }
+        )
+      }
+    }
 
     return result.modifiedCount
   }
@@ -695,13 +786,8 @@ class EmployeeScheduleService {
   private calculateStartDateTime(date: Date, shiftType: ShiftType, customStartTime?: string): Date {
     const shiftInfo = getShiftInfo(shiftType, customStartTime, undefined)
     const [hours, minutes] = shiftInfo.startTime.split(':').map(Number)
-    
-    return dayjs(date)
-      .hour(hours)
-      .minute(minutes)
-      .second(0)
-      .millisecond(0)
-      .toDate()
+
+    return dayjs(date).hour(hours).minute(minutes).second(0).millisecond(0).toDate()
   }
 
   /**
@@ -710,13 +796,8 @@ class EmployeeScheduleService {
   private calculateEndDateTime(date: Date, shiftType: ShiftType, customEndTime?: string): Date {
     const shiftInfo = getShiftInfo(shiftType, undefined, customEndTime)
     const [hours, minutes] = shiftInfo.endTime.split(':').map(Number)
-    
-    return dayjs(date)
-      .hour(hours)
-      .minute(minutes)
-      .second(0)
-      .millisecond(0)
-      .toDate()
+
+    return dayjs(date).hour(hours).minute(minutes).second(0).millisecond(0).toDate()
   }
 
   /**
@@ -754,6 +835,22 @@ class EmployeeScheduleService {
         status: HTTP_STATUS_CODE.BAD_REQUEST
       })
     }
+  }
+
+  /**
+   * Helper: Convert status sang tiếng Việt
+   */
+  private getStatusText(status: EmployeeScheduleStatus): string {
+    const statusMap: Record<EmployeeScheduleStatus, string> = {
+      [EmployeeScheduleStatus.Pending]: 'chờ duyệt',
+      [EmployeeScheduleStatus.Approved]: 'đã phê duyệt',
+      [EmployeeScheduleStatus.InProgress]: 'đang làm việc',
+      [EmployeeScheduleStatus.Completed]: 'hoàn thành',
+      [EmployeeScheduleStatus.Absent]: 'vắng mặt',
+      [EmployeeScheduleStatus.Rejected]: 'bị từ chối',
+      [EmployeeScheduleStatus.Cancelled]: 'đã hủy'
+    }
+    return statusMap[status] || status
   }
 
   /**

@@ -19,12 +19,8 @@ export interface IAdminCreateScheduleBody {
   note?: string
 }
 
-// Request body khi cập nhật lịch
+// Request body khi cập nhật lịch (chỉ cho phép cập nhật note)
 export interface IUpdateScheduleBody {
-  date?: string // ISO date string
-  shiftType?: ShiftType
-  customStartTime?: string // HH:mm - Override default start time
-  customEndTime?: string // HH:mm - Override default end time
   note?: string
 }
 

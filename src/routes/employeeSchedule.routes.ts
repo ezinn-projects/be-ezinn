@@ -76,7 +76,7 @@ employeeScheduleRouter.get(
 
 /**
  * @route   PUT /api/employee-schedules/:id
- * @desc    Cập nhật lịch (chỉ Pending/Rejected, check ownership)
+ * @desc    Cập nhật note của lịch (chỉ Pending/Rejected, check ownership)
  * @access  Private (Staff, Admin)
  */
 employeeScheduleRouter.put(
@@ -118,15 +118,13 @@ employeeScheduleRouter.put(
 
 /**
  * @route   DELETE /api/employee-schedules/:id
- * @desc    Xóa lịch (chỉ Pending/Rejected, check ownership)
- * @access  Private (Staff, Admin)
+ * @desc    Xóa lịch (chỉ Admin mới được xóa)
+ * @access  Private (Admin only)
  */
 employeeScheduleRouter.delete(
   '/:id',
-  protect([UserRole.Staff, UserRole.Admin]),
+  protect([UserRole.Admin]),
   checkScheduleExists,
-  checkScheduleOwnership,
-  checkCanModifySchedule,
   deleteSchedule
 )
 
