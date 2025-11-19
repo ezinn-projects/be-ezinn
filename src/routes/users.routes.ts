@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import {
+  changePasswordController,
   deleteUserController,
   forgotPasswordController,
   getAllUsersController,
@@ -14,6 +15,7 @@ import {
 } from '~/controllers/users.controller'
 import {
   accessTokenValidator,
+  changePasswordValidator,
   checkLoginUserExists,
   checkRegisterUserExists,
   checkUserId,
@@ -93,6 +95,21 @@ usersRouter.post(
  * @author QuangDoo
  */
 usersRouter.post('/reset-password', resetPasswordValidator, wrapRequestHandler(resetPasswordController))
+
+/**
+ * @description Change password
+ * @path /users/change-password
+ * @method POST
+ * @header {Authorization: Bearer <access_token>}
+ * @body {old_password: string, password: string, confirm_password: string}
+ * @author QuangDoo
+ */
+usersRouter.post(
+  '/change-password',
+  accessTokenValidator,
+  changePasswordValidator,
+  wrapRequestHandler(changePasswordController)
+)
 
 /**
  * @description Get all users (legacy)

@@ -23,6 +23,7 @@ import notificationService from './notification.service'
 dayjs.extend(utc)
 dayjs.extend(timezone)
 dayjs.extend(isoWeek)
+dayjs.tz.setDefault('Asia/Ho_Chi_Minh')
 
 // EventEmitter cho employee schedule events
 export const employeeScheduleEventEmitter = new EventEmitter()
@@ -724,8 +725,11 @@ class EmployeeScheduleService {
    * Cronjob: Auto start shifts (approved → in-progress)
    */
   async autoStartShifts() {
-    const now = new Date()
-    const today = dayjs().startOf('day').toDate()
+    const now = dayjs().tz('Asia/Ho_Chi_Minh').toDate()
+    const today = dayjs().tz('Asia/Ho_Chi_Minh').startOf('day').toDate()
+
+    console.log(`[Auto Start Shifts] Current time: ${dayjs(now).format('YYYY-MM-DD HH:mm:ss')}`)
+    console.log(`[Auto Start Shifts] Today start: ${dayjs(today).format('YYYY-MM-DD HH:mm:ss')}`)
 
     // Find approved schedules that should have started
     const schedules = await databaseService.employeeSchedules
@@ -737,11 +741,20 @@ class EmployeeScheduleService {
       .limit(1000)
       .toArray()
 
+    console.log(`[Auto Start Shifts] Found ${schedules.length} approved schedules without startedAt`)
+
     const toStart = []
 
     for (const schedule of schedules) {
       const startTime = this.calculateStartDateTime(schedule.date, schedule.shiftType, schedule.customStartTime)
-      if (now >= startTime) {
+      const shouldStart = now >= startTime
+      
+      console.log(
+        `[Auto Start Shifts] Schedule ${schedule._id}: ${schedule.shiftType} on ${dayjs(schedule.date).format('YYYY-MM-DD')}, ` +
+        `startTime: ${dayjs(startTime).format('YYYY-MM-DD HH:mm:ss')}, shouldStart: ${shouldStart}`
+      )
+      
+      if (shouldStart) {
         toStart.push(schedule._id)
       }
     }
@@ -767,8 +780,11 @@ class EmployeeScheduleService {
    * Cronjob: Auto complete shifts (in-progress → completed)
    */
   async autoCompleteShifts() {
-    const now = new Date()
-    const today = dayjs().startOf('day').toDate()
+    const now = dayjs().tz('Asia/Ho_Chi_Minh').toDate()
+    const today = dayjs().tz('Asia/Ho_Chi_Minh').startOf('day').toDate()
+
+    console.log(`[Auto Complete Shifts] Current time: ${dayjs(now).format('YYYY-MM-DD HH:mm:ss')}`)
+    console.log(`[Auto Complete Shifts] Today start: ${dayjs(today).format('YYYY-MM-DD HH:mm:ss')}`)
 
     // Find in-progress schedules that should be completed
     const schedules = await databaseService.employeeSchedules
@@ -780,11 +796,20 @@ class EmployeeScheduleService {
       .limit(1000)
       .toArray()
 
+    console.log(`[Auto Complete Shifts] Found ${schedules.length} in-progress schedules without completedAt`)
+
     const toComplete = []
 
     for (const schedule of schedules) {
       const endTime = this.calculateEndDateTime(schedule.date, schedule.shiftType, schedule.customEndTime)
-      if (now >= endTime) {
+      const shouldComplete = now >= endTime
+      
+      console.log(
+        `[Auto Complete Shifts] Schedule ${schedule._id}: ${schedule.shiftType} on ${dayjs(schedule.date).format('YYYY-MM-DD')}, ` +
+        `endTime: ${dayjs(endTime).format('YYYY-MM-DD HH:mm:ss')}, shouldComplete: ${shouldComplete}`
+      )
+      
+      if (shouldComplete) {
         toComplete.push(schedule._id)
       }
     }
@@ -838,9 +863,6 @@ class EmployeeScheduleService {
       date: {
         $gte: dayjs(date).startOf('day').toDate(),
         $lte: dayjs(date).endOf('day').toDate()
-      },
-      status: {
-        $in: [EmployeeScheduleStatus.Pending, EmployeeScheduleStatus.Approved, EmployeeScheduleStatus.InProgress]
       }
     }
 
@@ -861,16 +883,9 @@ class EmployeeScheduleService {
     const existingSchedule = await databaseService.employeeSchedules.findOne(query)
 
     if (existingSchedule) {
-      const statusText =
-        existingSchedule.status === EmployeeScheduleStatus.Pending
-          ? 'đang chờ duyệt'
-          : existingSchedule.status === EmployeeScheduleStatus.Approved
-            ? 'đã được phê duyệt'
-            : 'đang trong ca'
-
       const shiftName = existingSchedule.shiftType === ShiftType.All ? 'Cả ngày' : existingSchedule.shiftType
       throw new ErrorWithStatus({
-        message: `Bạn đã đăng ký ca ${shiftName} cho ngày ${dayjs(date).format('YYYY-MM-DD')} (${statusText})`,
+        message: `Nhân viên đã có ca ${shiftName} cho ngày ${dayjs(date).format('DD/MM/YYYY')}. Vui lòng xóa ca cũ trước khi đăng ký ca mới.`,
         status: HTTP_STATUS_CODE.BAD_REQUEST
       })
     }

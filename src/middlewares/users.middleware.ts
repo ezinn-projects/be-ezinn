@@ -381,3 +381,52 @@ export const resetPasswordValidator = validate(
     ['body']
   )
 )
+
+export const changePasswordValidator = validate(
+  checkSchema(
+    {
+      old_password: {
+        notEmpty: {
+          errorMessage: USER_MESSAGES.OLD_PASSWORD_NOT_EMPTY
+        },
+        isString: true,
+        trim: true,
+        isLength: {
+          options: { min: 6, max: 8 },
+          errorMessage: 'Password must be between 6 and 8 characters'
+        }
+      },
+      password: {
+        notEmpty: {
+          errorMessage: USER_MESSAGES.PASSWORD_NOT_EMPTY
+        },
+        isString: true,
+        trim: true,
+        isLength: {
+          options: { min: 6, max: 8 },
+          errorMessage: 'Password must be between 6 and 8 characters'
+        }
+      },
+      confirm_password: {
+        notEmpty: {
+          errorMessage: USER_MESSAGES.CONFIRM_PASSWORD_NOT_EMPTY
+        },
+        isString: true,
+        trim: true,
+        isLength: {
+          options: { min: 6, max: 8 },
+          errorMessage: 'Password must be between 6 and 8 characters'
+        },
+        custom: {
+          options: (value: string, { req }) => {
+            if (value !== req.body.password) {
+              throw new Error(USER_MESSAGES.PASSWORD_NOT_MATCH)
+            }
+            return true
+          }
+        }
+      }
+    },
+    ['body']
+  )
+)

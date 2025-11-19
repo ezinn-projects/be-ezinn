@@ -2,7 +2,7 @@ import { NextFunction, Request, Response } from 'express'
 import { type ParamsDictionary } from 'express-serve-static-core'
 import { HTTP_STATUS_CODE } from '~/constants/httpStatus'
 import { USER_MESSAGES } from '~/constants/messages'
-import { type RegisterRequestBody, UpdateUserRequestBody, GetUsersQuery } from '~/models/requests/User.requests'
+import { type RegisterRequestBody, UpdateUserRequestBody, GetUsersQuery, ChangePasswordRequestBody } from '~/models/requests/User.requests'
 import { usersServices } from '~/services/users.services'
 import { hashPassword } from '~/utils/crypto'
 import { signToken } from '~/utils/jwt'
@@ -316,6 +316,38 @@ export const resetPasswordController = async (req: Request, res: Response, next:
 
     return res.status(HTTP_STATUS_CODE.OK).json({
       message: USER_MESSAGES.RESET_PASSWORD_SUCCESS,
+      result
+    })
+  } catch (error) {
+    next(error)
+  }
+}
+
+/**
+ * Change password
+ * @description Change password for logged in user
+ * @path /users/change-password
+ * @method POST
+ * @header {Authorization: Bearer <access_token>}
+ * @body {old_password: string, password: string, confirm_password: string}
+ * @author QuangDoo
+ */
+export const changePasswordController = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const user_id = req?.decoded_authorization?.user_id
+    const { old_password, password, confirm_password } = req.body as ChangePasswordRequestBody
+
+    // Kiểm tra password và confirm_password có khớp nhau không
+    if (password !== confirm_password) {
+      return res.status(HTTP_STATUS_CODE.BAD_REQUEST).json({
+        message: USER_MESSAGES.PASSWORD_NOT_MATCH
+      })
+    }
+
+    const result = await usersServices.changePassword(user_id || '', old_password, password)
+
+    return res.status(HTTP_STATUS_CODE.OK).json({
+      message: USER_MESSAGES.CHANGE_PASSWORD_SUCCESS,
       result
     })
   } catch (error) {

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { TokenType } from '~/constants/enum'
 import { USER_MESSAGES } from '~/constants/messages'
 import { RegisterRequestBody, UpdateUserRequestBody, GetUsersQuery } from '~/models/requests/User.requests'
@@ -28,41 +29,37 @@ class UsersServices {
   }
 
   async register(payload: RegisterRequestBody) {
-    try {
-      const result = await databaseService.users.insertOne(
-        new User({
-          ...payload,
-          _id: new ObjectId(),
-          username: payload.username,
-          email: payload.email || '',
-          date_of_birth: new Date(payload.date_of_birth),
-          password: hashPassword(payload.password),
-          phone_number: payload.phone_number,
-          created_at: new Date(),
-          updated_at: new Date()
-        })
-      )
+    const result = await databaseService.users.insertOne(
+      new User({
+        ...payload,
+        _id: new ObjectId(),
+        username: payload.username,
+        email: payload.email || '',
+        date_of_birth: new Date(payload.date_of_birth),
+        password: hashPassword(payload.password),
+        phone_number: payload.phone_number,
+        created_at: new Date(),
+        updated_at: new Date()
+      })
+    )
 
-      const user_id = result.insertedId.toString()
+    const user_id = result.insertedId.toString()
 
-      const [access_token, refresh_token] = await this.signAccessTAndRefreshToken(user_id)
+    const [access_token, refresh_token] = await this.signAccessTAndRefreshToken(user_id)
 
-      // Gửi welcome email nếu có email
-      if (payload.email) {
-        try {
-          await sendWelcomeEmail(payload.email, payload.name)
-        } catch (error) {
-          console.error('Error sending welcome email:', error)
-          // Không throw error vì register vẫn thành công
-        }
+    // Gửi welcome email nếu có email
+    if (payload.email) {
+      try {
+        await sendWelcomeEmail(payload.email, payload.name)
+      } catch (error) {
+        console.error('Error sending welcome email:', error)
+        // Không throw error vì register vẫn thành công
       }
+    }
 
-      return {
-        access_token,
-        refresh_token
-      }
-    } catch (error) {
-      throw error
+    return {
+      access_token,
+      refresh_token
     }
   }
 
@@ -283,9 +280,39 @@ class UsersServices {
       )
 
       return { message: USER_MESSAGES.RESET_PASSWORD_SUCCESS }
-    } catch (error) {
+    } catch {
       throw new Error(USER_MESSAGES.INVALID_FORGOT_PASSWORD_TOKEN)
     }
+  }
+
+  async changePassword(userId: string, oldPassword: string, newPassword: string) {
+    // Tìm user
+    const user = await databaseService.users.findOne({ _id: new ObjectId(userId) })
+    if (!user) {
+      throw new Error(USER_MESSAGES.USER_NOT_FOUND)
+    }
+
+    // Verify old password
+    const hashedOldPassword = hashPassword(oldPassword)
+    if (user.password !== hashedOldPassword) {
+      throw new Error(USER_MESSAGES.OLD_PASSWORD_INCORRECT)
+    }
+
+    // Hash password mới
+    const hashedNewPassword = hashPassword(newPassword)
+
+    // Update password
+    await databaseService.users.updateOne(
+      { _id: new ObjectId(userId) },
+      {
+        $set: {
+          password: hashedNewPassword,
+          updated_at: new Date()
+        }
+      }
+    )
+
+    return { message: USER_MESSAGES.CHANGE_PASSWORD_SUCCESS }
   }
 }
 
