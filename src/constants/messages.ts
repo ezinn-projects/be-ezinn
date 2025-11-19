@@ -42,7 +42,10 @@ export const USER_MESSAGES = {
   PHONE_ALREADY_EXISTS: 'Phone number already exists',
   FORGOT_PASSWORD_SUCCESS: 'Forgot password email sent successfully',
   RESET_PASSWORD_SUCCESS: 'Password reset successfully',
-  EMAIL_NOT_FOUND: 'Email not found'
+  EMAIL_NOT_FOUND: 'Email not found',
+  OLD_PASSWORD_NOT_EMPTY: 'Old password is required',
+  OLD_PASSWORD_INCORRECT: 'Old password is incorrect',
+  CHANGE_PASSWORD_SUCCESS: 'Password changed successfully'
 } as const
 
 export const ROOM_TYPE_MESSAGES = {
