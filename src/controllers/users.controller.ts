@@ -8,6 +8,8 @@ import { hashPassword } from '~/utils/crypto'
 import { signToken } from '~/utils/jwt'
 import databaseService from '~/services/database.service'
 import { IUser } from '~/models/schemas/User.schema'
+import { uploadImageToCloudinary } from '~/services/cloudinary.service'
+import CloudinaryResponse from '~/models/CloudinaryResponse'
 
 /**
  * Register a new user
@@ -231,12 +233,25 @@ export const getUserByIdController = async (req: Request, res: Response, next: N
  * @method PUT
  * @param {id: string}
  * @body {name?: string, email?: string, phone_number?: string, date_of_birth?: Date, bio?: string, location?: string, avatar?: string, role?: UserRole}
+ * @file avatar?: File (multipart/form-data)
  * @author QuangDoo
  */
 export const updateUserController = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params
     const updateData = req.body as UpdateUserRequestBody
+    const file = req.file as Express.Multer.File | undefined
+
+    // Xử lý upload avatar nếu có file
+    if (file) {
+      try {
+        const uploadResult = (await uploadImageToCloudinary(file.buffer, 'profile_images')) as CloudinaryResponse
+        updateData.avatar = uploadResult.url
+      } catch (error) {
+        console.error('Error uploading avatar:', error)
+        throw new Error(`Failed to upload avatar: ${(error as Error).message}`)
+      }
+    }
 
     const result = await usersServices.updateUser(id, updateData)
 

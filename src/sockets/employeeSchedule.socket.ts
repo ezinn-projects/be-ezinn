@@ -7,13 +7,13 @@ export const EmployeeScheduleSocket = (io: Server) => {
   // Listen for schedule created events
   employeeScheduleEventEmitter.on('schedule_created', ({ userId, schedules, type }) => {
     if (type === 'employee_register') {
-      // Nhân viên đăng ký ca → notify admin
+      // Nhân viên đăng ký ca → notify management (admin & staff)
       const schedulesWithInfo = schedules.map((schedule: IEmployeeSchedule) => ({
         ...schedule,
         shiftInfo: getShiftInfo(schedule.shiftType, schedule.customStartTime, schedule.customEndTime)
       }))
 
-      io.to('admin').emit('new_schedule_registration', {
+      io.to('management').emit('new_schedule_registration', {
         userId,
         schedules: schedulesWithInfo,
         message: 'Có nhân viên đăng ký ca mới'
@@ -51,8 +51,8 @@ export const EmployeeScheduleSocket = (io: Server) => {
         message
       })
 
-      // Cũng notify admin về việc đã xử lý
-      io.to('admin').emit('schedule_processed', {
+      // Cũng notify management (admin & staff) về việc đã xử lý
+      io.to('management').emit('schedule_processed', {
         scheduleId,
         userId,
         status,
@@ -79,14 +79,14 @@ export const EmployeeScheduleSocket = (io: Server) => {
   io.on('connection', (socket: Socket) => {
     console.log('Client connected to employee schedule socket:', socket.id)
 
-    // Get userId from query params
+    // Get userId and role from query params
     const userId = socket.handshake.query.userId as string
-    const isAdmin = socket.handshake.query.isAdmin === 'true'
+    const role = socket.handshake.query.role as string
 
-    // If client is admin, join admin room
-    if (isAdmin) {
-      socket.join('admin')
-      console.log(`Admin socket ${socket.id} joined admin room`)
+    // If client is admin or staff, join management room
+    if (role === 'admin' || role === 'staff') {
+      socket.join('management')
+      console.log(`${role.charAt(0).toUpperCase() + role.slice(1)} socket ${socket.id} joined management room`)
     }
 
     // If client is employee, join user room
