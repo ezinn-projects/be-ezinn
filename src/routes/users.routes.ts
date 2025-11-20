@@ -27,6 +27,7 @@ import {
 } from '~/middlewares/users.middleware'
 import { strictAuthLimiter } from '~/middlewares/rateLimiter.middleware'
 import { wrapRequestHandler } from '~/utils/handlers'
+import { upload } from '~/utils/common'
 
 const usersRouter = Router()
 
@@ -145,9 +146,15 @@ usersRouter.get('/:id', wrapRequestHandler(getUserByIdController))
  * @method PUT
  * @param {id: string}
  * @body {name?: string, email?: string, phone_number?: string, date_of_birth?: Date, bio?: string, location?: string, avatar?: string, role?: UserRole}
+ * @file avatar?: File (multipart/form-data)
  * @author QuangDoo
  */
-usersRouter.put('/:id', updateUserValidator, wrapRequestHandler(updateUserController))
+usersRouter.put(
+  '/:id',
+  upload.single('avatar'),
+  updateUserValidator,
+  wrapRequestHandler(updateUserController)
+)
 
 /**
  * @description Delete user

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextFunction, Request, Response } from 'express'
 import { type ParamsDictionary } from 'express-serve-static-core'
 import ytSearch from 'yt-search'
@@ -259,7 +260,7 @@ export const getSongsInQueue = async (req: Request, res: Response, next: NextFun
  * @params action: "play" | "pause"
  * @author QuangDoo
  */
-export const controlPlayback = async (req: Request<ParamsDictionary, any>, res: Response, next: NextFunction) => {
+export const controlPlayback = async (req: Request<ParamsDictionary>, res: Response, next: NextFunction) => {
   const { roomId, action } = req.params
   const { current_time } = req.body
   const BUFFER_TIME = 1.5 // Buffer 1.5 giây

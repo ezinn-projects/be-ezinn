@@ -39,8 +39,8 @@ export const RoomSocket = (io: Server) => {
   roomEventEmitter.on('new_booking', ({ roomId, booking }) => {
     console.log(`New booking notification for room ${roomId}:`, booking)
     io.to(roomId).emit('new_booking', booking)
-    // Also emit to admin room
-    io.to('admin').emit('booking_notification', { roomId, booking })
+    // Also emit to management room (admin & staff)
+    io.to('management').emit('booking_notification', { roomId, booking })
   })
 
   // Listen for roomMusic events
@@ -48,22 +48,22 @@ export const RoomSocket = (io: Server) => {
     console.log('notification', notification)
     // Kiểm tra loại thông báo để xử lý khác nhau
     if (notification.type === 'new_order') {
-      io.to('admin').emit('new_order_notification', notification)
+      io.to('management').emit('new_order_notification', notification)
     } else {
-      io.to('admin').emit('notification', notification)
+      io.to('management').emit('notification', notification)
     }
   })
 
   io.on('connection', (socket: Socket) => {
     console.log('Client connected:', socket.id)
 
-    // Get isAdmin from query params
-    const isAdmin = socket.handshake.query.isAdmin === 'true'
+    // Get role from query params (admin or staff)
+    const role = socket.handshake.query.role as string
 
-    // If client is admin, join admin room
-    if (isAdmin) {
-      socket.join('admin')
-      console.log(`Admin socket ${socket.id} joined admin room`)
+    // If client is admin or staff, join management room
+    if (role === 'admin' || role === 'staff') {
+      socket.join('management')
+      console.log(`${role.charAt(0).toUpperCase() + role.slice(1)} socket ${socket.id} joined management room`)
     }
 
     // Get roomId from query

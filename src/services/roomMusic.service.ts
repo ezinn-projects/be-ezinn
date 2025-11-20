@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { EventEmitter } from 'events'
 import ytdl from 'youtube-dl-exec'
 import { HTTP_STATUS_CODE } from '~/constants/httpStatus'
@@ -421,7 +422,7 @@ class RoomMusicServices {
    * @returns Promise<void>
    * @author QuangDoo
    */
-  async solveRequest(roomId: string, request: string) {
+  async solveRequest(roomId: string) {
     try {
       const notificationKey = `room_${roomId}_notification`
       const notification = await this.cacheService.get(notificationKey)
