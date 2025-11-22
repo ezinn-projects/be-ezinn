@@ -1263,20 +1263,21 @@ export class BillService {
       console.log(`[DOANH THU] Bắt đầu tính doanh thu tuần ${targetDate.week()} năm ${targetDate.year()}`)
       console.log(`[DOANH THU] Khoảng thời gian: ${startDate.toISOString()} - ${endDate.toISOString()}`)
 
-      const finishedSchedules = await databaseService.roomSchedule
+      // Tìm hóa đơn dựa trên createdAt (thời gian tạo hóa đơn) thay vì endTime của schedule
+      const bills = await databaseService.bills
         .find({
-          status: RoomScheduleStatus.Finished,
-          endTime: {
+          createdAt: {
             $gte: startDate,
             $lte: endDate
           }
         })
+        .sort({ createdAt: -1 })
         .toArray()
 
-      console.log(`[DOANH THU] Tìm thấy ${finishedSchedules.length} lịch đã hoàn thành`)
+      console.log(`[DOANH THU] Tìm thấy ${bills.length} hóa đơn được tạo trong tuần này`)
 
-      if (finishedSchedules.length === 0) {
-        console.log('[DOANH THU] Không có lịch nào hoàn thành trong tuần này')
+      if (bills.length === 0) {
+        console.log('[DOANH THU] Không có hóa đơn nào được tạo trong tuần này')
         return {
           totalRevenue: 0,
           bills: [],
@@ -1285,100 +1286,54 @@ export class BillService {
         }
       }
 
-      // CÁCH MỚI: Luôn tính lại hóa đơn cho mọi lịch
-      const finalBills: IBill[] = []
-      let totalRevenue = 0
-
-      // Tìm kiếm hóa đơn đã lưu trong database
-      console.log('[DOANH THU] Tìm kiếm hóa đơn đã lưu trong database...')
-      const scheduleIds = finishedSchedules.map((schedule) => schedule._id)
-      const savedBills = await databaseService.bills
-        .find({
-          scheduleId: { $in: scheduleIds }
-        })
-        .toArray()
-
-      // Tạo map từ scheduleId đến bill đã lưu để tra cứu nhanh
-      const savedBillMap = new Map<string, IBill>()
-      for (const bill of savedBills) {
+      // Remove duplicates by scheduleId (prioritize paid bills, then latest createdAt)
+      const uniqueBills = new Map<string, IBill>()
+      for (const bill of bills) {
         const scheduleId = bill.scheduleId.toString()
-        if (
-          !savedBillMap.has(scheduleId) ||
-          (bill.createdAt &&
-            savedBillMap.get(scheduleId)!.createdAt &&
-            new Date(bill.createdAt) > new Date(savedBillMap.get(scheduleId)!.createdAt))
-        ) {
-          savedBillMap.set(scheduleId, bill)
-        }
-      }
 
-      console.log(`[DOANH THU] Có ${savedBillMap.size} lịch có hóa đơn đã lưu (sau khi lọc trùng lặp)`)
+        if (!uniqueBills.has(scheduleId)) {
+          // First bill for this scheduleId
+          uniqueBills.set(scheduleId, bill)
+        } else {
+          const existingBill = uniqueBills.get(scheduleId)!
+          let shouldReplace = false
 
-      for (const schedule of finishedSchedules) {
-        try {
-          console.log(`\n[DOANH THU] Xử lý hóa đơn cho lịch ${schedule._id}:`)
-
-          // Lấy thông tin phòng
-          const room = await databaseService.rooms.findOne({ _id: schedule.roomId })
-          console.log(`- Phòng: ${room?.roomName || schedule.roomId}`)
-          console.log(
-            `- Thời gian: ${dayjs(ensureVNTimezone(schedule.startTime)).format('DD/MM HH:mm')} - ${dayjs(ensureVNTimezone(schedule.endTime)).format('DD/MM HH:mm')}`
-          )
-
-          let billToUse: IBill
-
-          // Kiểm tra xem đã có hóa đơn lưu sẵn chưa
-          if (savedBillMap.has(schedule._id.toString())) {
-            billToUse = savedBillMap.get(schedule._id.toString())!
-            console.log(`- Sử dụng hóa đơn đã lưu trong database, ID: ${billToUse._id}`)
-
-            // Log thông tin khuyến mãi nếu có
-            if (billToUse.activePromotion) {
-              console.log(
-                `- Khuyến mãi đã áp dụng: ${billToUse.activePromotion.name} (${billToUse.activePromotion.discountPercentage}%)`
-              )
-              console.log(`- Tổng tiền sau giảm giá: ${billToUse.totalAmount.toLocaleString('vi-VN')} VND`)
-            }
-          } else {
-            // Tính lại hóa đơn dựa trên thông tin schedule
-            console.log(`- Không tìm thấy hóa đơn đã lưu, đang tính toán lại...`)
-            // Không áp dụng promotion nào khi tính toán lại để tránh sai lệch
-            billToUse = await this.getBill(schedule._id.toString(), undefined, undefined, 'null', undefined)
-
-            // Gán _id nếu cần
-            if (!billToUse._id) {
-              billToUse._id = new ObjectId()
+          // Priority 1: Bills with paymentMethod (paid) over bills without
+          if (bill.paymentMethod && !existingBill.paymentMethod) {
+            shouldReplace = true
+          }
+          // Priority 2: If both have paymentMethod or both don't have, use latest createdAt
+          else if (
+            (!bill.paymentMethod && !existingBill.paymentMethod) ||
+            (bill.paymentMethod && existingBill.paymentMethod)
+          ) {
+            if (
+              bill.createdAt &&
+              existingBill.createdAt &&
+              new Date(bill.createdAt) > new Date(existingBill.createdAt)
+            ) {
+              shouldReplace = true
             }
           }
 
-          // Làm tròn tổng tiền xuống đến 1000 VND để đảm bảo nhất quán
-          billToUse.totalAmount = Math.floor(billToUse.totalAmount / 1000) * 1000
-
-          // Log chi tiết hóa đơn đã tính
-          console.log(`- Hóa đơn được sử dụng:`)
-          console.log(`  + Tổng tiền (đã làm tròn): ${billToUse.totalAmount.toLocaleString('vi-VN')} VND`)
-
-          if (billToUse.items) {
-            billToUse.items.forEach((item) => {
-              console.log(
-                `  + ${item.description}: ${item.quantity} x ${item.price.toLocaleString('vi-VN')} = ${(item.quantity * item.price).toLocaleString('vi-VN')} VND`
-              )
-            })
+          if (shouldReplace) {
+            uniqueBills.set(scheduleId, bill)
           }
-
-          // Sử dụng hóa đơn đã tính toán
-          finalBills.push(billToUse)
-          totalRevenue += billToUse.totalAmount
-
-          console.log(`- Đã thêm vào tổng doanh thu: ${billToUse.totalAmount.toLocaleString('vi-VN')} VND`)
-          console.log(`- Tổng doanh thu hiện tại: ${totalRevenue.toLocaleString('vi-VN')} VND`)
-        } catch (error) {
-          console.error(`[DOANH THU] Lỗi khi xử lý hóa đơn cho lịch ${schedule._id}:`, error)
         }
       }
+
+      const finalBills = Array.from(uniqueBills.values())
+
+      // Làm tròn tổng tiền của từng hóa đơn
+      finalBills.forEach((bill) => {
+        bill.totalAmount = Math.floor(bill.totalAmount / 1000) * 1000
+      })
+
+      // Tính tổng doanh thu
+      const totalRevenue = finalBills.reduce((sum, bill) => sum + bill.totalAmount, 0)
 
       console.log(`\n[DOANH THU] Tổng kết doanh thu tuần ${targetDate.week()} năm ${targetDate.year()}:`)
-      console.log(`- Số lượng hóa đơn: ${finalBills.length}`)
+      console.log(`- Số lượng hóa đơn (sau khi lọc trùng): ${finalBills.length}`)
       console.log(`- Tổng doanh thu: ${totalRevenue.toLocaleString('vi-VN')} VND`)
 
       return {
@@ -1412,20 +1367,21 @@ export class BillService {
       console.log(`[DOANH THU] Bắt đầu tính doanh thu tháng ${targetDate.format('MM/YYYY')}`)
       console.log(`[DOANH THU] Khoảng thời gian: ${startDate.toISOString()} - ${endDate.toISOString()}`)
 
-      const finishedSchedules = await databaseService.roomSchedule
+      // Tìm hóa đơn dựa trên createdAt (thời gian tạo hóa đơn) thay vì endTime của schedule
+      const bills = await databaseService.bills
         .find({
-          status: RoomScheduleStatus.Finished,
-          endTime: {
+          createdAt: {
             $gte: startDate,
             $lte: endDate
           }
         })
+        .sort({ createdAt: -1 })
         .toArray()
 
-      console.log(`[DOANH THU] Tìm thấy ${finishedSchedules.length} lịch đã hoàn thành`)
+      console.log(`[DOANH THU] Tìm thấy ${bills.length} hóa đơn được tạo trong tháng này`)
 
-      if (finishedSchedules.length === 0) {
-        console.log('[DOANH THU] Không có lịch nào hoàn thành trong tháng này')
+      if (bills.length === 0) {
+        console.log('[DOANH THU] Không có hóa đơn nào được tạo trong tháng này')
         return {
           totalRevenue: 0,
           bills: [],
@@ -1434,100 +1390,54 @@ export class BillService {
         }
       }
 
-      // CÁCH MỚI: Luôn tính lại hóa đơn cho mọi lịch
-      const finalBills: IBill[] = []
-      let totalRevenue = 0
-
-      // Tìm kiếm hóa đơn đã lưu trong database
-      console.log('[DOANH THU] Tìm kiếm hóa đơn đã lưu trong database...')
-      const scheduleIds = finishedSchedules.map((schedule) => schedule._id)
-      const savedBills = await databaseService.bills
-        .find({
-          scheduleId: { $in: scheduleIds }
-        })
-        .toArray()
-
-      // Tạo map từ scheduleId đến bill đã lưu để tra cứu nhanh
-      const savedBillMap = new Map<string, IBill>()
-      for (const bill of savedBills) {
+      // Remove duplicates by scheduleId (prioritize paid bills, then latest createdAt)
+      const uniqueBills = new Map<string, IBill>()
+      for (const bill of bills) {
         const scheduleId = bill.scheduleId.toString()
-        if (
-          !savedBillMap.has(scheduleId) ||
-          (bill.createdAt &&
-            savedBillMap.get(scheduleId)!.createdAt &&
-            new Date(bill.createdAt) > new Date(savedBillMap.get(scheduleId)!.createdAt))
-        ) {
-          savedBillMap.set(scheduleId, bill)
-        }
-      }
 
-      console.log(`[DOANH THU] Có ${savedBillMap.size} lịch có hóa đơn đã lưu (sau khi lọc trùng lặp)`)
+        if (!uniqueBills.has(scheduleId)) {
+          // First bill for this scheduleId
+          uniqueBills.set(scheduleId, bill)
+        } else {
+          const existingBill = uniqueBills.get(scheduleId)!
+          let shouldReplace = false
 
-      for (const schedule of finishedSchedules) {
-        try {
-          console.log(`\n[DOANH THU] Xử lý hóa đơn cho lịch ${schedule._id}:`)
-
-          // Lấy thông tin phòng
-          const room = await databaseService.rooms.findOne({ _id: schedule.roomId })
-          console.log(`- Phòng: ${room?.roomName || schedule.roomId}`)
-          console.log(
-            `- Thời gian: ${dayjs(ensureVNTimezone(schedule.startTime)).format('DD/MM HH:mm')} - ${dayjs(ensureVNTimezone(schedule.endTime)).format('DD/MM HH:mm')}`
-          )
-
-          let billToUse: IBill
-
-          // Kiểm tra xem đã có hóa đơn lưu sẵn chưa
-          if (savedBillMap.has(schedule._id.toString())) {
-            billToUse = savedBillMap.get(schedule._id.toString())!
-            console.log(`- Sử dụng hóa đơn đã lưu trong database, ID: ${billToUse._id}`)
-
-            // Log thông tin khuyến mãi nếu có
-            if (billToUse.activePromotion) {
-              console.log(
-                `- Khuyến mãi đã áp dụng: ${billToUse.activePromotion.name} (${billToUse.activePromotion.discountPercentage}%)`
-              )
-              console.log(`- Tổng tiền sau giảm giá: ${billToUse.totalAmount.toLocaleString('vi-VN')} VND`)
-            }
-          } else {
-            // Tính lại hóa đơn dựa trên thông tin schedule
-            console.log(`- Không tìm thấy hóa đơn đã lưu, đang tính toán lại...`)
-            // Không áp dụng promotion nào khi tính toán lại để tránh sai lệch
-            billToUse = await this.getBill(schedule._id.toString(), undefined, undefined, 'null', undefined)
-
-            // Gán _id nếu cần
-            if (!billToUse._id) {
-              billToUse._id = new ObjectId()
+          // Priority 1: Bills with paymentMethod (paid) over bills without
+          if (bill.paymentMethod && !existingBill.paymentMethod) {
+            shouldReplace = true
+          }
+          // Priority 2: If both have paymentMethod or both don't have, use latest createdAt
+          else if (
+            (!bill.paymentMethod && !existingBill.paymentMethod) ||
+            (bill.paymentMethod && existingBill.paymentMethod)
+          ) {
+            if (
+              bill.createdAt &&
+              existingBill.createdAt &&
+              new Date(bill.createdAt) > new Date(existingBill.createdAt)
+            ) {
+              shouldReplace = true
             }
           }
 
-          // Làm tròn tổng tiền xuống đến 1000 VND để đảm bảo nhất quán
-          billToUse.totalAmount = Math.floor(billToUse.totalAmount / 1000) * 1000
-
-          // Log chi tiết hóa đơn đã tính
-          console.log(`- Hóa đơn được sử dụng:`)
-          console.log(`  + Tổng tiền (đã làm tròn): ${billToUse.totalAmount.toLocaleString('vi-VN')} VND`)
-
-          if (billToUse.items) {
-            billToUse.items.forEach((item) => {
-              console.log(
-                `  + ${item.description}: ${item.quantity} x ${item.price.toLocaleString('vi-VN')} = ${(item.quantity * item.price).toLocaleString('vi-VN')} VND`
-              )
-            })
+          if (shouldReplace) {
+            uniqueBills.set(scheduleId, bill)
           }
-
-          // Sử dụng hóa đơn đã tính toán
-          finalBills.push(billToUse)
-          totalRevenue += billToUse.totalAmount
-
-          console.log(`- Đã thêm vào tổng doanh thu: ${billToUse.totalAmount.toLocaleString('vi-VN')} VND`)
-          console.log(`- Tổng doanh thu hiện tại: ${totalRevenue.toLocaleString('vi-VN')} VND`)
-        } catch (error) {
-          console.error(`[DOANH THU] Lỗi khi xử lý hóa đơn cho lịch ${schedule._id}:`, error)
         }
       }
+
+      const finalBills = Array.from(uniqueBills.values())
+
+      // Làm tròn tổng tiền của từng hóa đơn
+      finalBills.forEach((bill) => {
+        bill.totalAmount = Math.floor(bill.totalAmount / 1000) * 1000
+      })
+
+      // Tính tổng doanh thu
+      const totalRevenue = finalBills.reduce((sum, bill) => sum + bill.totalAmount, 0)
 
       console.log(`\n[DOANH THU] Tổng kết doanh thu tháng ${targetDate.format('MM/YYYY')}:`)
-      console.log(`- Số lượng hóa đơn: ${finalBills.length}`)
+      console.log(`- Số lượng hóa đơn (sau khi lọc trùng): ${finalBills.length}`)
       console.log(`- Tổng doanh thu: ${totalRevenue.toLocaleString('vi-VN')} VND`)
 
       return {
@@ -1569,20 +1479,21 @@ export class BillService {
         })
       }
 
-      const finishedSchedules = await databaseService.roomSchedule
+      // Tìm hóa đơn dựa trên createdAt (thời gian tạo hóa đơn) thay vì endTime của schedule
+      const bills = await databaseService.bills
         .find({
-          status: RoomScheduleStatus.Finished,
-          endTime: {
+          createdAt: {
             $gte: startDateObj,
             $lte: endDateObj
           }
         })
+        .sort({ createdAt: -1 })
         .toArray()
 
-      console.log(`[DOANH THU] Tìm thấy ${finishedSchedules.length} lịch đã hoàn thành`)
+      console.log(`[DOANH THU] Tìm thấy ${bills.length} hóa đơn được tạo trong khoảng thời gian này`)
 
-      if (finishedSchedules.length === 0) {
-        console.log('[DOANH THU] Không có lịch nào hoàn thành trong khoảng thời gian này')
+      if (bills.length === 0) {
+        console.log('[DOANH THU] Không có hóa đơn nào được tạo trong khoảng thời gian này')
         return {
           totalRevenue: 0,
           bills: [],
@@ -1591,100 +1502,54 @@ export class BillService {
         }
       }
 
-      // CÁCH MỚI: Luôn tính lại hóa đơn cho mọi lịch
-      const finalBills: IBill[] = []
-      let totalRevenue = 0
-
-      // Tìm kiếm hóa đơn đã lưu trong database
-      console.log('[DOANH THU] Tìm kiếm hóa đơn đã lưu trong database...')
-      const scheduleIds = finishedSchedules.map((schedule) => schedule._id)
-      const savedBills = await databaseService.bills
-        .find({
-          scheduleId: { $in: scheduleIds }
-        })
-        .toArray()
-
-      // Tạo map từ scheduleId đến bill đã lưu để tra cứu nhanh
-      const savedBillMap = new Map<string, IBill>()
-      for (const bill of savedBills) {
+      // Remove duplicates by scheduleId (prioritize paid bills, then latest createdAt)
+      const uniqueBills = new Map<string, IBill>()
+      for (const bill of bills) {
         const scheduleId = bill.scheduleId.toString()
-        if (
-          !savedBillMap.has(scheduleId) ||
-          (bill.createdAt &&
-            savedBillMap.get(scheduleId)!.createdAt &&
-            new Date(bill.createdAt) > new Date(savedBillMap.get(scheduleId)!.createdAt))
-        ) {
-          savedBillMap.set(scheduleId, bill)
-        }
-      }
 
-      console.log(`[DOANH THU] Có ${savedBillMap.size} lịch có hóa đơn đã lưu (sau khi lọc trùng lặp)`)
+        if (!uniqueBills.has(scheduleId)) {
+          // First bill for this scheduleId
+          uniqueBills.set(scheduleId, bill)
+        } else {
+          const existingBill = uniqueBills.get(scheduleId)!
+          let shouldReplace = false
 
-      for (const schedule of finishedSchedules) {
-        try {
-          console.log(`\n[DOANH THU] Xử lý hóa đơn cho lịch ${schedule._id}:`)
-
-          // Lấy thông tin phòng
-          const room = await databaseService.rooms.findOne({ _id: schedule.roomId })
-          console.log(`- Phòng: ${room?.roomName || schedule.roomId}`)
-          console.log(
-            `- Thời gian: ${dayjs(ensureVNTimezone(schedule.startTime)).format('DD/MM HH:mm')} - ${dayjs(ensureVNTimezone(schedule.endTime)).format('DD/MM HH:mm')}`
-          )
-
-          let billToUse: IBill
-
-          // Kiểm tra xem đã có hóa đơn lưu sẵn chưa
-          if (savedBillMap.has(schedule._id.toString())) {
-            billToUse = savedBillMap.get(schedule._id.toString())!
-            console.log(`- Sử dụng hóa đơn đã lưu trong database, ID: ${billToUse._id}`)
-
-            // Log thông tin khuyến mãi nếu có
-            if (billToUse.activePromotion) {
-              console.log(
-                `- Khuyến mãi đã áp dụng: ${billToUse.activePromotion.name} (${billToUse.activePromotion.discountPercentage}%)`
-              )
-              console.log(`- Tổng tiền sau giảm giá: ${billToUse.totalAmount.toLocaleString('vi-VN')} VND`)
-            }
-          } else {
-            // Tính lại hóa đơn dựa trên thông tin schedule
-            console.log(`- Không tìm thấy hóa đơn đã lưu, đang tính toán lại...`)
-            // Không áp dụng promotion nào khi tính toán lại để tránh sai lệch
-            billToUse = await this.getBill(schedule._id.toString(), undefined, undefined, 'null', undefined)
-
-            // Gán _id nếu cần
-            if (!billToUse._id) {
-              billToUse._id = new ObjectId()
+          // Priority 1: Bills with paymentMethod (paid) over bills without
+          if (bill.paymentMethod && !existingBill.paymentMethod) {
+            shouldReplace = true
+          }
+          // Priority 2: If both have paymentMethod or both don't have, use latest createdAt
+          else if (
+            (!bill.paymentMethod && !existingBill.paymentMethod) ||
+            (bill.paymentMethod && existingBill.paymentMethod)
+          ) {
+            if (
+              bill.createdAt &&
+              existingBill.createdAt &&
+              new Date(bill.createdAt) > new Date(existingBill.createdAt)
+            ) {
+              shouldReplace = true
             }
           }
 
-          // Làm tròn tổng tiền xuống đến 1000 VND để đảm bảo nhất quán
-          billToUse.totalAmount = Math.floor(billToUse.totalAmount / 1000) * 1000
-
-          // Log chi tiết hóa đơn đã tính
-          console.log(`- Hóa đơn được sử dụng:`)
-          console.log(`  + Tổng tiền (đã làm tròn): ${billToUse.totalAmount.toLocaleString('vi-VN')} VND`)
-
-          if (billToUse.items) {
-            billToUse.items.forEach((item) => {
-              console.log(
-                `  + ${item.description}: ${item.quantity} x ${item.price.toLocaleString('vi-VN')} = ${(item.quantity * item.price).toLocaleString('vi-VN')} VND`
-              )
-            })
+          if (shouldReplace) {
+            uniqueBills.set(scheduleId, bill)
           }
-
-          // Sử dụng hóa đơn đã tính toán
-          finalBills.push(billToUse)
-          totalRevenue += billToUse.totalAmount
-
-          console.log(`- Đã thêm vào tổng doanh thu: ${billToUse.totalAmount.toLocaleString('vi-VN')} VND`)
-          console.log(`- Tổng doanh thu hiện tại: ${totalRevenue.toLocaleString('vi-VN')} VND`)
-        } catch (error) {
-          console.error(`[DOANH THU] Lỗi khi xử lý hóa đơn cho lịch ${schedule._id}:`, error)
         }
       }
+
+      const finalBills = Array.from(uniqueBills.values())
+
+      // Làm tròn tổng tiền của từng hóa đơn
+      finalBills.forEach((bill) => {
+        bill.totalAmount = Math.floor(bill.totalAmount / 1000) * 1000
+      })
+
+      // Tính tổng doanh thu
+      const totalRevenue = finalBills.reduce((sum, bill) => sum + bill.totalAmount, 0)
 
       console.log(`\n[DOANH THU] Tổng kết doanh thu từ ${start.format('DD/MM/YYYY')} đến ${end.format('DD/MM/YYYY')}:`)
-      console.log(`- Số lượng hóa đơn: ${finalBills.length}`)
+      console.log(`- Số lượng hóa đơn (sau khi lọc trùng): ${finalBills.length}`)
       console.log(`- Tổng doanh thu: ${totalRevenue.toLocaleString('vi-VN')} VND`)
 
       return {
